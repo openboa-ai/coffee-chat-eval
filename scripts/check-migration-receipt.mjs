@@ -68,6 +68,18 @@ export function isCalVer(value) {
   return maximumDay !== undefined && day <= maximumDay;
 }
 
+function readUniqueCalVerField(name, text, pattern) {
+  const values = [];
+  for (const line of text.split(/\r?\n/u)) {
+    const match = pattern.exec(line);
+    if (match) values.push(match[1]);
+  }
+  if (values.length !== 1) {
+    throw new Error(`${name} must declare exactly one authoritative CalVer field`);
+  }
+  return values[0];
+}
+
 export function gitBlobOid(bytes) {
   return createHash("sha1")
     .update(`blob ${bytes.length}\0`)
@@ -442,15 +454,42 @@ async function main() {
     migrationClass === "bootstrap" ? readPinnedSource : undefined,
   );
 
-  const calver = packageJson.value.version;
+  const calver = readUniqueCalVerField(
+    "package.json",
+    packageJson.bytes.toString("utf8"),
+    /^\s*"version": "([^"]+)",?$/u,
+  );
+  if (packageJson.value.version !== calver) {
+    throw new Error("package.json CalVer source differs from parsed package version");
+  }
   if (!isCalVer(calver)) {
     throw new Error(
       "package version must use four-digit-year unpadded calendar CalVer",
     );
   }
-  for (const [name, text] of Object.entries({ plan, registry, candidate })) {
-    if (!text.includes(calver))
-      throw new Error(`${name} does not project package CalVer`);
+  const projections = [
+    ["PLAN.md", readUniqueCalVerField("PLAN.md", plan, /^CalVer: `([^`]+)`$/u)],
+    [
+      "dry-run registry",
+      readUniqueCalVerField(
+        "dry-run registry",
+        registry,
+        /^\s*calver: "([^"]+)" as const,$/u,
+      ),
+    ],
+    [
+      "candidate receipt fixture",
+      readUniqueCalVerField(
+        "candidate receipt fixture",
+        candidate,
+        /^\s*calver: "([^"]+)",$/u,
+      ),
+    ],
+  ];
+  for (const [name, projectedCalVer] of projections) {
+    if (projectedCalVer !== calver) {
+      throw new Error(`${name} CalVer must exactly match package version`);
+    }
   }
 
   if (migrationClass === "ordinary-pr") {

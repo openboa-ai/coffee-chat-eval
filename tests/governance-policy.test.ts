@@ -51,6 +51,10 @@ function runOrdinaryMigrationCheck(options?: {
   changedPath?: string;
   targetBytes?: Buffer;
   projectedCalVer?: string;
+  calverMutation?: {
+    readonly relative: string;
+    readonly mutate: (source: string) => string;
+  };
 }): void {
   const sourceRoot = fileURLToPath(repository);
   const temporaryRoot = mkdtempSync(join(tmpdir(), "coffee-chat-eval-migration-"));
@@ -92,6 +96,13 @@ function runOrdinaryMigrationCheck(options?: {
           projection.replaceAll("2026.8.9", options.projectedCalVer),
         );
       }
+    }
+    if (options?.calverMutation) {
+      const projectionPath = join(fixtureRoot, options.calverMutation.relative);
+      const projection = readFileSync(projectionPath, "utf8");
+      const mutated = options.calverMutation.mutate(projection);
+      assert.notEqual(mutated, projection, options.calverMutation.relative);
+      writeFileSync(projectionPath, mutated);
     }
     if (options?.targetBytes) {
       writeFileSync(join(fixtureRoot, ".gitignore"), options.targetBytes);
@@ -352,6 +363,106 @@ test("migration package and report projections reject non-calendar CalVer", () =
       () => runOrdinaryMigrationCheck({ projectedCalVer }),
       /package version must use four-digit-year unpadded calendar CalVer/u,
       projectedCalVer,
+    );
+  }
+});
+
+test("migration CalVer projections exactly equal the package source field", () => {
+  const scenarios = [
+    {
+      name: "PLAN.md",
+      relative: "PLAN.md",
+      mutate: (source: string) =>
+        source.replace(
+          "CalVer: `2026.8.9`",
+          "CalVer: `2026.8.8`\n\nHistorical package CalVer: `2026.8.9`",
+        ),
+    },
+    {
+      name: "dry-run registry",
+      relative: "src/registry.ts",
+      mutate: (source: string) =>
+        source.replace(
+          '    calver: "2026.8.9" as const,',
+          '    calver: "2026.8.8" as const,\n    // Package CalVer: 2026.8.9',
+        ),
+    },
+    {
+      name: "candidate receipt fixture",
+      relative: "src/adapters/fake-candidate.ts",
+      mutate: (source: string) =>
+        source.replace(
+          '  calver: "2026.8.9",',
+          '  calver: "2026.8.8",\n  // Package CalVer: 2026.8.9',
+        ),
+    },
+  ] as const;
+
+  for (const scenario of scenarios) {
+    assert.throws(
+      () =>
+        runOrdinaryMigrationCheck({
+          calverMutation: {
+            relative: scenario.relative,
+            mutate: scenario.mutate,
+          },
+        }),
+      new RegExp(`${scenario.name} CalVer must exactly match package version`, "u"),
+      scenario.name,
+    );
+  }
+});
+
+test("migration CalVer source and projections each declare one authoritative field", () => {
+  const scenarios = [
+    {
+      name: "package.json",
+      relative: "package.json",
+      mutate: (source: string) =>
+        source.replace(
+          '  "version": "2026.8.9",',
+          '  "version": "2026.8.9",\n  "version": "2026.8.9",',
+        ),
+    },
+    {
+      name: "PLAN.md",
+      relative: "PLAN.md",
+      mutate: (source: string) => `${source}\nCalVer: \`2026.8.9\`\n`,
+    },
+    {
+      name: "dry-run registry",
+      relative: "src/registry.ts",
+      mutate: (source: string) =>
+        source.replace(
+          '    calver: "2026.8.9" as const,',
+          '    calver: "2026.8.9" as const,\n    calver: "2026.8.9" as const,',
+        ),
+    },
+    {
+      name: "candidate receipt fixture",
+      relative: "src/adapters/fake-candidate.ts",
+      mutate: (source: string) =>
+        source.replace(
+          '  calver: "2026.8.9",',
+          '  calver: "2026.8.9",\n  calver: "2026.8.9",',
+        ),
+    },
+  ] as const;
+
+  for (const scenario of scenarios) {
+    assert.throws(
+      () =>
+        runOrdinaryMigrationCheck({
+          calverMutation: {
+            relative: scenario.relative,
+            mutate: scenario.mutate,
+          },
+        }),
+      new RegExp(
+        `${scenario.name} must declare exactly one authoritative CalVer field`,
+        "u",
+      ),
+      scenario.name,
     );
   }
 });
