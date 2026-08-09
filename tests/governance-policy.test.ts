@@ -15,16 +15,22 @@ import test from "node:test";
 
 const repository = new URL("..", import.meta.url);
 const migrationTask = "task-4-governance-and-deterministic-evaluator-baseline";
+const repositoryExecutionWorkflows = [
+  ".github/workflows/quality.yml",
+  ".github/workflows/policy.yml",
+  ".github/workflows/github-coverage.yml",
+] as const;
 
 function readJson(relative: string): unknown {
   return JSON.parse(readFileSync(new URL(relative, repository), "utf8"));
 }
 
-function runTrustedAuthorGate(authorAssociation: string, authorLogin: string): void {
-  const workflow = readFileSync(
-    new URL(".github/workflows/quality.yml", repository),
-    "utf8",
-  );
+function runTrustedAuthorGate(
+  workflowPath: string,
+  authorAssociation: string,
+  authorLogin: string,
+): void {
+  const workflow = readFileSync(new URL(workflowPath, repository), "utf8");
   const stepMarker = "      - name: Verify trusted pull request author\n";
   const stepStart = workflow.indexOf(stepMarker);
   const runMarker = "        run: |\n";
@@ -48,24 +54,16 @@ function runTrustedAuthorGate(authorAssociation: string, authorLogin: string): v
 
 function runOrdinaryMigrationCheck(options?: {
   changedPath?: string;
-  sourceBytes?: Buffer;
-  reportedBlobOid?: string;
+  targetBytes?: Buffer;
 }): void {
   const sourceRoot = fileURLToPath(repository);
   const temporaryRoot = mkdtempSync(join(tmpdir(), "coffee-chat-eval-migration-"));
   const fixtureRoot = join(temporaryRoot, "repository");
-  const preloadPath = join(temporaryRoot, "source-fetch.mjs");
+  const preloadPath = join(temporaryRoot, "network-block.mjs");
   const head = execFileSync("git", ["rev-parse", "HEAD"], {
     cwd: sourceRoot,
     encoding: "utf8",
   }).trim();
-  const sourceBytes =
-    options?.sourceBytes ?? readFileSync(new URL("../.gitignore", import.meta.url));
-  const reportedBlobOid =
-    options?.reportedBlobOid ?? "06c3eac63718c15982a69c6bb19e2466184e6278";
-  const expectedUrl =
-    "https://api.github.com/repos/SonSangjoon/coffee-chat-eval/contents/.gitignore?ref=1571411f91363dbdfec1aee6b7b5b5709c2289dd";
-
   try {
     execFileSync("git", ["clone", "--quiet", "--no-local", sourceRoot, fixtureRoot], {
       stdio: "pipe",
@@ -83,6 +81,9 @@ function runOrdinaryMigrationCheck(options?: {
       join(fixtureRoot, "node_modules"),
       "dir",
     );
+    if (options?.targetBytes) {
+      writeFileSync(join(fixtureRoot, ".gitignore"), options.targetBytes);
+    }
     if (options?.changedPath) {
       writeFileSync(join(fixtureRoot, options.changedPath), "unreviewed\n");
       execFileSync("git", ["add", "--", options.changedPath], {
@@ -92,19 +93,8 @@ function runOrdinaryMigrationCheck(options?: {
     }
     writeFileSync(
       preloadPath,
-      `const expectedUrl = ${JSON.stringify(expectedUrl)};
-globalThis.fetch = async (input) => {
-  if (String(input) !== expectedUrl) throw new Error("unexpected pinned source URL");
-  return {
-    ok: true,
-    status: 200,
-    json: async () => ({
-      type: "file",
-      encoding: "base64",
-      sha: ${JSON.stringify(reportedBlobOid)},
-      content: ${JSON.stringify(sourceBytes.toString("base64"))},
-    }),
-  };
+      `globalThis.fetch = async () => {
+  throw new Error("network access forbidden in required migration check");
 };
 `,
     );
@@ -245,21 +235,20 @@ test("migration classification is bootstrap-only after immutable authority exist
   );
 });
 
-test("ordinary migration bases still reject changes outside the active task scope", () => {
-  assert.throws(
-    () => runOrdinaryMigrationCheck({ changedPath: "unreviewed.txt" }),
-    /unclassified changed surface/u,
+test("ordinary PR migration checks stay network-free for unrelated new files", () => {
+  assert.doesNotThrow(() =>
+    runOrdinaryMigrationCheck({ changedPath: "ordinary-new-file.txt" }),
   );
 });
 
-test("migrate evidence rejects spoofed bytes from the pinned source object", () => {
+test("required migration checks reject locally tampered migrated target bytes", () => {
   assert.throws(
-    () => runOrdinaryMigrationCheck({ sourceBytes: Buffer.from("spoofed source\n") }),
-    /pinned source blob mismatch/u,
+    () => runOrdinaryMigrationCheck({ targetBytes: Buffer.from("tampered target\n") }),
+    /migrated target bytes do not match frozen selected source/u,
   );
 });
 
-test("migrate source verification independently rejects a SHA-256 mismatch", () => {
+test("external pinned-source provenance helper validates blob and digest independently", () => {
   assert.doesNotThrow(() =>
     execFileSync(
       process.execPath,
@@ -267,28 +256,45 @@ test("migrate source verification independently rejects a SHA-256 mismatch", () 
         "--input-type=module",
         "--eval",
         `import assert from "node:assert/strict";
-         import { gitBlobOid, readPinnedSource } from "./scripts/check-migration-receipt.mjs";
-         const bytes = Buffer.from("source with a different declared digest\\n");
-         const blob = gitBlobOid(bytes);
+         import { readPinnedSource } from "./scripts/check-migration-receipt.mjs";
+         const bytes = Buffer.from("independently verified source\\n");
+         const blob = "a8b9cec678293975619ed1d5fbe168bf9841265c";
+         const sha256 = "e9b07350757c91c2738f4a15b7fc1d85a9b3dcea61083f03a0d149b0c222dfaf";
          const row = {
            source_repository: "example/source",
            source_commit: "a".repeat(40),
            source_path: "source.txt",
            source_blob_oid: blob,
-           content_sha256: "0".repeat(64),
+           content_sha256: sha256,
          };
-         const fakeFetch = async () => ({
-           ok: true,
-           status: 200,
-           json: async () => ({
-             type: "file",
-             encoding: "base64",
-             sha: blob,
-             content: bytes.toString("base64"),
-           }),
-         });
+         const response = (reportedBlob = blob) => ({
+             ok: true,
+             status: 200,
+             json: async () => ({
+               type: "file",
+               encoding: "base64",
+               sha: reportedBlob,
+               content: bytes.toString("base64"),
+             }),
+           });
+         const fakeFetch = async (input) => {
+           assert.equal(
+             String(input),
+             "https://api.github.com/repos/example/source/contents/source.txt?ref=" + "a".repeat(40),
+           );
+           return response();
+         };
+         assert.deepEqual(await readPinnedSource(row, fakeFetch), bytes);
          await assert.rejects(
-           () => readPinnedSource(row, fakeFetch),
+           () => readPinnedSource(row, async () => response("0".repeat(40))),
+           /pinned source blob mismatch/u,
+         );
+         await assert.rejects(
+           () =>
+             readPinnedSource(
+               { ...row, content_sha256: "0".repeat(64) },
+               async () => response(),
+             ),
            /pinned source digest mismatch/u,
          );`,
       ],
@@ -307,7 +313,7 @@ test("merge policy requires the contexts actually named by Eval workflows", () =
   ]);
 });
 
-test("trusted-author gate admits only members or the official openboa login", () => {
+test("repository execution workflows gate PR authors before candidate code", () => {
   const policy = readJson(".github/merge-policy.json") as {
     eligible_author_associations?: unknown;
     eligible_author_logins?: unknown;
@@ -315,11 +321,34 @@ test("trusted-author gate admits only members or the official openboa login", ()
   assert.deepEqual(policy.eligible_author_associations, ["OWNER", "MEMBER"]);
   assert.deepEqual(policy.eligible_author_logins, ["openboa"]);
 
-  for (const association of ["CONTRIBUTOR", "NONE"]) {
-    assert.doesNotThrow(() => runTrustedAuthorGate(association, "openboa"));
+  for (const workflowPath of repositoryExecutionWorkflows) {
+    const workflow = readFileSync(new URL(workflowPath, repository), "utf8");
+    const gateIndex = workflow.indexOf(
+      "      - name: Verify trusted pull request author",
+    );
+    assert.notEqual(gateIndex, -1, workflowPath);
+    for (const candidateExecution of [
+      "uses: actions/checkout@",
+      "uses: actions/setup-node@",
+      "run: npm ci",
+    ]) {
+      const executionIndex = workflow.indexOf(candidateExecution);
+      assert.notEqual(executionIndex, -1, `${workflowPath}: ${candidateExecution}`);
+      assert.ok(gateIndex < executionIndex, `${workflowPath}: ${candidateExecution}`);
+    }
+
+    for (const association of ["CONTRIBUTOR", "NONE"]) {
+      assert.doesNotThrow(() =>
+        runTrustedAuthorGate(workflowPath, association, "openboa"),
+      );
+    }
+    assert.doesNotThrow(() =>
+      runTrustedAuthorGate(workflowPath, "MEMBER", "another-member"),
+    );
+    assert.throws(() =>
+      runTrustedAuthorGate(workflowPath, "CONTRIBUTOR", "untrusted-user"),
+    );
   }
-  assert.doesNotThrow(() => runTrustedAuthorGate("MEMBER", "another-member"));
-  assert.throws(() => runTrustedAuthorGate("CONTRIBUTOR", "untrusted-user"));
 });
 
 test("protected evaluator authority is owned and cannot enter the auto lane", () => {

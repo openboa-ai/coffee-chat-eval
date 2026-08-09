@@ -73,6 +73,38 @@ export function assertRequiredContexts(requiredContexts, namedContexts) {
   }
 }
 
+function assertTrustedAuthorGateBeforeCandidateExecution(workflow, source) {
+  const required = [
+    "name: Verify trusted pull request author",
+    "github.event_name == 'pull_request'",
+    "github.event.pull_request.author_association",
+    "github.event.pull_request.user.login",
+    "PR_AUTHOR_LOGIN",
+    "OWNER|MEMBER",
+    '"$PR_AUTHOR_LOGIN" = "openboa"',
+    "author=untrusted",
+  ];
+  for (const contract of required) {
+    if (!source.includes(contract)) {
+      throw new Error(`${workflow} lacks author eligibility: ${contract}`);
+    }
+  }
+  if (source.includes("COLLABORATOR")) {
+    throw new Error(`${workflow} must not admit non-member collaborators`);
+  }
+  const gateIndex = source.indexOf("name: Verify trusted pull request author");
+  for (const candidateExecution of [
+    "uses: actions/checkout@",
+    "uses: actions/setup-node@",
+    "run: npm ci",
+  ]) {
+    const executionIndex = source.indexOf(candidateExecution);
+    if (executionIndex === -1 || gateIndex > executionIndex) {
+      throw new Error(`${workflow} must gate authors before ${candidateExecution}`);
+    }
+  }
+}
+
 for (const workflow of workflows) {
   const text = await readFile(path(workflow), "utf8");
   if (!text.includes("pull_request:") || !text.includes("merge_group:")) {
@@ -103,23 +135,7 @@ if (
     "quality workflow lacks the required aggregate or dependency-review lane",
   );
 }
-for (const required of [
-  "name: Verify trusted pull request author",
-  "github.event_name == 'pull_request'",
-  "github.event.pull_request.author_association",
-  "github.event.pull_request.user.login",
-  "PR_AUTHOR_LOGIN",
-  "OWNER|MEMBER",
-  '"$PR_AUTHOR_LOGIN" = "openboa"',
-  "author=untrusted",
-]) {
-  if (!quality.includes(required)) {
-    throw new Error(`quality workflow lacks member eligibility: ${required}`);
-  }
-}
-if (quality.includes("COLLABORATOR")) {
-  throw new Error("quality workflow must not admit non-member collaborators");
-}
+assertTrustedAuthorGateBeforeCandidateExecution("quality workflow", quality);
 const policy = await readFile(path(".github/workflows/policy.yml"), "utf8");
 if (
   !policy.includes("fetch-depth: 0") ||
@@ -129,6 +145,7 @@ if (
 ) {
   throw new Error("policy workflow lacks the change-aware migration base");
 }
+assertTrustedAuthorGateBeforeCandidateExecution("policy workflow", policy);
 const codeql = await readFile(path(".github/workflows/codeql.yml"), "utf8");
 for (const permission of [
   "contents: read",
@@ -142,6 +159,7 @@ if (codeql.includes("id-token:") || codeql.includes("packages:"))
   throw new Error("CodeQL has unrelated write scope");
 
 const coverage = await readFile(path(".github/workflows/github-coverage.yml"), "utf8");
+assertTrustedAuthorGateBeforeCandidateExecution("coverage workflow", coverage);
 for (const required of [
   "permissions: {}",
   "--experimental-strip-types",
