@@ -1,5 +1,9 @@
 import { createTrialIdentity } from "./identity.ts";
-import { canonicalEvaluatorRef, snapshotAndFreeze } from "./validation.ts";
+import {
+  canonicalEvaluatorRef,
+  canonicalTrialInput,
+  snapshotAndFreeze,
+} from "./validation.ts";
 import type { MatrixDefinition, TrialSpec } from "./types.ts";
 
 export function expandMatrix(definition: MatrixDefinition): readonly TrialSpec[] {
@@ -27,15 +31,21 @@ export function expandMatrix(definition: MatrixDefinition): readonly TrialSpec[]
       for (const model of matrix.models) {
         for (const host of matrix.hosts) {
           for (let repetition = 0; repetition < matrix.repetitions; repetition += 1) {
-            const withoutId = snapshotAndFreeze({
+            const { trial: withoutId } = canonicalTrialInput(
+              {
+                evaluator,
+                candidate: matrix.candidate,
+                task,
+                harness,
+                model,
+                host,
+                repetition,
+              },
               evaluator,
-              candidate: matrix.candidate,
-              task,
-              harness,
-              model,
-              host,
-              repetition,
-            });
+            );
+            if (!withoutId) {
+              throw new TypeError("matrix axis provenance is invalid");
+            }
             trials.push(
               snapshotAndFreeze({
                 ...withoutId,

@@ -122,3 +122,58 @@ test("matrix projects only allowlisted evaluator provenance into trial identity"
     /trusted evaluator provenance is invalid/u,
   );
 });
+
+test("matrix projects every public axis before computing trial identity", () => {
+  const definition = matrixDefinition();
+  const [projected] = expandMatrix({
+    ...definition,
+    candidate: {
+      ...definition.candidate,
+      undeclaredSecret: "candidate-secret",
+    } as typeof definition.candidate,
+    tasks: [
+      {
+        ...definition.tasks[0],
+        undeclaredSecret: "task-secret",
+      } as (typeof definition.tasks)[number],
+    ],
+    harnesses: [
+      {
+        ...definition.harnesses[0],
+        undeclaredSecret: "harness-secret",
+      } as (typeof definition.harnesses)[number],
+    ],
+    models: [
+      {
+        ...definition.models[0],
+        undeclaredSecret: "model-secret",
+      } as (typeof definition.models)[number],
+    ],
+    hosts: [
+      {
+        ...definition.hosts[0],
+        undeclaredSecret: "host-secret",
+      } as (typeof definition.hosts)[number],
+    ],
+    repetitions: 1,
+  });
+
+  assert.ok(projected);
+  assert.equal(projected.id, createTrialIdentity(projected));
+  assert.doesNotMatch(JSON.stringify(projected), /secret/u);
+  assert.deepEqual(Object.keys(projected.candidate).sort(), [
+    "adapter",
+    "calver",
+    "commit",
+    "repository",
+  ]);
+  assert.deepEqual(Object.keys(projected.task).sort(), ["digest", "id"]);
+  assert.deepEqual(Object.keys(projected.harness).sort(), ["digest", "id"]);
+  assert.deepEqual(Object.keys(projected.model).sort(), ["digest", "id"]);
+  assert.deepEqual(Object.keys(projected.host).sort(), [
+    "configurationDigest",
+    "id",
+    "isolationClass",
+    "isolationReference",
+  ]);
+});

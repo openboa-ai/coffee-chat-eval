@@ -128,6 +128,31 @@ function candidateExecutionBoundary(candidate: CandidateAdapter): CandidateAdapt
   };
 }
 
+async function executeHostBoundary(
+  input: RunTrialInput,
+  trial: TrialSpec,
+  trialId: string,
+  workspaceId: string,
+): Promise<
+  | { readonly kind: "returned"; readonly output: unknown }
+  | { readonly kind: "host_failure" }
+> {
+  const candidate = candidateExecutionBoundary(input.candidate);
+  try {
+    return {
+      kind: "returned",
+      output: await input.host.execute({
+        trial,
+        trialId,
+        candidate,
+        workspaceId,
+      }),
+    };
+  } catch {
+    return { kind: "host_failure" };
+  }
+}
+
 function startTiming(timing: TimingProvider): {
   readonly provider: TimingProvider["ref"];
   readonly startedAt?: number;
@@ -222,126 +247,131 @@ export async function runTrial(input: RunTrialInput): Promise<TrialReceipt> {
   } else {
     cleanup = { status: "completed" };
     try {
-      const hostOutput: unknown = await input.host.execute({
+      const hostAttempt = await executeHostBoundary(
+        input,
         trial,
-        trialId: canonicalTrialId,
-        candidate: candidateExecutionBoundary(input.candidate),
+        canonicalTrialId,
         workspaceId,
-      });
-      const execution = validateHostExecutionEnvelope(hostOutput);
-      if (!execution) {
-        status = "evaluator_failure";
-        error = receiptError("evaluator_execution_failed");
-      } else if (execution.kind === "host_failure") {
+      );
+      if (hostAttempt.kind === "host_failure") {
         status = "host_failure";
         error = receiptError("host_execution_failed");
-      } else if (execution.candidate.kind === "failure") {
-        status = "candidate_failure";
-        error = receiptError("candidate_execution_failed");
       } else {
-        const immutableArtifact = execution.candidate.artifact;
-        if (!immutableArtifact) {
-          status = "invalid";
-          error = receiptError("artifact_digest_invalid");
+        const execution = validateHostExecutionEnvelope(hostAttempt.output);
+        if (!execution) {
+          status = "evaluator_failure";
+          error = receiptError("evaluator_execution_failed");
+        } else if (execution.kind === "host_failure") {
+          status = "host_failure";
+          error = receiptError("host_execution_failed");
+        } else if (execution.candidate.kind === "failure") {
+          status = "candidate_failure";
+          error = receiptError("candidate_execution_failed");
         } else {
-          const evidenceWasSupplied = execution.evidence !== undefined;
-          let validatedEvidence: HostEvidence | undefined;
-          if (evidenceWasSupplied) {
-            try {
-              validatedEvidence = validateHostEvidence(
-                execution.evidence,
-                trial.host.isolationClass,
-                {
-                  trialId: canonicalTrialId,
-                  artifactDigest: immutableArtifact.digest,
-                },
-              );
-            } catch {
-              validatedEvidence = undefined;
-            }
-          }
-          if (trial.host.isolationClass === "isolated" && !evidenceWasSupplied) {
-            status = "unavailable";
-            error = receiptError("isolation_evidence_missing");
-          } else if (trial.host.isolationClass === "isolated" && !validatedEvidence) {
-            status = "unavailable";
-            error = receiptError("isolation_evidence_invalid");
+          const immutableArtifact = execution.candidate.artifact;
+          if (!immutableArtifact) {
+            status = "invalid";
+            error = receiptError("artifact_digest_invalid");
           } else {
-            if (validatedEvidence) {
-              const inspectedEvidence =
-                typeof input.inspectHostEvidence === "function"
-                  ? await input.inspectHostEvidence({
-                      trial,
-                      trialId: canonicalTrialId,
-                      artifact: immutableArtifact,
-                      evidence: validatedEvidence,
-                    })
-                  : undefined;
-              hostEvidence = validateIsolationAttestation(
-                inspectedEvidence,
-                validatedEvidence,
-                trial.host,
-                {
-                  trialId: canonicalTrialId,
-                  artifactDigest: immutableArtifact.digest,
-                },
-              );
+            const evidenceWasSupplied = execution.evidence !== undefined;
+            let validatedEvidence: HostEvidence | undefined;
+            if (evidenceWasSupplied) {
+              try {
+                validatedEvidence = validateHostEvidence(
+                  execution.evidence,
+                  trial.host.isolationClass,
+                  {
+                    trialId: canonicalTrialId,
+                    artifactDigest: immutableArtifact.digest,
+                  },
+                );
+              } catch {
+                validatedEvidence = undefined;
+              }
             }
-            if (trial.host.isolationClass === "isolated" && !hostEvidence) {
+            if (trial.host.isolationClass === "isolated" && !evidenceWasSupplied) {
+              status = "unavailable";
+              error = receiptError("isolation_evidence_missing");
+            } else if (trial.host.isolationClass === "isolated" && !validatedEvidence) {
               status = "unavailable";
               error = receiptError("isolation_evidence_invalid");
             } else {
-              const suppliedArtifactLocator =
-                typeof input.persistArtifact === "function"
-                  ? await input.persistArtifact({
-                      trial,
-                      trialId: canonicalTrialId,
-                      artifact: immutableArtifact,
-                    })
-                  : undefined;
-              const persistence = validateArtifactPersistenceAttestation(
-                suppliedArtifactLocator,
-                trial.host.isolationClass,
-                {
-                  trialId: canonicalTrialId,
-                  artifactDigest: immutableArtifact.digest,
-                },
-              );
-              if (!persistence) {
-                status = "unavailable";
-                error = receiptError(
-                  suppliedArtifactLocator === undefined
-                    ? "artifact_locator_missing"
-                    : "artifact_locator_invalid",
+              if (validatedEvidence) {
+                const inspectedEvidence =
+                  typeof input.inspectHostEvidence === "function"
+                    ? await input.inspectHostEvidence({
+                        trial,
+                        trialId: canonicalTrialId,
+                        artifact: immutableArtifact,
+                        evidence: validatedEvidence,
+                      })
+                    : undefined;
+                hostEvidence = validateIsolationAttestation(
+                  inspectedEvidence,
+                  validatedEvidence,
+                  trial.host,
+                  {
+                    trialId: canonicalTrialId,
+                    artifactDigest: immutableArtifact.digest,
+                  },
                 );
+              }
+              if (trial.host.isolationClass === "isolated" && !hostEvidence) {
+                status = "unavailable";
+                error = receiptError("isolation_evidence_invalid");
               } else {
-                artifactSummary = artifactReceipt(immutableArtifact, persistence);
-                try {
-                  const validation = validateVerification(
-                    await input.task.verify(immutableArtifact),
+                const suppliedArtifactLocator =
+                  typeof input.persistArtifact === "function"
+                    ? await input.persistArtifact({
+                        trial,
+                        trialId: canonicalTrialId,
+                        artifact: immutableArtifact,
+                      })
+                    : undefined;
+                const persistence = validateArtifactPersistenceAttestation(
+                  suppliedArtifactLocator,
+                  trial.host.isolationClass,
+                  {
+                    trialId: canonicalTrialId,
+                    artifactDigest: immutableArtifact.digest,
+                  },
+                );
+                if (!persistence) {
+                  status = "unavailable";
+                  error = receiptError(
+                    suppliedArtifactLocator === undefined
+                      ? "artifact_locator_missing"
+                      : "artifact_locator_invalid",
                   );
-                  if (validation.kind === "invalid") {
-                    status = "verifier_failure";
-                    error = receiptError(validation.error);
-                  } else if (validation.verification.status === "valid") {
-                    metrics = validation.verification.metrics;
-                    status =
-                      trial.host.isolationClass === "isolated"
-                        ? "measured"
-                        : "unmeasured";
-                    if (status === "unmeasured") {
-                      error = receiptError("verification_unmeasured");
-                    }
-                  } else {
-                    status = validation.verification.status;
-                    error = receiptError(
-                      `verification_${validation.verification.status}`,
+                } else {
+                  artifactSummary = artifactReceipt(immutableArtifact, persistence);
+                  try {
+                    const validation = validateVerification(
+                      await input.task.verify(immutableArtifact),
                     );
+                    if (validation.kind === "invalid") {
+                      status = "verifier_failure";
+                      error = receiptError(validation.error);
+                    } else if (validation.verification.status === "valid") {
+                      metrics = validation.verification.metrics;
+                      status =
+                        trial.host.isolationClass === "isolated"
+                          ? "measured"
+                          : "unmeasured";
+                      if (status === "unmeasured") {
+                        error = receiptError("verification_unmeasured");
+                      }
+                    } else {
+                      status = validation.verification.status;
+                      error = receiptError(
+                        `verification_${validation.verification.status}`,
+                      );
+                    }
+                  } catch (caught) {
+                    void caught;
+                    status = "verifier_failure";
+                    error = receiptError("verifier_execution_failed");
                   }
-                } catch (caught) {
-                  void caught;
-                  status = "verifier_failure";
-                  error = receiptError("verifier_execution_failed");
                 }
               }
             }

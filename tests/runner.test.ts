@@ -1374,12 +1374,13 @@ test("skipped, unavailable, and evaluator boundaries remain explicit", async () 
     },
     cleanup: async () => {},
   };
-  const evaluatorFailure = await runTrial({ ...fixtureInput(), host: explodingHost });
+  const hostFailure = await runTrial({ ...fixtureInput(), host: explodingHost });
 
   assert.deepEqual(
-    [skipped.status, unavailable.status, evaluatorFailure.status],
-    ["skipped", "unavailable", "evaluator_failure"],
+    [skipped.status, unavailable.status, hostFailure.status],
+    ["skipped", "unavailable", "host_failure"],
   );
+  assert.equal(hostFailure.error?.code, "host_execution_failed");
 });
 
 test("rejects adapters whose declared public references differ from the trial", async () => {
