@@ -20,6 +20,32 @@ function readJson(relative: string): unknown {
   return JSON.parse(readFileSync(new URL(relative, repository), "utf8"));
 }
 
+function runTrustedAuthorGate(authorAssociation: string, authorLogin: string): void {
+  const workflow = readFileSync(
+    new URL(".github/workflows/quality.yml", repository),
+    "utf8",
+  );
+  const stepMarker = "      - name: Verify trusted pull request author\n";
+  const stepStart = workflow.indexOf(stepMarker);
+  const runMarker = "        run: |\n";
+  const runStart = workflow.indexOf(runMarker, stepStart) + runMarker.length;
+  const runEnd = workflow.indexOf("\n      - ", runStart);
+  assert.notEqual(stepStart, -1, "trusted-author step must exist");
+  assert.notEqual(runStart, runMarker.length - 1, "trusted-author script must exist");
+  assert.notEqual(runEnd, -1, "trusted-author step must have a following step");
+  const script = workflow.slice(runStart, runEnd).replace(/^ {10}/gmu, "");
+
+  execFileSync("bash", ["-c", `set -euo pipefail\n${script}`], {
+    cwd: repository,
+    env: {
+      ...process.env,
+      AUTHOR_ASSOCIATION: authorAssociation,
+      PR_AUTHOR_LOGIN: authorLogin,
+    },
+    stdio: "pipe",
+  });
+}
+
 function runOrdinaryMigrationCheck(options?: {
   changedPath?: string;
   sourceBytes?: Buffer;
@@ -279,6 +305,21 @@ test("merge policy requires the contexts actually named by Eval workflows", () =
     "Eval / aggregate",
     "Eval / dependency review",
   ]);
+});
+
+test("trusted-author gate admits only members or the official openboa login", () => {
+  const policy = readJson(".github/merge-policy.json") as {
+    eligible_author_associations?: unknown;
+    eligible_author_logins?: unknown;
+  };
+  assert.deepEqual(policy.eligible_author_associations, ["OWNER", "MEMBER"]);
+  assert.deepEqual(policy.eligible_author_logins, ["openboa"]);
+
+  for (const association of ["CONTRIBUTOR", "NONE"]) {
+    assert.doesNotThrow(() => runTrustedAuthorGate(association, "openboa"));
+  }
+  assert.doesNotThrow(() => runTrustedAuthorGate("MEMBER", "another-member"));
+  assert.throws(() => runTrustedAuthorGate("CONTRIBUTOR", "untrusted-user"));
 });
 
 test("protected evaluator authority is owned and cannot enter the auto lane", () => {
