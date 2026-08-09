@@ -15,19 +15,48 @@ export function expandMatrix(definition: MatrixDefinition): readonly TrialSpec[]
       throw new Error(`${axis} must contain at least one entry`);
     }
   }
+  const evaluator = Object.freeze({
+    repository: definition.evaluator.repository,
+    commit: definition.evaluator.commit,
+    calver: definition.evaluator.calver,
+    configurationDigest: definition.evaluator.configurationDigest,
+  });
+  const candidate = Object.freeze({
+    repository: definition.candidate.repository,
+    commit: definition.candidate.commit,
+    calver: definition.candidate.calver,
+    adapter: definition.candidate.adapter,
+  });
+  const tasks = definition.tasks.map((task) =>
+    Object.freeze({ id: task.id, digest: task.digest }),
+  );
+  const harnesses = definition.harnesses.map((harness) =>
+    Object.freeze({ id: harness.id, digest: harness.digest }),
+  );
+  const models = definition.models.map((model) =>
+    Object.freeze({ id: model.id, digest: model.digest }),
+  );
+  const hosts = definition.hosts.map((host) =>
+    Object.freeze({
+      id: host.id,
+      isolationClass: host.isolationClass,
+      configurationDigest: host.configurationDigest,
+      isolationReference: host.isolationReference,
+    }),
+  );
   const trials: TrialSpec[] = [];
-  for (const task of definition.tasks) {
-    for (const harness of definition.harnesses) {
-      for (const model of definition.models) {
-        for (const host of definition.hosts) {
+  for (const task of tasks) {
+    for (const harness of harnesses) {
+      for (const model of models) {
+        for (const host of hosts) {
           for (
             let repetition = 0;
             repetition < definition.repetitions;
             repetition += 1
           ) {
             const withoutId = {
-              evaluator: definition.evaluator,
-              candidate: definition.candidate,
+              evaluator,
+              candidate,
               task,
               harness,
               model,

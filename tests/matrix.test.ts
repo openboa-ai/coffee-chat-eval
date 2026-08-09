@@ -59,3 +59,35 @@ test("matrix rejects an empty axis instead of silently creating no trials", () =
     /hosts must contain at least one entry/u,
   );
 });
+
+test("matrix expansion returns a canonical snapshot detached from caller objects", () => {
+  const base = matrixDefinition();
+  const candidate = {
+    ...base.candidate,
+    undeclaredSecret: "must-not-enter-the-trial",
+  };
+  const task = { id: "task-a", digest: stableDigest("task-a") };
+  const host = base.hosts[0];
+  assert.ok(host);
+  const trials = expandMatrix({
+    ...base,
+    candidate,
+    tasks: [task],
+    hosts: [host],
+    repetitions: 1,
+  });
+  const trial = trials[0];
+  assert.ok(trial);
+  const identity = trial.id;
+
+  assert.equal("undeclaredSecret" in trial.candidate, false);
+
+  candidate.repository = "https://example.invalid/mutated";
+  task.id = "mutated-task";
+
+  assert.equal(trial.candidate.repository, "https://github.com/openboa-ai/coffee-chat");
+  assert.equal(trial.task.id, "task-a");
+  assert.equal(createTrialIdentity(trial), identity);
+  assert.equal(Object.isFrozen(trial.candidate), true);
+  assert.equal(Object.isFrozen(trial.task), true);
+});
