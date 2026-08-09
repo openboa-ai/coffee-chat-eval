@@ -146,6 +146,7 @@ const policy = await readFile(path(".github/workflows/policy.yml"), "utf8");
 if (
   !policy.includes("fetch-depth: 0") ||
   !policy.includes("MIGRATION_BASE_SHA") ||
+  !policy.includes("GITHUB_TOKEN: ${{ github.token }}") ||
   !policy.includes("github.event.pull_request.base.sha") ||
   !policy.includes("github.event.merge_group.base_sha")
 ) {

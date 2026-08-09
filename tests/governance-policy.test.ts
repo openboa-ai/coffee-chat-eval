@@ -128,10 +128,74 @@ function runOrdinaryMigrationCheck(options?: {
   }
 }
 
+function runBootstrapMigrationCheck(): void {
+  const temporaryRoot = mkdtempSync(join(tmpdir(), "coffee-chat-eval-bootstrap-"));
+  const preloadPath = join(temporaryRoot, "pinned-source.mjs");
+  const fetchMarkerPath = join(temporaryRoot, "fetch-marker.txt");
+  const expectedUrl =
+    "https://api.github.com/repos/SonSangjoon/coffee-chat-eval/contents/.gitignore" +
+    "?ref=1571411f91363dbdfec1aee6b7b5b5709c2289dd";
+  const sourceBytes = Buffer.from("bm9kZV9tb2R1bGVzLwpjb3ZlcmFnZS8KZGlzdC8K", "base64");
+  try {
+    writeFileSync(
+      preloadPath,
+      `import { writeFileSync } from "node:fs";
+const expectedUrl = ${JSON.stringify(expectedUrl)};
+const markerPath = ${JSON.stringify(fetchMarkerPath)};
+const sourceBytes = Buffer.from(${JSON.stringify(sourceBytes.toString("base64"))}, "base64");
+globalThis.fetch = async (input, init) => {
+  if (String(input) !== expectedUrl) {
+    throw new Error("unexpected pinned source URL: " + String(input));
+  }
+  if (init?.headers?.Authorization !== "Bearer fixture-bootstrap-token") {
+    throw new Error("bootstrap source fetch is not authenticated");
+  }
+  writeFileSync(markerPath, String(input));
+  return {
+    ok: true,
+    status: 200,
+    json: async () => ({
+      type: "file",
+      encoding: "base64",
+      sha: "06c3eac63718c15982a69c6bb19e2466184e6278",
+      content: sourceBytes.toString("base64"),
+    }),
+  };
+};
+`,
+    );
+    execFileSync(
+      process.execPath,
+      [
+        "--import",
+        pathToFileURL(preloadPath).href,
+        "scripts/check-migration-receipt.mjs",
+      ],
+      {
+        cwd: repository,
+        env: {
+          ...process.env,
+          GITHUB_TOKEN: "fixture-bootstrap-token",
+          MIGRATION_BASE_SHA: "c834e23a7149b434d5b4c349cf4589502306da0c",
+        },
+        stdio: "pipe",
+      },
+    );
+    assert.equal(readFileSync(fetchMarkerPath, "utf8"), expectedUrl);
+  } finally {
+    rmSync(temporaryRoot, { force: true, recursive: true });
+  }
+}
+
 test("repository governance validates least-privilege workflows and migration evidence", () => {
+  const head = execFileSync("git", ["rev-parse", "HEAD"], {
+    cwd: repository,
+    encoding: "utf8",
+  }).trim();
   assert.doesNotThrow(() => {
     execFileSync(process.execPath, [".github/ci-policy.mjs"], {
       cwd: new URL("..", import.meta.url),
+      env: { ...process.env, MIGRATION_BASE_SHA: head },
       stdio: "pipe",
     });
   });
@@ -250,6 +314,28 @@ test("migration classification is bootstrap-only after immutable authority exist
 test("ordinary PR migration checks stay network-free for unrelated new files", () => {
   assert.doesNotThrow(() =>
     runOrdinaryMigrationCheck({ changedPath: "ordinary-new-file.txt" }),
+  );
+});
+
+test("bootstrap migration reads pinned source and compares exact target bytes", () => {
+  runBootstrapMigrationCheck();
+  assert.match(
+    readFileSync(new URL("../.github/workflows/policy.yml", import.meta.url), "utf8"),
+    /GITHUB_TOKEN: \$\{\{ github\.token \}\}/u,
+  );
+  assert.throws(
+    () =>
+      execFileSync(
+        process.execPath,
+        [
+          "--input-type=module",
+          "--eval",
+          `import { assertMigratedBytesEqual } from "./scripts/check-migration-receipt.mjs";
+           assertMigratedBytesEqual(Buffer.from("frozen source"), Buffer.from("different target"), ".gitignore");`,
+        ],
+        { cwd: repository, stdio: "pipe" },
+      ),
+    /pinned source bytes differ from migrated target/u,
   );
 });
 
