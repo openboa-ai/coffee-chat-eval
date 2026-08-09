@@ -17,19 +17,14 @@ jobs:
         if: github.event_name == 'pull_request'
         env:
           AUTHOR_ASSOCIATION: ${{ github.event.pull_request.author_association }}
-          PR_AUTHOR_LOGIN: ${{ github.event.pull_request.user.login }}
         run: |
           case "$AUTHOR_ASSOCIATION" in
             OWNER|MEMBER)
               printf '%s\n' 'author=trusted_member'
               ;;
             *)
-              if [ "$PR_AUTHOR_LOGIN" = "openboa" ]; then
-                printf '%s\n' 'author=trusted_official_login'
-              else
-                printf '%s\n' 'author=untrusted' >&2
-                exit 1
-              fi
+              printf '%s\n' 'author=untrusted' >&2
+              exit 1
               ;;
           esac
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5

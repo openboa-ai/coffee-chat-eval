@@ -25,11 +25,7 @@ function readJson(relative: string): unknown {
   return JSON.parse(readFileSync(new URL(relative, repository), "utf8"));
 }
 
-function runTrustedAuthorGate(
-  workflowPath: string,
-  authorAssociation: string,
-  authorLogin: string,
-): void {
+function runTrustedAuthorGate(workflowPath: string, authorAssociation: string): void {
   const workflow = readFileSync(new URL(workflowPath, repository), "utf8");
   const stepMarker = "      - name: Verify trusted pull request author\n";
   const stepStart = workflow.indexOf(stepMarker);
@@ -46,7 +42,6 @@ function runTrustedAuthorGate(
     env: {
       ...process.env,
       AUTHOR_ASSOCIATION: authorAssociation,
-      PR_AUTHOR_LOGIN: authorLogin,
     },
     stdio: "pipe",
   });
@@ -340,13 +335,12 @@ test("merge policy requires the contexts actually named by Eval workflows", () =
   ]);
 });
 
-test("repository execution workflows gate PR authors before candidate code", () => {
-  const policy = readJson(".github/merge-policy.json") as {
+test("candidate-executing workflows admit only organization owners and members", () => {
+  const policy = readJson(".github/merge-policy.json") as Record<string, unknown> & {
     eligible_author_associations?: unknown;
-    eligible_author_logins?: unknown;
   };
   assert.deepEqual(policy.eligible_author_associations, ["OWNER", "MEMBER"]);
-  assert.deepEqual(policy.eligible_author_logins, ["openboa"]);
+  assert.equal(Object.hasOwn(policy, "eligible_author_logins"), false);
 
   for (const workflowPath of repositoryExecutionWorkflows) {
     const workflow = readFileSync(new URL(workflowPath, repository), "utf8");
@@ -354,6 +348,11 @@ test("repository execution workflows gate PR authors before candidate code", () 
       "      - name: Verify trusted pull request author",
     );
     assert.notEqual(gateIndex, -1, workflowPath);
+    assert.doesNotMatch(
+      workflow,
+      /pull_request\.user\.login|PR_AUTHOR_LOGIN|trusted_official_login/u,
+      workflowPath,
+    );
     for (const candidateExecution of [
       "uses: actions/checkout@",
       "uses: actions/setup-node@",
@@ -364,17 +363,12 @@ test("repository execution workflows gate PR authors before candidate code", () 
       assert.ok(gateIndex < executionIndex, `${workflowPath}: ${candidateExecution}`);
     }
 
-    for (const association of ["CONTRIBUTOR", "NONE"]) {
-      assert.doesNotThrow(() =>
-        runTrustedAuthorGate(workflowPath, association, "openboa"),
-      );
+    for (const association of ["OWNER", "MEMBER"]) {
+      assert.doesNotThrow(() => runTrustedAuthorGate(workflowPath, association));
     }
-    assert.doesNotThrow(() =>
-      runTrustedAuthorGate(workflowPath, "MEMBER", "another-member"),
-    );
-    assert.throws(() =>
-      runTrustedAuthorGate(workflowPath, "CONTRIBUTOR", "untrusted-user"),
-    );
+    for (const association of ["CONTRIBUTOR", "COLLABORATOR", "NONE"]) {
+      assert.throws(() => runTrustedAuthorGate(workflowPath, association));
+    }
   }
 });
 
