@@ -55,6 +55,19 @@ function adapterReferencesMatch(input: RunTrialInput, trial: TrialSpec): boolean
   );
 }
 
+function candidateExecutionBoundary(candidate: CandidateAdapter): CandidateAdapter {
+  return {
+    ref: candidate.ref,
+    async run(input) {
+      try {
+        return await candidate.run(input);
+      } catch {
+        return { kind: "failure", message: "candidate adapter execution failed" };
+      }
+    },
+  };
+}
+
 function startTiming(timing: TimingProvider): {
   readonly provider: TimingProvider["ref"];
   readonly startedAt?: number;
@@ -138,7 +151,8 @@ export async function runTrial(input: RunTrialInput): Promise<TrialReceipt> {
     try {
       const execution = await input.host.execute({
         trial,
-        candidate: input.candidate,
+        trialId: canonicalTrialId,
+        candidate: candidateExecutionBoundary(input.candidate),
         workspaceId,
       });
       if (execution.kind === "host_failure") {
@@ -149,22 +163,9 @@ export async function runTrial(input: RunTrialInput): Promise<TrialReceipt> {
         error = receiptError("candidate_execution_failed");
       } else {
         const evidenceWasSupplied = execution.evidence !== undefined;
-        if (evidenceWasSupplied) {
-          try {
-            hostEvidence = validateHostEvidence(
-              execution.evidence,
-              trial.host.isolationClass,
-            );
-          } catch {
-            hostEvidence = undefined;
-          }
-        }
         if (trial.host.isolationClass === "isolated" && !evidenceWasSupplied) {
           status = "unavailable";
           error = receiptError("isolation_evidence_missing");
-        } else if (trial.host.isolationClass === "isolated" && !hostEvidence) {
-          status = "unavailable";
-          error = receiptError("isolation_evidence_invalid");
         } else {
           let artifact: Artifact | undefined;
           try {
@@ -177,29 +178,52 @@ export async function runTrial(input: RunTrialInput): Promise<TrialReceipt> {
             error = receiptError("artifact_digest_invalid");
           } else {
             const immutableArtifact = snapshotAndFreeze(artifact);
-            artifactSummary = artifactReceipt(immutableArtifact);
-            try {
-              const validation = validateVerification(
-                await input.task.verify(immutableArtifact),
-              );
-              if (validation.kind === "invalid") {
-                status = "verifier_failure";
-                error = receiptError(validation.error);
-              } else if (validation.verification.status === "valid") {
-                metrics = validation.verification.metrics;
-                status =
-                  trial.host.isolationClass === "isolated" ? "measured" : "unmeasured";
-                if (status === "unmeasured") {
-                  error = receiptError("verification_unmeasured");
-                }
-              } else {
-                status = validation.verification.status;
-                error = receiptError(`verification_${validation.verification.status}`);
+            if (evidenceWasSupplied) {
+              try {
+                hostEvidence = validateHostEvidence(
+                  execution.evidence,
+                  trial.host.isolationClass,
+                  {
+                    trialId: canonicalTrialId,
+                    artifactDigest: immutableArtifact.digest,
+                  },
+                );
+              } catch {
+                hostEvidence = undefined;
               }
-            } catch (caught) {
-              void caught;
-              status = "verifier_failure";
-              error = receiptError("verifier_execution_failed");
+            }
+            if (trial.host.isolationClass === "isolated" && !hostEvidence) {
+              status = "unavailable";
+              error = receiptError("isolation_evidence_invalid");
+            } else {
+              artifactSummary = artifactReceipt(immutableArtifact);
+              try {
+                const validation = validateVerification(
+                  await input.task.verify(immutableArtifact),
+                );
+                if (validation.kind === "invalid") {
+                  status = "verifier_failure";
+                  error = receiptError(validation.error);
+                } else if (validation.verification.status === "valid") {
+                  metrics = validation.verification.metrics;
+                  status =
+                    trial.host.isolationClass === "isolated"
+                      ? "measured"
+                      : "unmeasured";
+                  if (status === "unmeasured") {
+                    error = receiptError("verification_unmeasured");
+                  }
+                } else {
+                  status = validation.verification.status;
+                  error = receiptError(
+                    `verification_${validation.verification.status}`,
+                  );
+                }
+              } catch (caught) {
+                void caught;
+                status = "verifier_failure";
+                error = receiptError("verifier_execution_failed");
+              }
             }
           }
         }

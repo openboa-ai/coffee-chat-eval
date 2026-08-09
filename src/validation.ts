@@ -177,23 +177,42 @@ export function artifactReceipt(artifact: Artifact): ArtifactReceipt {
 export function validateHostEvidence(
   evidence: unknown,
   isolationClass: IsolationClass,
+  expected: {
+    readonly trialId: string;
+    readonly artifactDigest: `sha256:${string}`;
+  },
 ): ReceiptEvidence | undefined {
   if (
     !isPlainRecord(evidence) ||
-    !hasExactKeys(evidence, ["detail", "digest", "reference"]) ||
+    !hasExactKeys(evidence, [
+      "artifactDigest",
+      "detail",
+      "digest",
+      "reference",
+      "trialId",
+    ]) ||
     typeof evidence.reference !== "string" ||
     !isValidEvidenceReference(evidence.reference, isolationClass) ||
     !isSha256Digest(evidence.digest) ||
     typeof evidence.detail !== "string" ||
     evidence.detail.trim().length === 0 ||
+    evidence.trialId !== expected.trialId ||
+    evidence.artifactDigest !== expected.artifactDigest ||
     evidence.digest !==
-      stableDigest({ reference: evidence.reference, detail: evidence.detail })
+      stableDigest({
+        reference: evidence.reference,
+        detail: evidence.detail,
+        trialId: evidence.trialId,
+        artifactDigest: evidence.artifactDigest,
+      })
   ) {
     return undefined;
   }
   return Object.freeze({
     locator: evidence.reference,
     digest: evidence.digest,
+    trialId: evidence.trialId,
+    artifactDigest: evidence.artifactDigest,
   });
 }
 

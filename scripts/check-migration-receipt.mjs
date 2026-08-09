@@ -55,6 +55,19 @@ const path = (relative) => new URL(relative, root);
 const digest = (bytes) => createHash("sha256").update(bytes).digest("hex");
 const canonicalJson = (value) => JSON.stringify(value, null, 2) + "\n";
 
+export function isCalVer(value) {
+  if (typeof value !== "string") return false;
+  const match = /^(\d{4})\.([1-9]|1[0-2])\.([1-9]|[12]\d|3[01])$/u.exec(value);
+  if (!match) return false;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const leapYear = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+  const daysInMonth = [31, leapYear ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  const maximumDay = daysInMonth[month - 1];
+  return maximumDay !== undefined && day <= maximumDay;
+}
+
 export function gitBlobOid(bytes) {
   return createHash("sha1")
     .update(`blob ${bytes.length}\0`)
@@ -407,8 +420,10 @@ async function main() {
   await assertActionEvidence(projection.value, execution.value);
 
   const calver = packageJson.value.version;
-  if (typeof calver !== "string" || !/^\d+\.[1-9]\d*\.[1-9]\d*$/u.test(calver)) {
-    throw new Error("package version must use unpadded CalVer");
+  if (!isCalVer(calver)) {
+    throw new Error(
+      "package version must use four-digit-year unpadded calendar CalVer",
+    );
   }
   for (const [name, text] of Object.entries({ plan, registry, candidate })) {
     if (!text.includes(calver))

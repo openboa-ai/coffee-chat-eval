@@ -7,7 +7,9 @@ import { createTrialIdentity, stableDigest } from "../src/identity.ts";
 import { runTrial } from "../src/runner.ts";
 import { validateTrialProvenance } from "../src/validation.ts";
 import type {
+  CandidateAdapter,
   HostAdapter,
+  HostEvidence,
   TaskAdapter,
   TimingProvider,
   TrialSpec,
@@ -81,26 +83,34 @@ function isolatedTrial(): TrialSpec {
   };
 }
 
+function boundIsolationEvidence(binding: {
+  readonly reference: string;
+  readonly detail: string;
+  readonly trialId: string;
+  readonly artifactDigest: `sha256:${string}`;
+}) {
+  return { ...binding, digest: stableDigest(binding) };
+}
+
 test("fixture trial stores content-addressed host evidence without performance credit", async () => {
+  const trialId = createTrialIdentity(trial);
+  const artifactDigest = stableDigest("ok");
+  const reference = `fixture://workspace-${trialId}`;
+  const detail = "token=keep-this-secret";
   const result = await runTrial({
     ...fixtureInput(),
-    host: createFakeHost({ evidence: "token=keep-this-secret" }),
+    host: createFakeHost({ evidence: detail }),
   });
 
   assert.equal(result.status, "unmeasured");
   assert.equal(result.evidenceClass, "fixture");
   assert.equal(result.cleanup.status, "completed");
-  assert.equal(
-    result.hostEvidence?.locator,
-    `fixture://workspace-${createTrialIdentity(trial)}`,
-  );
-  assert.equal(
-    result.hostEvidence?.digest,
-    stableDigest({
-      reference: `fixture://workspace-${createTrialIdentity(trial)}`,
-      detail: "token=keep-this-secret",
-    }),
-  );
+  assert.deepEqual(result.hostEvidence, {
+    locator: reference,
+    digest: stableDigest({ reference, detail, trialId, artifactDigest }),
+    trialId,
+    artifactDigest,
+  });
   assert.equal(JSON.stringify(result).includes("keep-this-secret"), false);
   assert.equal(result.timing.status, "unmeasured");
   assert.equal(result.performanceClaim, false);
@@ -109,6 +119,8 @@ test("fixture trial stores content-addressed host evidence without performance c
 
 test("isolated trials receive no measured credit without structurally valid inspectable evidence", async () => {
   const isolated = isolatedTrial();
+  const canonicalTrialId = createTrialIdentity(isolated);
+  const artifactDigest = stableDigest("ok");
   const result = await runTrial({
     ...fixtureInput(),
     trial: isolated,
@@ -117,7 +129,12 @@ test("isolated trials receive no measured credit without structurally valid insp
       async execute({ trial: adapterTrial, candidate, workspaceId }) {
         return {
           kind: "completed" as const,
-          evidence: { reference: "", digest: stableDigest("empty"), detail: "" },
+          evidence: boundIsolationEvidence({
+            reference: "",
+            detail: "",
+            trialId: canonicalTrialId,
+            artifactDigest,
+          }),
           candidate: await candidate.run({ trial: adapterTrial, workspaceId }),
         };
       },
@@ -140,9 +157,12 @@ test("isolated trials receive no measured credit without structurally valid insp
         return {
           kind: "completed" as const,
           evidence: {
-            reference: credentialedReference,
-            digest: stableDigest("credentialed-evidence"),
-            detail: "isolated workspace receipt",
+            ...boundIsolationEvidence({
+              reference: credentialedReference,
+              detail: "isolated workspace receipt",
+              trialId: canonicalTrialId,
+              artifactDigest,
+            }),
           },
           candidate: await candidate.run({ trial: adapterTrial, workspaceId }),
         };
@@ -157,24 +177,34 @@ test("isolated trials receive no measured credit without structurally valid insp
   const evidenceReference =
     "https://evidence.example/runs/0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
   const evidenceDetail = "inspectable-isolation-evidence";
-  const evidenceDigest = stableDigest({
+  const evidence = boundIsolationEvidence({
     reference: evidenceReference,
     detail: evidenceDetail,
+    trialId: canonicalTrialId,
+    artifactDigest,
   });
   const measured = await runTrial({
     ...fixtureInput(),
     trial: isolated,
     host: {
       ref: isolated.host,
-      async execute({ trial: adapterTrial, candidate, workspaceId }) {
+      async execute({ trial: adapterTrial, trialId, candidate, workspaceId }) {
+        const candidateRun = await candidate.run({
+          trial: adapterTrial,
+          workspaceId,
+        });
+        assert.equal(trialId, canonicalTrialId);
+        assert.equal(candidateRun.kind, "success");
+        assert.ok(candidateRun.artifact);
         return {
           kind: "completed" as const,
-          evidence: {
+          evidence: boundIsolationEvidence({
             reference: evidenceReference,
-            digest: evidenceDigest,
             detail: evidenceDetail,
-          },
-          candidate: await candidate.run({ trial: adapterTrial, workspaceId }),
+            trialId,
+            artifactDigest: candidateRun.artifact.digest,
+          }),
+          candidate: candidateRun,
         };
       },
       async cleanup() {},
@@ -183,27 +213,94 @@ test("isolated trials receive no measured credit without structurally valid insp
   assert.equal(measured.status, "measured");
   assert.deepEqual(measured.hostEvidence, {
     locator: evidenceReference,
-    digest: evidenceDigest,
+    digest: evidence.digest,
+    trialId: canonicalTrialId,
+    artifactDigest,
   });
+});
+
+test("unbound or stale isolated evidence cannot produce measured credit", async () => {
+  const isolated = isolatedTrial();
+  const canonicalTrialId = createTrialIdentity(isolated);
+  const artifactDigest = stableDigest("ok");
+  const reference =
+    "https://evidence.example/runs/abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789";
+  const unboundDetail = "legacy evidence with no trial or artifact binding";
+  const scenarios: ReadonlyArray<{
+    readonly name: string;
+    readonly evidence: unknown;
+  }> = [
+    {
+      name: "unbound",
+      evidence: {
+        reference,
+        detail: unboundDetail,
+        digest: stableDigest({ reference, detail: unboundDetail }),
+      },
+    },
+    {
+      name: "another trial",
+      evidence: boundIsolationEvidence({
+        reference,
+        detail: "evidence from another trial",
+        trialId: createTrialIdentity({ ...isolated, repetition: 1 }),
+        artifactDigest,
+      }),
+    },
+    {
+      name: "another artifact",
+      evidence: boundIsolationEvidence({
+        reference,
+        detail: "evidence for stale output",
+        trialId: canonicalTrialId,
+        artifactDigest: stableDigest("stale output"),
+      }),
+    },
+  ];
+
+  for (const scenario of scenarios) {
+    const result = await runTrial({
+      ...fixtureInput(),
+      trial: isolated,
+      host: {
+        ref: isolated.host,
+        async execute({ trial: adapterTrial, candidate, workspaceId }) {
+          return {
+            kind: "completed" as const,
+            evidence: scenario.evidence as HostEvidence,
+            candidate: await candidate.run({ trial: adapterTrial, workspaceId }),
+          };
+        },
+        async cleanup() {},
+      },
+    });
+
+    assert.equal(result.status, "unavailable", scenario.name);
+    assert.equal(result.error?.code, "isolation_evidence_invalid", scenario.name);
+    assert.equal(result.hostEvidence, undefined, scenario.name);
+    assert.equal(result.metrics, undefined, scenario.name);
+  }
 });
 
 test("isolated evidence must bind immutable locator and exact evidence bytes", async () => {
   const isolated = isolatedTrial();
+  const canonicalTrialId = createTrialIdentity(isolated);
+  const artifactDigest = stableDigest("ok");
   for (const evidence of [
     {
       reference:
         "https://evidence.example/runs/0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
       digest: stableDigest("unbound-digest"),
       detail: "inspectable bytes",
+      trialId: canonicalTrialId,
+      artifactDigest,
     },
-    {
+    boundIsolationEvidence({
       reference: "https://evidence.example/runs/latest",
-      digest: stableDigest({
-        reference: "https://evidence.example/runs/latest",
-        detail: "inspectable bytes",
-      }),
       detail: "inspectable bytes",
-    },
+      trialId: canonicalTrialId,
+      artifactDigest,
+    }),
   ]) {
     const result = await runTrial({
       ...fixtureInput(),
@@ -248,6 +345,35 @@ test("candidate failure remains candidate-owned when isolated evidence is absent
   assert.equal(result.status, "candidate_failure");
   assert.equal(result.error?.code, "candidate_execution_failed");
   assert.equal(result.hostEvidence, undefined);
+});
+
+test("candidate adapter exceptions remain candidate-owned through host execution", async () => {
+  const candidates: readonly CandidateAdapter[] = [
+    {
+      ref: trial.candidate,
+      run: () => {
+        throw new Error("sync candidate secret");
+      },
+    },
+    {
+      ref: trial.candidate,
+      run: async () => {
+        throw new Error("rejected candidate secret");
+      },
+    },
+  ];
+
+  for (const candidate of candidates) {
+    const result = await runTrial({ ...fixtureInput(), candidate });
+
+    assert.equal(result.status, "candidate_failure");
+    assert.equal(result.error?.code, "candidate_execution_failed");
+    assert.equal(result.cleanup.status, "completed");
+    assert.equal(result.hostEvidence, undefined);
+    assert.equal(result.artifact, undefined);
+    assert.equal(result.metrics, undefined);
+    assert.doesNotMatch(JSON.stringify(result), /candidate secret/u);
+  }
 });
 
 test("host, candidate, verifier, and invalid boundaries remain distinct", async () => {
