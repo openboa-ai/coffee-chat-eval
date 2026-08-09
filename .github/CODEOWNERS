@@ -6,13 +6,8 @@
 /package.json @openboa
 /package-lock.json @openboa
 /prettier.config.mjs @openboa
-/src/adapters/ @openboa
-/src/hosts/ @openboa
 /src/identity.ts @openboa
 /src/matrix.ts @openboa
-/src/registry.ts @openboa
-/src/report.ts @openboa
 /src/runner.ts @openboa
 /src/types.ts @openboa
-/src/validation.ts @openboa
 /tsconfig.json @openboa

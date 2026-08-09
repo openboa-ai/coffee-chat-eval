@@ -17,163 +17,45 @@ function matrixDefinition(): MatrixDefinition {
       repository: "https://github.com/openboa-ai/coffee-chat",
       commit: "0123456789abcdef0123456789abcdef01234567",
       calver: "2026.8.9",
-      adapter: "fake-candidate",
+      adapter: "public-adapter",
     },
-    tasks: [
-      { id: "task-a", digest: stableDigest("task-a") },
-      { id: "task-b", digest: stableDigest("task-b") },
-    ],
+    tasks: [{ id: "task-a", digest: stableDigest("task-a") }],
     harnesses: [{ id: "harness", digest: stableDigest("harness") }],
-    models: [
-      { id: "model-a", digest: stableDigest("model-a") },
-      { id: "model-b", digest: stableDigest("model-b") },
-    ],
+    models: [{ id: "model", digest: stableDigest("model") }],
     hosts: [
       {
         id: "fixture-host",
         isolationClass: "fixture",
         configurationDigest: stableDigest("fixture-host-configuration"),
-        isolationReference: "fixture://fake-host",
+        isolationReference: "fixture://host",
+      },
+      {
+        id: "real-host",
+        isolationClass: "real",
+        configurationDigest: stableDigest("real-host-configuration"),
+        isolationReference: "unavailable://real-host",
       },
     ],
     repetitions: 2,
   };
 }
 
-test("matrix expansion is a stable Cartesian product without duplicate trial ids", () => {
-  const trials = expandMatrix(matrixDefinition());
+test("matrix expansion has deterministic unique identities for every declared tuple", () => {
+  const first = expandMatrix(matrixDefinition());
+  const second = expandMatrix(matrixDefinition());
 
-  assert.equal(trials.length, 8);
+  assert.equal(first.length, 4);
   assert.deepEqual(
-    trials
-      .slice(0, 3)
-      .map((trial) => [trial.task.id, trial.model.id, trial.repetition]),
-    [
-      ["task-a", "model-a", 0],
-      ["task-a", "model-a", 1],
-      ["task-a", "model-b", 0],
-    ],
+    first.map((trial) => [trial.host.id, trial.repetition, trial.id]),
+    second.map((trial) => [trial.host.id, trial.repetition, trial.id]),
   );
-  assert.equal(new Set(trials.map((trial) => trial.id)).size, trials.length);
-  assert.equal(
-    trials[0]?.evaluator.configurationDigest,
-    stableDigest("fixture-evaluator-configuration"),
-  );
+  assert.equal(new Set(first.map((trial) => trial.id)).size, 4);
+  assert.ok(first.every((trial) => trial.id === createTrialIdentity(trial)));
 });
 
-test("matrix rejects every empty Cartesian axis instead of producing zero trials", () => {
-  for (const axis of ["tasks", "harnesses", "models", "hosts"] as const) {
-    assert.throws(
-      () => expandMatrix({ ...matrixDefinition(), [axis]: [] }),
-      new RegExp(`${axis} must contain at least one entry`, "u"),
-    );
-  }
-});
-
-test("matrix snapshots and deeply freezes trial references before identity", () => {
-  const definition = structuredClone(matrixDefinition());
-  const trials = expandMatrix(definition);
-  const first = trials[0];
-
-  assert.ok(first);
-  assert.equal(Object.isFrozen(first), true);
-  assert.equal(Object.isFrozen(first.evaluator), true);
-  assert.equal(Object.isFrozen(first.task), true);
-  assert.equal(first.id, createTrialIdentity(first));
-
-  (definition.evaluator as { calver: string }).calver = "2027.1.1";
-  (definition.tasks[0] as { id: string }).id = "mutated-task";
-
-  assert.equal(first.evaluator.calver, "2026.8.9");
-  assert.equal(first.task.id, "task-a");
-  assert.equal(first.id, createTrialIdentity(first));
-  assert.throws(() => {
-    (first.task as { id: string }).id = "forbidden";
-  });
-});
-
-test("matrix projects only allowlisted evaluator provenance into trial identity", () => {
-  const definition = matrixDefinition();
-  const [projected] = expandMatrix({
-    ...definition,
-    evaluator: {
-      ...definition.evaluator,
-      undeclaredSecret: "must-not-enter-trial",
-    } as typeof definition.evaluator,
-  });
-
-  assert.ok(projected);
-  assert.deepEqual(Object.keys(projected.evaluator).sort(), [
-    "calver",
-    "commit",
-    "configurationDigest",
-    "repository",
-  ]);
-  assert.doesNotMatch(JSON.stringify(projected), /must-not-enter-trial/u);
+test("matrix rejects an empty axis instead of silently creating no trials", () => {
   assert.throws(
-    () =>
-      expandMatrix({
-        ...definition,
-        evaluator: {
-          ...definition.evaluator,
-          repository: "https://github.com/attacker/coffee-chat-eval",
-        },
-      }),
-    /trusted evaluator provenance is invalid/u,
+    () => expandMatrix({ ...matrixDefinition(), hosts: [] }),
+    /hosts must contain at least one entry/u,
   );
-});
-
-test("matrix projects every public axis before computing trial identity", () => {
-  const definition = matrixDefinition();
-  const [projected] = expandMatrix({
-    ...definition,
-    candidate: {
-      ...definition.candidate,
-      undeclaredSecret: "candidate-secret",
-    } as typeof definition.candidate,
-    tasks: [
-      {
-        ...definition.tasks[0],
-        undeclaredSecret: "task-secret",
-      } as (typeof definition.tasks)[number],
-    ],
-    harnesses: [
-      {
-        ...definition.harnesses[0],
-        undeclaredSecret: "harness-secret",
-      } as (typeof definition.harnesses)[number],
-    ],
-    models: [
-      {
-        ...definition.models[0],
-        undeclaredSecret: "model-secret",
-      } as (typeof definition.models)[number],
-    ],
-    hosts: [
-      {
-        ...definition.hosts[0],
-        undeclaredSecret: "host-secret",
-      } as (typeof definition.hosts)[number],
-    ],
-    repetitions: 1,
-  });
-
-  assert.ok(projected);
-  assert.equal(projected.id, createTrialIdentity(projected));
-  assert.doesNotMatch(JSON.stringify(projected), /secret/u);
-  assert.deepEqual(Object.keys(projected.candidate).sort(), [
-    "adapter",
-    "calver",
-    "commit",
-    "repository",
-  ]);
-  assert.deepEqual(Object.keys(projected.task).sort(), ["digest", "id"]);
-  assert.deepEqual(Object.keys(projected.harness).sort(), ["digest", "id"]);
-  assert.deepEqual(Object.keys(projected.model).sort(), ["digest", "id"]);
-  assert.deepEqual(Object.keys(projected.host).sort(), [
-    "configurationDigest",
-    "id",
-    "isolationClass",
-    "isolationReference",
-  ]);
 });

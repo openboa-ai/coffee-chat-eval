@@ -4,6 +4,8 @@
     "required_checks": true,
     "verified_members_only": true
   },
+  "merge_method": "squash",
+  "required_approvals": 0,
   "eligible_author_associations": ["OWNER", "MEMBER"],
   "protected_paths": [
     ".github/**",
@@ -14,21 +16,11 @@
     "package.json",
     "package-lock.json",
     "prettier.config.mjs",
-    "src/adapters/**",
-    "src/hosts/**",
     "src/identity.ts",
     "src/matrix.ts",
-    "src/registry.ts",
-    "src/report.ts",
     "src/runner.ts",
     "src/types.ts",
-    "src/validation.ts",
     "tsconfig.json"
   ],
-  "required_contexts": ["Eval / aggregate", "Eval / dependency review"],
-  "fork_pull_requests": {
-    "policy": "intake_only",
-    "coverage_upload": "same_repository_only",
-    "promotion": "maintainer_same_repository_branch"
-  }
+  "required_contexts": ["Eval / aggregate", "Eval / dependency review"]
 }

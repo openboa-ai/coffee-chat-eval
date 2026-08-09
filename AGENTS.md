@@ -1,16 +1,17 @@
 # Coffee Chat evaluator rules
 
-This repository owns public candidate adapters, deterministic orchestration,
-host-isolation evidence, result validation, receipts, and evaluation reports.
+This repository owns evaluation orchestration and performance reporting only.
 It treats Coffee Chat as an external candidate: never import its source or
-private state, and award no credit that cannot be observed through a declared
-public adapter and artifact.
+private state, and never own benchmark validity, tasks, verifiers, metrics, or
+product internals.
 
-The baseline is fixture-only. It has no real provider, model, candidate, or
-isolated-host E2E, no benchmark construct ownership, and no performance claim.
-Keep `measured`, `unmeasured`, `skipped`, `unavailable`, `invalid`, and each
-failure owner distinct. Receipts retain only minimum redacted evidence.
+This migration shell has no provider execution, persistence, isolation
+attestation, verifier metrics, timing logic, or real-host E2E. Its dry run
+reports only fixture `unmeasured` and real-host `unavailable` states, with no
+performance score. Keep result states explicit; deferred APIs return
+`not_implemented` or `unavailable`.
 
 Use the single unpadded `YYYY.M.D` CalVer in `package.json`, `PLAN.md`, dry-run
 reports, and receipts. Run `npm run format:check`, `npm run typecheck`,
-`npm test`, `npm run ci:policy`, and `npm run dry-run` before committing.
+`npm run build`, `npm test`, `npm run smoke`, `npm run ci:policy`, and
+`npm run dry-run` before committing.

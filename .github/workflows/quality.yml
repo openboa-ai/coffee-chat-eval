@@ -37,9 +37,11 @@ jobs:
       - run: npm ci
       - run: npm run format:check
       - run: npm run typecheck
+      - run: npm run build
       - run: npm test
-      - run: npm run ci:policy
       - run: npm run dry-run
+      - run: npm run smoke
+      - run: npm run ci:policy
   dependency-review:
     name: dependency review
     runs-on: ubuntu-24.04
