@@ -5,6 +5,7 @@
     "verified_members_only": true
   },
   "eligible_author_associations": ["OWNER", "MEMBER"],
+  "eligible_author_logins": ["openboa"],
   "protected_paths": [
     ".github/**",
     "AGENTS.md",

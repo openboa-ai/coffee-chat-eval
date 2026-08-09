@@ -107,7 +107,10 @@ for (const required of [
   "name: Verify trusted pull request author",
   "github.event_name == 'pull_request'",
   "github.event.pull_request.author_association",
+  "github.event.pull_request.user.login",
+  "PR_AUTHOR_LOGIN",
   "OWNER|MEMBER",
+  '"$PR_AUTHOR_LOGIN" = "openboa"',
   "author=untrusted",
 ]) {
   if (!quality.includes(required)) {
@@ -181,9 +184,12 @@ if (
   JSON.stringify(mergePolicy.auto_merge) !==
     JSON.stringify({ required_checks: true, verified_members_only: true }) ||
   JSON.stringify(mergePolicy.eligible_author_associations) !==
-    JSON.stringify(["OWNER", "MEMBER"])
+    JSON.stringify(["OWNER", "MEMBER"]) ||
+  JSON.stringify(mergePolicy.eligible_author_logins) !== JSON.stringify(["openboa"])
 ) {
-  throw new Error("merge policy must use approval-free member auto-merge");
+  throw new Error(
+    "merge policy must use approval-free member or official-login auto-merge",
+  );
 }
 const requiredProtectedPaths = [
   "LICENSE",
