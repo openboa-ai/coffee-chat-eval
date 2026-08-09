@@ -27,7 +27,6 @@ jobs:
       - run: npm run ci:policy
         env:
           MIGRATION_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}
-          MIGRATION_AUTHORITY_SHA: 75b784af363d5f92c60c885e7e2f8ab568ede502
       - run: npm run dry-run
   dependency-review:
     name: dependency review

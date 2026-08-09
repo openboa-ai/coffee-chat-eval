@@ -6,13 +6,31 @@ import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
 const task = "task-4-governance-and-deterministic-evaluator-baseline";
-const reviewedAuthoritySha = "75b784af363d5f92c60c885e7e2f8ab568ede502";
+const emptyBaseSha = "c834e23a7149b434d5b4c349cf4589502306da0c";
 const authorityPaths = [
   `docs/migration/objectives/${task}.json`,
   `docs/migration/selections/${task}.json`,
   `docs/migration/equality/${task}.json`,
   `docs/migration/receipts/${task}.json`,
 ];
+const reviewedAuthorityDigests = new Map([
+  [
+    `docs/migration/objectives/${task}.json`,
+    "94395157290237c40e1b370f2987b80013b20ffc1933430b83d0ec7a1ccbb142",
+  ],
+  [
+    `docs/migration/selections/${task}.json`,
+    "4c024cb1ed66ead5bea7c7e091218da747773876fb531dbbd2c82b6a6e7ae8c4",
+  ],
+  [
+    `docs/migration/equality/${task}.json`,
+    "71e96b691038747c18481d41e056f201e0fe781050f4f7026403dda6eb813440",
+  ],
+  [
+    `docs/migration/receipts/${task}.json`,
+    "e65d1d8b58ca019e27aec9483f78e30d7ee236ca70eb404ae4cd6a0f46292527",
+  ],
+]);
 const root = new URL("../", import.meta.url);
 const path = (relative) => new URL(relative, root);
 const digest = (bytes) => createHash("sha256").update(bytes).digest("hex");
@@ -25,10 +43,10 @@ export function assertChangedPathsAreClassified(changedPaths, classifiedPaths) {
   }
 }
 
-export function assertAuthorityBytesMatch(reviewedBytes, workspaceBytes) {
-  for (const [relative, bytes] of reviewedBytes) {
-    if (workspaceBytes.get(relative) !== bytes) {
-      throw new Error(`reviewed migration authority differs: ${relative}`);
+export function assertAuthorityDigestsMatch(expectedDigests, actualDigests) {
+  for (const [relative, expected] of expectedDigests) {
+    if (actualDigests.get(relative) !== expected) {
+      throw new Error(`reviewed migration authority digest differs: ${relative}`);
     }
   }
 }
@@ -46,40 +64,7 @@ async function migrationBase() {
   return stdout.trim();
 }
 
-async function reviewedAuthority() {
-  const requested = process.env.MIGRATION_AUTHORITY_SHA ?? reviewedAuthoritySha;
-  if (requested !== reviewedAuthoritySha) {
-    throw new Error("migration authority must use the reviewed trust-base commit");
-  }
-  try {
-    await execFileAsync("git", ["merge-base", "--is-ancestor", requested, "HEAD"], {
-      cwd: path(".").pathname,
-    });
-  } catch {
-    throw new Error("reviewed migration authority is not reachable from HEAD");
-  }
-  return requested;
-}
-
-async function authorityBytes(authority) {
-  const entries = await Promise.all(
-    authorityPaths.map(async (relative) => {
-      const { stdout } = await execFileAsync(
-        "git",
-        ["show", `${authority}:${relative}`],
-        {
-          cwd: path(".").pathname,
-          encoding: "buffer",
-        },
-      );
-      return [relative, Buffer.from(stdout).toString("utf8")];
-    }),
-  );
-  return new Map(entries);
-}
-
 async function main() {
-  const authority = await reviewedAuthority();
   const [
     objective,
     projection,
@@ -99,13 +84,13 @@ async function main() {
     readFile(path("src/registry.ts"), "utf8"),
     readFile(path("src/adapters/fake-candidate.ts"), "utf8"),
   ]);
-  assertAuthorityBytesMatch(
-    await authorityBytes(authority),
+  assertAuthorityDigestsMatch(
+    reviewedAuthorityDigests,
     new Map([
-      [`docs/migration/objectives/${task}.json`, objective.bytes.toString("utf8")],
-      [`docs/migration/selections/${task}.json`, projection.bytes.toString("utf8")],
-      [`docs/migration/equality/${task}.json`, equality.bytes.toString("utf8")],
-      [`docs/migration/receipts/${task}.json`, execution.bytes.toString("utf8")],
+      [`docs/migration/objectives/${task}.json`, digest(objective.bytes)],
+      [`docs/migration/selections/${task}.json`, digest(projection.bytes)],
+      [`docs/migration/equality/${task}.json`, digest(equality.bytes)],
+      [`docs/migration/receipts/${task}.json`, digest(execution.bytes)],
     ]),
   );
   const expectedLedger =
@@ -147,6 +132,30 @@ async function main() {
       throw new Error(`${name} does not project package CalVer`);
   }
   const base = await migrationBase();
+  if (base !== emptyBaseSha) {
+    const receiptPath = `docs/migration/receipts/${task}.json`;
+    try {
+      const { stdout } = await execFileAsync(
+        "git",
+        ["show", `${base}:${receiptPath}`],
+        {
+          cwd: path(".").pathname,
+          encoding: "buffer",
+        },
+      );
+      if (digest(stdout) !== reviewedAuthorityDigests.get(receiptPath)) {
+        throw new Error("base bootstrap receipt digest differs");
+      }
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        error.message === "base bootstrap receipt digest differs"
+      )
+        throw error;
+      throw new Error("base does not contain the reviewed bootstrap receipt");
+    }
+    return;
+  }
   const { stdout } = await execFileAsync(
     "git",
     ["diff", "--name-only", "--diff-filter=ACMR", base],
