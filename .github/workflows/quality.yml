@@ -51,9 +51,9 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       - if: github.event_name == 'pull_request'
-        uses: actions/dependency-review-action@2031cfc080254a8a887f58cffee85186f0e49e48
+        uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294
       - if: github.event_name == 'merge_group'
-        uses: actions/dependency-review-action@2031cfc080254a8a887f58cffee85186f0e49e48
+        uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294
         with:
           base-ref: ${{ github.event.merge_group.base_sha }}
           head-ref: ${{ github.sha }}
