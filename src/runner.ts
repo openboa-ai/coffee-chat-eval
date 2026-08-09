@@ -2,20 +2,22 @@ import { createTrialIdentity, stableDigest } from "./identity.ts";
 import {
   artifactReceipt,
   canonicalEvaluatorRef,
+  canonicalTrialInput,
   immutableReceipt,
-  isSafeHttpsRepositoryUrl,
   receiptError,
   snapshotAndFreeze,
-  validateArtifact,
-  validateArtifactLocator,
+  validateArtifactPersistenceAttestation,
+  validateCandidateRunEnvelope,
   validateHostEvidence,
-  validateTrialProvenance,
+  validateHostExecutionEnvelope,
+  validateIsolationAttestation,
   validateVerification,
 } from "./validation.ts";
 import type {
   Artifact,
   CleanupResult,
   EvaluatorRef,
+  HostEvidence,
   ReceiptError,
   TimingProvenance,
   TrialReceipt,
@@ -35,12 +37,32 @@ export interface RunTrialInput {
   readonly candidate: CandidateAdapter;
   readonly host: HostAdapter;
   readonly task: TaskAdapter;
+  readonly inspectHostEvidence: (input: {
+    readonly trial: TrialSpec;
+    readonly trialId: string;
+    readonly artifact: Artifact;
+    readonly evidence: HostEvidence;
+  }) => Promise<unknown> | unknown;
+  readonly persistArtifact: (input: {
+    readonly trial: TrialSpec;
+    readonly trialId: string;
+    readonly artifact: Artifact;
+  }) => Promise<unknown> | unknown;
   readonly now: () => unknown;
   readonly timing: TimingProvider;
 }
 
 const canonicalUtcTimestamp = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/u;
 const invalidTrialId = `trial-invalid-${stableDigest("invalid-trial-provenance").slice("sha256:".length)}`;
+const invalidReceiptTrial = Object.freeze({
+  candidate: null,
+  task: null,
+  harness: null,
+  model: null,
+  host: null,
+  repetition: null,
+  evidenceClass: null,
+});
 
 function readCanonicalUtcTimestamp(now: () => unknown): string | undefined {
   let value: unknown;
@@ -68,12 +90,16 @@ function cleanupFailure(error: unknown): CleanupResult {
 }
 
 function adapterReferencesMatch(input: RunTrialInput, trial: TrialSpec): boolean {
-  return (
-    stableDigest(snapshotAndFreeze(input.candidate.ref)) ===
-      stableDigest(trial.candidate) &&
-    stableDigest(snapshotAndFreeze(input.host.ref)) === stableDigest(trial.host) &&
-    stableDigest(snapshotAndFreeze(input.task.ref)) === stableDigest(trial.task)
-  );
+  try {
+    return (
+      stableDigest(snapshotAndFreeze(input.candidate.ref)) ===
+        stableDigest(trial.candidate) &&
+      stableDigest(snapshotAndFreeze(input.host.ref)) === stableDigest(trial.host) &&
+      stableDigest(snapshotAndFreeze(input.task.ref)) === stableDigest(trial.task)
+    );
+  } catch {
+    return false;
+  }
 }
 
 function candidateExecutionBoundary(candidate: CandidateAdapter): CandidateAdapter {
@@ -82,39 +108,19 @@ function candidateExecutionBoundary(candidate: CandidateAdapter): CandidateAdapt
     async run(input) {
       try {
         const resolved: unknown = await candidate.run(input);
-        if (
-          typeof resolved !== "object" ||
-          resolved === null ||
-          Array.isArray(resolved)
-        ) {
+        const candidateRun = validateCandidateRunEnvelope(resolved);
+        if (!candidateRun) {
           return {
             kind: "failure",
             message: "candidate adapter returned invalid output",
           };
         }
-        const candidateRun = resolved as Record<string, unknown>;
         if (candidateRun.kind === "failure") {
-          return typeof candidateRun.message === "string"
-            ? { kind: "failure", message: candidateRun.message }
-            : {
-                kind: "failure",
-                message: "candidate adapter returned invalid output",
-              };
+          return { kind: "failure", message: candidateRun.message };
         }
-        if (candidateRun.kind === "success") {
-          try {
-            const artifact = validateArtifact(candidateRun.artifact);
-            return artifact
-              ? { kind: "success", artifact: snapshotAndFreeze(artifact) }
-              : { kind: "success" };
-          } catch {
-            return { kind: "success" };
-          }
-        }
-        return {
-          kind: "failure",
-          message: "candidate adapter returned invalid output",
-        };
+        return candidateRun.artifact
+          ? { kind: "success", artifact: candidateRun.artifact }
+          : { kind: "success" };
       } catch {
         return { kind: "failure", message: "candidate adapter execution failed" };
       }
@@ -170,22 +176,21 @@ export async function runTrial(input: RunTrialInput): Promise<TrialReceipt> {
   if (!runningEvaluator) {
     throw new TypeError("trusted evaluator provenance is invalid");
   }
-  if (!isSafeHttpsRepositoryUrl(input.trial.candidate.repository)) {
-    throw new TypeError("candidate repository provenance is invalid");
-  }
-  const suppliedTrial = snapshotAndFreeze(input.trial);
-  const declaredEvaluator = canonicalEvaluatorRef(suppliedTrial.evaluator);
-  const projectedTrial = snapshotAndFreeze({
-    ...suppliedTrial,
-    evaluator: runningEvaluator,
-  });
-  const trial = validateTrialProvenance(projectedTrial) ? projectedTrial : undefined;
-  const receiptTrial =
-    trial ??
-    snapshotAndFreeze({
-      ...projectedTrial,
-      repetition: null,
-    });
+  const { declaredEvaluator, trial } = canonicalTrialInput(
+    input.trial,
+    runningEvaluator,
+  );
+  const projectedReceiptTrial = trial
+    ? {
+        candidate: trial.candidate,
+        task: trial.task,
+        harness: trial.harness,
+        model: trial.model,
+        host: trial.host,
+        repetition: trial.repetition,
+        evidenceClass: trial.host.isolationClass,
+      }
+    : invalidReceiptTrial;
   const canonicalTrialId = trial ? createTrialIdentity(trial) : invalidTrialId;
   const startedAt = readCanonicalUtcTimestamp(input.now);
   const timing = startTiming(input.timing);
@@ -217,94 +222,127 @@ export async function runTrial(input: RunTrialInput): Promise<TrialReceipt> {
   } else {
     cleanup = { status: "completed" };
     try {
-      const execution = await input.host.execute({
+      const hostOutput: unknown = await input.host.execute({
         trial,
         trialId: canonicalTrialId,
         candidate: candidateExecutionBoundary(input.candidate),
         workspaceId,
       });
-      if (execution.kind === "host_failure") {
+      const execution = validateHostExecutionEnvelope(hostOutput);
+      if (!execution) {
+        status = "evaluator_failure";
+        error = receiptError("evaluator_execution_failed");
+      } else if (execution.kind === "host_failure") {
         status = "host_failure";
         error = receiptError("host_execution_failed");
       } else if (execution.candidate.kind === "failure") {
         status = "candidate_failure";
         error = receiptError("candidate_execution_failed");
       } else {
-        let artifact: Artifact | undefined;
-        try {
-          artifact = validateArtifact(execution.candidate.artifact);
-        } catch {
-          artifact = undefined;
-        }
-        if (!artifact) {
+        const immutableArtifact = execution.candidate.artifact;
+        if (!immutableArtifact) {
           status = "invalid";
           error = receiptError("artifact_digest_invalid");
         } else {
-          const immutableArtifact = snapshotAndFreeze(artifact);
-          const suppliedArtifactLocator =
-            execution.artifactLocator ?? execution.evidence?.artifactLocator;
-          const artifactLocator = validateArtifactLocator(
-            suppliedArtifactLocator,
-            trial.host.isolationClass,
-          );
-          if (!artifactLocator) {
-            status = "unavailable";
-            error = receiptError(
-              suppliedArtifactLocator === undefined
-                ? "artifact_locator_missing"
-                : "artifact_locator_invalid",
-            );
-          } else {
-            const evidenceWasSupplied = execution.evidence !== undefined;
-            if (evidenceWasSupplied) {
-              try {
-                hostEvidence = validateHostEvidence(
-                  execution.evidence,
-                  trial.host.isolationClass,
-                  {
-                    trialId: canonicalTrialId,
-                    artifactDigest: immutableArtifact.digest,
-                    artifactLocator,
-                  },
-                );
-              } catch {
-                hostEvidence = undefined;
-              }
+          const evidenceWasSupplied = execution.evidence !== undefined;
+          let validatedEvidence: HostEvidence | undefined;
+          if (evidenceWasSupplied) {
+            try {
+              validatedEvidence = validateHostEvidence(
+                execution.evidence,
+                trial.host.isolationClass,
+                {
+                  trialId: canonicalTrialId,
+                  artifactDigest: immutableArtifact.digest,
+                },
+              );
+            } catch {
+              validatedEvidence = undefined;
             }
-            if (trial.host.isolationClass === "isolated" && !evidenceWasSupplied) {
-              status = "unavailable";
-              error = receiptError("isolation_evidence_missing");
-            } else if (trial.host.isolationClass === "isolated" && !hostEvidence) {
+          }
+          if (trial.host.isolationClass === "isolated" && !evidenceWasSupplied) {
+            status = "unavailable";
+            error = receiptError("isolation_evidence_missing");
+          } else if (trial.host.isolationClass === "isolated" && !validatedEvidence) {
+            status = "unavailable";
+            error = receiptError("isolation_evidence_invalid");
+          } else {
+            if (validatedEvidence) {
+              const inspectedEvidence =
+                typeof input.inspectHostEvidence === "function"
+                  ? await input.inspectHostEvidence({
+                      trial,
+                      trialId: canonicalTrialId,
+                      artifact: immutableArtifact,
+                      evidence: validatedEvidence,
+                    })
+                  : undefined;
+              hostEvidence = validateIsolationAttestation(
+                inspectedEvidence,
+                validatedEvidence,
+                trial.host,
+                {
+                  trialId: canonicalTrialId,
+                  artifactDigest: immutableArtifact.digest,
+                },
+              );
+            }
+            if (trial.host.isolationClass === "isolated" && !hostEvidence) {
               status = "unavailable";
               error = receiptError("isolation_evidence_invalid");
             } else {
-              artifactSummary = artifactReceipt(immutableArtifact, artifactLocator);
-              try {
-                const validation = validateVerification(
-                  await input.task.verify(immutableArtifact),
+              const suppliedArtifactLocator =
+                typeof input.persistArtifact === "function"
+                  ? await input.persistArtifact({
+                      trial,
+                      trialId: canonicalTrialId,
+                      artifact: immutableArtifact,
+                    })
+                  : undefined;
+              const persistence = validateArtifactPersistenceAttestation(
+                suppliedArtifactLocator,
+                trial.host.isolationClass,
+                {
+                  trialId: canonicalTrialId,
+                  artifactDigest: immutableArtifact.digest,
+                },
+              );
+              if (!persistence) {
+                status = "unavailable";
+                error = receiptError(
+                  suppliedArtifactLocator === undefined
+                    ? "artifact_locator_missing"
+                    : "artifact_locator_invalid",
                 );
-                if (validation.kind === "invalid") {
-                  status = "verifier_failure";
-                  error = receiptError(validation.error);
-                } else if (validation.verification.status === "valid") {
-                  metrics = validation.verification.metrics;
-                  status =
-                    trial.host.isolationClass === "isolated"
-                      ? "measured"
-                      : "unmeasured";
-                  if (status === "unmeasured") {
-                    error = receiptError("verification_unmeasured");
-                  }
-                } else {
-                  status = validation.verification.status;
-                  error = receiptError(
-                    `verification_${validation.verification.status}`,
+              } else {
+                artifactSummary = artifactReceipt(immutableArtifact, persistence);
+                try {
+                  const validation = validateVerification(
+                    await input.task.verify(immutableArtifact),
                   );
+                  if (validation.kind === "invalid") {
+                    status = "verifier_failure";
+                    error = receiptError(validation.error);
+                  } else if (validation.verification.status === "valid") {
+                    metrics = validation.verification.metrics;
+                    status =
+                      trial.host.isolationClass === "isolated"
+                        ? "measured"
+                        : "unmeasured";
+                    if (status === "unmeasured") {
+                      error = receiptError("verification_unmeasured");
+                    }
+                  } else {
+                    status = validation.verification.status;
+                    error = receiptError(
+                      `verification_${validation.verification.status}`,
+                    );
+                  }
+                } catch (caught) {
+                  void caught;
+                  status = "verifier_failure";
+                  error = receiptError("verifier_execution_failed");
                 }
-              } catch (caught) {
-                void caught;
-                status = "verifier_failure";
-                error = receiptError("verifier_execution_failed");
               }
             }
           }
@@ -334,8 +372,13 @@ export async function runTrial(input: RunTrialInput): Promise<TrialReceipt> {
     artifactSummary = undefined;
     metrics = undefined;
   }
+  const publicTrialWasInvalid =
+    status === "invalid" && cleanup.status === "not_required";
+  const receiptTrial = publicTrialWasInvalid
+    ? invalidReceiptTrial
+    : projectedReceiptTrial;
   const base = {
-    trialId: canonicalTrialId,
+    trialId: publicTrialWasInvalid ? invalidTrialId : canonicalTrialId,
     evaluator: runningEvaluator,
     candidate: receiptTrial.candidate,
     task: receiptTrial.task,
@@ -344,7 +387,7 @@ export async function runTrial(input: RunTrialInput): Promise<TrialReceipt> {
     host: receiptTrial.host,
     repetition: receiptTrial.repetition,
     status,
-    evidenceClass: receiptTrial.host.isolationClass,
+    evidenceClass: receiptTrial.evidenceClass,
     performanceClaim: false as const,
     ...(timestampsAreValid ? { startedAt, finishedAt } : {}),
     timing: finishTiming(timing, input.timing),

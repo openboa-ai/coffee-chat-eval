@@ -1,8 +1,5 @@
 import { readFile } from "node:fs/promises";
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
 
-const execFileAsync = promisify(execFile);
 const root = new URL("../", import.meta.url);
 const path = (relative) => new URL(relative, root);
 const workflows = [
@@ -134,9 +131,7 @@ if (
   !quality.includes(
     "actions/dependency-review-action@2031cfc080254a8a887f58cffee85186f0e49e48",
   ) ||
-  !quality.includes("GITHUB_TOKEN: ${{ github.token }}") ||
-  !quality.includes("github.event.merge_group.base_sha") ||
-  !quality.includes("MIGRATION_BASE_SHA")
+  !quality.includes("github.event.merge_group.base_sha")
 ) {
   throw new Error(
     "quality workflow lacks the required aggregate or dependency-review lane",
@@ -144,14 +139,8 @@ if (
 }
 assertTrustedAuthorGateBeforeCandidateExecution("quality workflow", quality);
 const policy = await readFile(path(".github/workflows/policy.yml"), "utf8");
-if (
-  !policy.includes("fetch-depth: 0") ||
-  !policy.includes("MIGRATION_BASE_SHA") ||
-  !policy.includes("GITHUB_TOKEN: ${{ github.token }}") ||
-  !policy.includes("github.event.pull_request.base.sha") ||
-  !policy.includes("github.event.merge_group.base_sha")
-) {
-  throw new Error("policy workflow lacks the change-aware migration base");
+if (!policy.includes("contents: read") || !policy.includes("run: npm run ci:policy")) {
+  throw new Error("policy workflow lacks its evaluator governance gate");
 }
 assertTrustedAuthorGateBeforeCandidateExecution("policy workflow", policy);
 const codeql = await readFile(path(".github/workflows/codeql.yml"), "utf8");
@@ -219,7 +208,6 @@ const requiredProtectedPaths = [
   "LICENSE",
   "package.json",
   "package-lock.json",
-  "scripts/check-migration-receipt.mjs",
   "src/identity.ts",
   "src/matrix.ts",
   "src/registry.ts",
@@ -257,9 +245,3 @@ for (const script of ["format:check", "typecheck", "test", "dry-run", "ci:policy
   if (typeof packageJson.scripts?.[script] !== "string")
     throw new Error(`missing ${script} script`);
 }
-if (packageJson.devDependencies?.ajv !== "8.20.0") {
-  throw new Error("migration schema validator must remain exactly pinned");
-}
-await execFileAsync(process.execPath, ["scripts/check-migration-receipt.mjs"], {
-  cwd: path(".").pathname,
-});

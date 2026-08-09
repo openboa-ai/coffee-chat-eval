@@ -84,16 +84,26 @@ export interface HostEvidence {
   readonly detail: string;
   readonly trialId: string;
   readonly artifactDigest: Sha256Digest;
-  readonly artifactLocator: string;
 }
 
-export interface ReceiptEvidence {
+export interface ArtifactPersistenceAttestation {
   readonly locator: string;
-  readonly digest: Sha256Digest;
   readonly trialId: string;
   readonly artifactDigest: Sha256Digest;
-  readonly artifactLocator: string;
+  readonly digest: Sha256Digest;
 }
+
+export interface IsolationAttestation {
+  readonly locator: string;
+  readonly evidenceDigest: Sha256Digest;
+  readonly trialId: string;
+  readonly artifactDigest: Sha256Digest;
+  readonly hostId: string;
+  readonly hostConfigurationDigest: Sha256Digest;
+  readonly digest: Sha256Digest;
+}
+
+export type ReceiptEvidence = IsolationAttestation;
 
 export type ReceiptErrorCode =
   | "adapter_reference_mismatch"
@@ -126,7 +136,6 @@ export type HostExecution =
   | {
       readonly kind: "completed";
       readonly evidence?: HostEvidence;
-      readonly artifactLocator?: string;
       readonly candidate: CandidateRun;
     };
 
@@ -186,19 +195,21 @@ export interface ArtifactReceipt {
   readonly locator: string;
   readonly digest: Sha256Digest;
   readonly byteSize: number;
+  readonly trialId: string;
+  readonly persistenceDigest: Sha256Digest;
 }
 
 export interface TrialReceipt {
   readonly trialId: string;
   readonly evaluator: EvaluatorRef;
-  readonly candidate: CandidateRef;
-  readonly task: TaskRef;
-  readonly harness: HarnessRef;
-  readonly model: ModelRef;
-  readonly host: HostRef;
+  readonly candidate: CandidateRef | null;
+  readonly task: TaskRef | null;
+  readonly harness: HarnessRef | null;
+  readonly model: ModelRef | null;
+  readonly host: HostRef | null;
   readonly repetition: number | null;
   readonly status: TrialStatus;
-  readonly evidenceClass: IsolationClass;
+  readonly evidenceClass: IsolationClass | null;
   readonly performanceClaim: false;
   readonly startedAt?: string;
   readonly finishedAt?: string;

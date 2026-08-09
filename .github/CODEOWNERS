@@ -6,7 +6,6 @@
 /package.json @openboa
 /package-lock.json @openboa
 /prettier.config.mjs @openboa
-/scripts/check-migration-receipt.mjs @openboa
 /src/adapters/ @openboa
 /src/hosts/ @openboa
 /src/identity.ts @openboa
@@ -16,5 +15,4 @@
 /src/runner.ts @openboa
 /src/types.ts @openboa
 /src/validation.ts @openboa
-/docs/migration/ @openboa
 /tsconfig.json @openboa

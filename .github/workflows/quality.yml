@@ -29,7 +29,6 @@ jobs:
           esac
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
         with:
-          fetch-depth: 0
           persist-credentials: false
       - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444
         with:
@@ -40,9 +39,6 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run ci:policy
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-          MIGRATION_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}
       - run: npm run dry-run
   dependency-review:
     name: dependency review

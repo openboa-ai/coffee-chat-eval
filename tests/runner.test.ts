@@ -4,7 +4,7 @@ import test from "node:test";
 import { createFakeCandidate } from "../src/adapters/fake-candidate.ts";
 import { createFakeHost } from "../src/hosts/fake-host.ts";
 import { createTrialIdentity, stableDigest } from "../src/identity.ts";
-import { runTrial } from "../src/runner.ts";
+import { runTrial, type RunTrialInput } from "../src/runner.ts";
 import { validateTrialProvenance } from "../src/validation.ts";
 import type {
   CandidateAdapter,
@@ -58,13 +58,33 @@ function unmeasuredTiming(): TimingProvider {
   };
 }
 
-function fixtureInput() {
+function fixtureInput(): RunTrialInput {
   return {
     trial,
     runningEvaluator: trial.evaluator,
     candidate: createFakeCandidate(),
     host: createFakeHost(),
     task: verifier,
+    inspectHostEvidence: ({ trial: adapterTrial, trialId, artifact, evidence }) =>
+      isolationAttestation({
+        locator: evidence.reference,
+        evidenceDigest: evidence.digest,
+        trialId,
+        artifactDigest: artifact.digest,
+        hostId: adapterTrial.host.id,
+        hostConfigurationDigest: adapterTrial.host.configurationDigest,
+      }),
+    persistArtifact: ({ trial: adapterTrial, trialId, artifact }) => {
+      const locator =
+        adapterTrial.host.isolationClass === "isolated"
+          ? `https://artifacts.example/runs/${trialId}/artifacts/${artifact.digest.slice("sha256:".length)}`
+          : `fixture://workspace-${trialId}/artifacts/${artifact.digest.slice("sha256:".length)}`;
+      return persistenceAttestation({
+        locator,
+        trialId,
+        artifactDigest: artifact.digest,
+      });
+    },
     now: () => "2026-08-09T00:00:00.000Z",
     timing: unmeasuredTiming(),
   };
@@ -88,22 +108,520 @@ function boundIsolationEvidence(binding: {
   readonly detail: string;
   readonly trialId: string;
   readonly artifactDigest: `sha256:${string}`;
-  readonly artifactLocator?: string;
 }) {
-  const artifactLocator =
-    binding.artifactLocator ??
-    `https://artifacts.example/runs/${binding.trialId}/artifacts/${binding.artifactDigest.slice("sha256:".length)}`;
-  const evidence = { ...binding, artifactLocator };
-  return { ...evidence, digest: stableDigest(evidence) };
+  return { ...binding, digest: stableDigest(binding) };
 }
+
+function persistenceAttestation(binding: {
+  readonly locator: string;
+  readonly trialId: string;
+  readonly artifactDigest: `sha256:${string}`;
+}) {
+  return { ...binding, digest: stableDigest(binding) };
+}
+
+function isolationAttestation(binding: {
+  readonly locator: string;
+  readonly evidenceDigest: `sha256:${string}`;
+  readonly trialId: string;
+  readonly artifactDigest: `sha256:${string}`;
+  readonly hostId: string;
+  readonly hostConfigurationDigest: `sha256:${string}`;
+}) {
+  return { ...binding, digest: stableDigest(binding) };
+}
+
+test("isolated measurement requires evaluator-owned persistence and isolation attestations", async () => {
+  const isolated = isolatedTrial();
+  const trialId = createTrialIdentity(isolated);
+  const artifactDigest = stableDigest("ok");
+  const evidence = boundIsolationEvidence({
+    reference:
+      "https://evidence.example/runs/0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+    detail: "inspectable isolation evidence",
+    trialId,
+    artifactDigest,
+  });
+  const locator =
+    `https://artifacts.example/runs/${trialId}/artifacts/` +
+    artifactDigest.slice("sha256:".length);
+  let verifierCalls = 0;
+
+  const result = await runTrial({
+    ...fixtureInput(),
+    trial: isolated,
+    host: {
+      ref: isolated.host,
+      async execute({ trial: adapterTrial, candidate, workspaceId }) {
+        return {
+          kind: "completed" as const,
+          evidence,
+          candidate: await candidate.run({ trial: adapterTrial, workspaceId }),
+        };
+      },
+      async cleanup() {},
+    },
+    inspectHostEvidence: async () =>
+      isolationAttestation({
+        locator: evidence.reference,
+        evidenceDigest: evidence.digest,
+        trialId,
+        artifactDigest,
+        hostId: isolated.host.id,
+        hostConfigurationDigest: isolated.host.configurationDigest,
+      }),
+    persistArtifact: async () =>
+      persistenceAttestation({ locator, trialId, artifactDigest }),
+    task: {
+      ...verifier,
+      verify: (artifact) => {
+        verifierCalls += 1;
+        return verifier.verify(artifact);
+      },
+    },
+  });
+
+  assert.equal(result.status, "measured");
+  assert.equal(verifierCalls, 1);
+  assert.equal(result.artifact?.locator, locator);
+  assert.equal(result.artifact?.trialId, trialId);
+  assert.equal(
+    result.artifact?.persistenceDigest,
+    stableDigest({ locator, trialId, artifactDigest }),
+  );
+  assert.equal(result.hostEvidence?.hostId, isolated.host.id);
+  assert.equal(
+    result.hostEvidence?.hostConfigurationDigest,
+    isolated.host.configurationDigest,
+  );
+});
+
+test("host self-consistency and string-only persistence cannot produce measured credit", async () => {
+  const isolated = isolatedTrial();
+  const trialId = createTrialIdentity(isolated);
+  const artifactDigest = stableDigest("ok");
+  const evidence = boundIsolationEvidence({
+    reference:
+      "https://localhost/0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+    detail: "host-authored evidence",
+    trialId,
+    artifactDigest,
+  });
+  let persistenceCalls = 0;
+  let verifierCalls = 0;
+  const host: HostAdapter = {
+    ref: isolated.host,
+    async execute({ trial: adapterTrial, candidate, workspaceId }) {
+      return {
+        kind: "completed" as const,
+        evidence,
+        candidate: await candidate.run({ trial: adapterTrial, workspaceId }),
+      };
+    },
+    async cleanup() {},
+  };
+
+  const uninspected = await runTrial({
+    ...fixtureInput(),
+    trial: isolated,
+    host,
+    inspectHostEvidence: async () => undefined,
+    persistArtifact: async () => {
+      persistenceCalls += 1;
+      return persistenceAttestation({
+        locator:
+          "https://artifacts.example/0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+        trialId,
+        artifactDigest,
+      });
+    },
+    task: {
+      ...verifier,
+      verify: (artifact) => {
+        verifierCalls += 1;
+        return verifier.verify(artifact);
+      },
+    },
+  });
+  assert.equal(uninspected.status, "unavailable");
+  assert.equal(uninspected.error?.code, "isolation_evidence_invalid");
+  assert.equal(persistenceCalls, 0);
+  assert.equal(verifierCalls, 0);
+
+  const stringOnly = await runTrial({
+    ...fixtureInput(),
+    trial: isolated,
+    host,
+    inspectHostEvidence: async () =>
+      isolationAttestation({
+        locator: evidence.reference,
+        evidenceDigest: evidence.digest,
+        trialId,
+        artifactDigest,
+        hostId: isolated.host.id,
+        hostConfigurationDigest: isolated.host.configurationDigest,
+      }),
+    persistArtifact: async () => {
+      persistenceCalls += 1;
+      return "https://artifacts.example/0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+    },
+    task: {
+      ...verifier,
+      verify: (artifact) => {
+        verifierCalls += 1;
+        return verifier.verify(artifact);
+      },
+    },
+  });
+  assert.equal(stringOnly.status, "unavailable");
+  assert.equal(stringOnly.error?.code, "artifact_locator_invalid");
+  assert.equal(persistenceCalls, 1);
+  assert.equal(verifierCalls, 0);
+});
+
+test("host execution accepts only closed declared result envelopes", async () => {
+  const artifact = { id: "artifact", digest: stableDigest("ok"), value: "ok" };
+  const scenarios: ReadonlyArray<{
+    readonly name: string;
+    readonly execution: unknown;
+  }> = [
+    {
+      name: "unknown host discriminant",
+      execution: { kind: "unexpected", candidate: { kind: "success", artifact } },
+    },
+    {
+      name: "unknown candidate discriminant",
+      execution: { kind: "completed", candidate: { kind: "unexpected", artifact } },
+    },
+    {
+      name: "legacy host artifact locator",
+      execution: {
+        kind: "completed",
+        artifactLocator:
+          "https://localhost/0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+        candidate: { kind: "success", artifact },
+      },
+    },
+    {
+      name: "extra host failure field",
+      execution: { kind: "host_failure", message: "failed", legacy: true },
+    },
+    {
+      name: "extra candidate failure field",
+      execution: {
+        kind: "completed",
+        candidate: { kind: "failure", message: "failed", legacy: true },
+      },
+    },
+  ];
+
+  for (const scenario of scenarios) {
+    let persistenceCalls = 0;
+    let verifierCalls = 0;
+    const result = await runTrial({
+      ...fixtureInput(),
+      host: {
+        ref: trial.host,
+        execute: async () => scenario.execution as never,
+        cleanup: async () => {},
+      },
+      persistArtifact: async () => {
+        persistenceCalls += 1;
+        return "fixture://must-not-persist";
+      },
+      task: {
+        ...verifier,
+        verify: (candidateArtifact) => {
+          verifierCalls += 1;
+          return verifier.verify(candidateArtifact);
+        },
+      },
+    });
+
+    assert.equal(result.status, "evaluator_failure", scenario.name);
+    assert.equal(result.error?.code, "evaluator_execution_failed", scenario.name);
+    assert.equal(persistenceCalls, 0, scenario.name);
+    assert.equal(verifierCalls, 0, scenario.name);
+  }
+});
+
+test("adapter boundary descriptors cannot change measured bytes or bindings", async () => {
+  const isolated = isolatedTrial();
+  const trialId = createTrialIdentity(isolated);
+  const artifactDigest = stableDigest("ok");
+  const evidence = boundIsolationEvidence({
+    reference:
+      "https://evidence.example/runs/0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+    detail: "inspectable isolation evidence",
+    trialId,
+    artifactDigest,
+  });
+  const locator =
+    `https://artifacts.example/runs/${trialId}/artifacts/` +
+    artifactDigest.slice("sha256:".length);
+  const artifact = { id: "artifact", digest: artifactDigest, value: "ok" };
+  const validExecution = (candidateArtifact: unknown = artifact) => ({
+    kind: "completed",
+    evidence,
+    candidate: { kind: "success", artifact: candidateArtifact },
+  });
+  const changingProperty = (
+    record: object,
+    key: string,
+    values: readonly unknown[],
+  ) => {
+    let index = 0;
+    Object.defineProperty(record, key, {
+      enumerable: true,
+      get() {
+        const value = values[Math.min(index, values.length - 1)];
+        index += 1;
+        return value;
+      },
+    });
+  };
+  const validInspector: RunTrialInput["inspectHostEvidence"] = () =>
+    isolationAttestation({
+      locator: evidence.reference,
+      evidenceDigest: evidence.digest,
+      trialId,
+      artifactDigest,
+      hostId: isolated.host.id,
+      hostConfigurationDigest: isolated.host.configurationDigest,
+    });
+  const validPersistence: RunTrialInput["persistArtifact"] = () =>
+    persistenceAttestation({ locator, trialId, artifactDigest });
+  const scenarios: ReadonlyArray<{
+    readonly name: string;
+    readonly execution: () => unknown;
+    readonly inspect?: RunTrialInput["inspectHostEvidence"];
+    readonly persist?: RunTrialInput["persistArtifact"];
+    readonly expectedStatus: "evaluator_failure" | "invalid" | "unavailable";
+    readonly expectedError:
+      | "evaluator_execution_failed"
+      | "artifact_digest_invalid"
+      | "isolation_evidence_invalid"
+      | "artifact_locator_invalid";
+    readonly expectedPersistenceCalls: number;
+  }> = [
+    {
+      name: "stateful host and candidate discriminants",
+      execution: () => {
+        const candidate = { artifact };
+        changingProperty(candidate, "kind", ["unexpected", "success"]);
+        const execution = { evidence, candidate };
+        changingProperty(execution, "kind", ["unexpected", "completed"]);
+        return execution;
+      },
+      expectedStatus: "evaluator_failure",
+      expectedError: "evaluator_execution_failed",
+      expectedPersistenceCalls: 0,
+    },
+    {
+      name: "symbol and non-enumerable envelope extras",
+      execution: () => {
+        const candidate = { kind: "success", artifact };
+        Object.defineProperty(candidate, "legacy", {
+          enumerable: false,
+          value: true,
+        });
+        return Object.assign(validExecution(candidate.artifact), {
+          [Symbol("legacy")]: true,
+          candidate,
+        });
+      },
+      expectedStatus: "evaluator_failure",
+      expectedError: "evaluator_execution_failed",
+      expectedPersistenceCalls: 0,
+    },
+    {
+      name: "throwing proxy descriptor trap",
+      execution: () =>
+        new Proxy(validExecution(), {
+          getOwnPropertyDescriptor() {
+            throw new Error("descriptor-secret");
+          },
+        }),
+      expectedStatus: "evaluator_failure",
+      expectedError: "evaluator_execution_failed",
+      expectedPersistenceCalls: 0,
+    },
+    {
+      name: "invalid proxy descriptor trap",
+      execution: () =>
+        new Proxy(validExecution(), {
+          getOwnPropertyDescriptor(target, key) {
+            if (key === "kind") {
+              return {
+                configurable: true,
+                enumerable: true,
+                get: "not-a-function",
+              } as never;
+            }
+            return Reflect.getOwnPropertyDescriptor(target, key);
+          },
+        }),
+      expectedStatus: "evaluator_failure",
+      expectedError: "evaluator_execution_failed",
+      expectedPersistenceCalls: 0,
+    },
+    {
+      name: "artifact bytes change after digest validation",
+      execution: () => {
+        const changingArtifact = { id: "artifact", digest: artifactDigest };
+        changingProperty(changingArtifact, "value", [
+          "ok",
+          "ok",
+          "mutated-after-validation",
+        ]);
+        return validExecution(changingArtifact);
+      },
+      expectedStatus: "invalid",
+      expectedError: "artifact_digest_invalid",
+      expectedPersistenceCalls: 0,
+    },
+    {
+      name: "host evidence binding changes after comparison",
+      execution: () => {
+        const unrelatedEvidence = {
+          reference: evidence.reference,
+          detail: evidence.detail,
+          trialId: "trial-unrelated",
+          artifactDigest,
+        };
+        const changingEvidence = {
+          ...unrelatedEvidence,
+          digest: stableDigest(unrelatedEvidence),
+        };
+        changingProperty(changingEvidence, "trialId", [trialId, "trial-unrelated"]);
+        return {
+          kind: "completed",
+          evidence: changingEvidence,
+          candidate: { kind: "success", artifact },
+        };
+      },
+      inspect: ({ evidence: acceptedEvidence }) =>
+        isolationAttestation({
+          locator: acceptedEvidence.reference,
+          evidenceDigest: acceptedEvidence.digest,
+          trialId,
+          artifactDigest,
+          hostId: isolated.host.id,
+          hostConfigurationDigest: isolated.host.configurationDigest,
+        }),
+      expectedStatus: "unavailable",
+      expectedError: "isolation_evidence_invalid",
+      expectedPersistenceCalls: 0,
+    },
+    {
+      name: "isolation binding changes after comparison",
+      execution: () => validExecution(),
+      inspect: () => {
+        const unrelatedBinding = {
+          locator: evidence.reference,
+          evidenceDigest: evidence.digest,
+          trialId: "trial-unrelated",
+          artifactDigest,
+          hostId: "unrelated-host",
+          hostConfigurationDigest: isolated.host.configurationDigest,
+        };
+        const attestation = {
+          ...unrelatedBinding,
+          digest: stableDigest(unrelatedBinding),
+        };
+        changingProperty(attestation, "trialId", [trialId, "trial-unrelated"]);
+        changingProperty(attestation, "hostId", [isolated.host.id, "unrelated-host"]);
+        return attestation;
+      },
+      expectedStatus: "unavailable",
+      expectedError: "isolation_evidence_invalid",
+      expectedPersistenceCalls: 0,
+    },
+    {
+      name: "persistence binding changes after comparison",
+      execution: () => validExecution(),
+      persist: () => {
+        const unrelatedBinding = {
+          locator,
+          trialId: "trial-unrelated",
+          artifactDigest,
+        };
+        const attestation = {
+          ...unrelatedBinding,
+          digest: stableDigest(unrelatedBinding),
+        };
+        changingProperty(attestation, "trialId", [trialId, "trial-unrelated"]);
+        return attestation;
+      },
+      expectedStatus: "unavailable",
+      expectedError: "artifact_locator_invalid",
+      expectedPersistenceCalls: 1,
+    },
+  ];
+  const observations = [];
+
+  for (const scenario of scenarios) {
+    let persistenceCalls = 0;
+    const verifierValues: string[] = [];
+    const result = await runTrial({
+      ...fixtureInput(),
+      trial: isolated,
+      host: {
+        ref: isolated.host,
+        execute: async () => scenario.execution() as never,
+        cleanup: async () => {},
+      },
+      inspectHostEvidence: scenario.inspect ?? validInspector,
+      persistArtifact: async (input) => {
+        persistenceCalls += 1;
+        return (scenario.persist ?? validPersistence)(input);
+      },
+      task: {
+        ...verifier,
+        verify: (verifiedArtifact) => {
+          verifierValues.push(verifiedArtifact.value);
+          return { status: "valid", metrics: { checks: 1 } };
+        },
+      },
+    });
+    const verifierValue = verifierValues[0];
+    const measuredBindingMismatch =
+      result.status === "measured" &&
+      ((verifierValue !== undefined &&
+        result.artifact?.digest !== stableDigest(verifierValue)) ||
+        result.artifact?.trialId !== trialId ||
+        result.hostEvidence?.trialId !== trialId ||
+        result.hostEvidence?.artifactDigest !== artifactDigest ||
+        result.hostEvidence?.hostId !== isolated.host.id ||
+        result.hostEvidence?.hostConfigurationDigest !==
+          isolated.host.configurationDigest);
+    observations.push({
+      name: scenario.name,
+      status: result.status,
+      error: result.error?.code,
+      persistenceCalls,
+      verifierValues,
+      measuredBindingMismatch,
+    });
+  }
+
+  assert.deepEqual(
+    observations,
+    scenarios.map((scenario) => ({
+      name: scenario.name,
+      status: scenario.expectedStatus,
+      error: scenario.expectedError,
+      persistenceCalls: scenario.expectedPersistenceCalls,
+      verifierValues: [],
+      measuredBindingMismatch: false,
+    })),
+  );
+});
 
 test("fixture trial stores content-addressed host evidence without performance credit", async () => {
   const trialId = createTrialIdentity(trial);
   const artifactDigest = stableDigest("ok");
   const reference = `fixture://workspace-${trialId}`;
-  const artifactLocator =
-    `fixture://workspace-${trialId}/artifacts/` +
-    artifactDigest.slice("sha256:".length);
   const detail = "token=keep-this-secret";
   const result = await runTrial({
     ...fixtureInput(),
@@ -115,16 +633,19 @@ test("fixture trial stores content-addressed host evidence without performance c
   assert.equal(result.cleanup.status, "completed");
   assert.deepEqual(result.hostEvidence, {
     locator: reference,
-    digest: stableDigest({
-      reference,
-      detail,
-      trialId,
-      artifactDigest,
-      artifactLocator,
-    }),
+    evidenceDigest: stableDigest({ reference, detail, trialId, artifactDigest }),
     trialId,
     artifactDigest,
-    artifactLocator,
+    hostId: trial.host.id,
+    hostConfigurationDigest: trial.host.configurationDigest,
+    digest: stableDigest({
+      locator: reference,
+      evidenceDigest: stableDigest({ reference, detail, trialId, artifactDigest }),
+      trialId,
+      artifactDigest,
+      hostId: trial.host.id,
+      hostConfigurationDigest: trial.host.configurationDigest,
+    }),
   });
   assert.equal(JSON.stringify(result).includes("keep-this-secret"), false);
   assert.equal(result.timing.status, "unmeasured");
@@ -198,9 +719,18 @@ test("isolated trials receive no measured credit without structurally valid insp
     trialId: canonicalTrialId,
     artifactDigest,
   });
+  const evaluatorLocator =
+    `https://artifacts.example/runs/${canonicalTrialId}/artifacts/` +
+    artifactDigest.slice("sha256:".length);
   const measured = await runTrial({
     ...fixtureInput(),
     trial: isolated,
+    persistArtifact: async () =>
+      persistenceAttestation({
+        locator: evaluatorLocator,
+        trialId: canonicalTrialId,
+        artifactDigest,
+      }),
     host: {
       ref: isolated.host,
       async execute({ trial: adapterTrial, trialId, candidate, workspaceId }) {
@@ -228,11 +758,21 @@ test("isolated trials receive no measured credit without structurally valid insp
   assert.equal(measured.status, "measured");
   assert.deepEqual(measured.hostEvidence, {
     locator: evidenceReference,
-    digest: evidence.digest,
+    evidenceDigest: evidence.digest,
     trialId: canonicalTrialId,
     artifactDigest,
-    artifactLocator: evidence.artifactLocator,
+    hostId: isolated.host.id,
+    hostConfigurationDigest: isolated.host.configurationDigest,
+    digest: stableDigest({
+      locator: evidenceReference,
+      evidenceDigest: evidence.digest,
+      trialId: canonicalTrialId,
+      artifactDigest,
+      hostId: isolated.host.id,
+      hostConfigurationDigest: isolated.host.configurationDigest,
+    }),
   });
+  assert.equal(measured.artifact?.locator, evaluatorLocator);
 });
 
 test("invalid candidate artifacts are classified before isolation evidence", async () => {
@@ -275,9 +815,6 @@ test("unbound or stale isolated evidence cannot produce measured credit", async 
       evidence: {
         reference,
         detail: unboundDetail,
-        artifactLocator:
-          `https://artifacts.example/runs/${canonicalTrialId}/artifacts/` +
-          artifactDigest.slice("sha256:".length),
         digest: stableDigest({ reference, detail: unboundDetail }),
       },
     },
@@ -325,7 +862,7 @@ test("unbound or stale isolated evidence cannot produce measured credit", async 
   }
 });
 
-test("isolated evidence must bind immutable locator and exact evidence bytes", async () => {
+test("isolated evidence must bind an immutable reference and exact evidence bytes", async () => {
   const isolated = isolatedTrial();
   const canonicalTrialId = createTrialIdentity(isolated);
   const artifactDigest = stableDigest("ok");
@@ -337,9 +874,6 @@ test("isolated evidence must bind immutable locator and exact evidence bytes", a
       detail: "inspectable bytes",
       trialId: canonicalTrialId,
       artifactDigest,
-      artifactLocator:
-        `https://artifacts.example/runs/${canonicalTrialId}/artifacts/` +
-        artifactDigest.slice("sha256:".length),
     },
     boundIsolationEvidence({
       reference: "https://evidence.example/runs/latest",
@@ -527,16 +1061,114 @@ test("malformed candidate artifacts stay at the candidate invalid boundary", asy
   }
 });
 
-test("invalid trial provenance becomes an invalid receipt before identity digesting", async () => {
-  const result = await runTrial({
-    ...fixtureInput(),
-    trial: { ...trial, repetition: 1n } as unknown as TrialSpec,
+test("representative malformed trial fields share one redacted side-effect-free receipt", async () => {
+  const secret = "malformed-secret-must-not-enter-receipt";
+  const cyclic = { secret } as { secret: string; self?: unknown };
+  cyclic.self = cyclic;
+  const throwingEvaluator = Object.defineProperty({}, "repository", {
+    enumerable: true,
+    get() {
+      throw new Error(secret);
+    },
   });
+  const throwingHost = new Proxy(trial.host, {
+    get() {
+      throw new Error(secret);
+    },
+  });
+  const scenarios: ReadonlyArray<{
+    readonly name: string;
+    readonly malformedTrial: unknown;
+  }> = [
+    { name: "top-level id BigInt", malformedTrial: { ...trial, id: 1n } },
+    {
+      name: "evaluator getter",
+      malformedTrial: { ...trial, evaluator: throwingEvaluator },
+    },
+    {
+      name: "candidate non-plain object",
+      malformedTrial: { ...trial, candidate: new Date(0) },
+    },
+    {
+      name: "task BigInt",
+      malformedTrial: { ...trial, task: { ...trial.task, id: 1n, secret } },
+    },
+    {
+      name: "harness cycle",
+      malformedTrial: { ...trial, harness: { ...trial.harness, id: cyclic } },
+    },
+    {
+      name: "model symbol",
+      malformedTrial: { ...trial, model: { ...trial.model, id: Symbol(secret) } },
+    },
+    { name: "host proxy", malformedTrial: { ...trial, host: throwingHost } },
+    {
+      name: "repetition function",
+      malformedTrial: { ...trial, repetition: () => secret },
+    },
+  ];
+  let fixedReceiptDigest: string | undefined;
 
-  assert.equal(result.status, "invalid");
-  assert.equal(result.error?.code, "trial_provenance_invalid");
-  assert.equal(result.cleanup.status, "not_required");
-  assert.equal(result.performanceClaim, false);
+  for (const scenario of scenarios) {
+    let hostCalls = 0;
+    let persistenceCalls = 0;
+    let verifierCalls = 0;
+    const host = createFakeHost();
+    const result = await runTrial({
+      ...fixtureInput(),
+      trial: scenario.malformedTrial as TrialSpec,
+      host: {
+        ...host,
+        async execute(input) {
+          hostCalls += 1;
+          return host.execute(input);
+        },
+      },
+      persistArtifact: () => {
+        persistenceCalls += 1;
+        return undefined;
+      },
+      task: {
+        ...verifier,
+        verify: (artifact) => {
+          verifierCalls += 1;
+          return verifier.verify(artifact);
+        },
+      },
+    });
+
+    fixedReceiptDigest ??= result.receiptDigest;
+    assert.equal(result.receiptDigest, fixedReceiptDigest, scenario.name);
+    assert.equal(result.status, "invalid", scenario.name);
+    assert.equal(result.error?.code, "trial_provenance_invalid", scenario.name);
+    assert.equal(result.cleanup.status, "not_required", scenario.name);
+    assert.equal(result.performanceClaim, false, scenario.name);
+    assert.deepEqual(
+      {
+        candidate: result.candidate,
+        task: result.task,
+        harness: result.harness,
+        model: result.model,
+        host: result.host,
+        repetition: result.repetition,
+        evidenceClass: result.evidenceClass,
+      },
+      {
+        candidate: null,
+        task: null,
+        harness: null,
+        model: null,
+        host: null,
+        repetition: null,
+        evidenceClass: null,
+      },
+      scenario.name,
+    );
+    assert.equal(hostCalls, 0, scenario.name);
+    assert.equal(persistenceCalls, 0, scenario.name);
+    assert.equal(verifierCalls, 0, scenario.name);
+    assert.doesNotMatch(JSON.stringify(result), /malformed-secret/u, scenario.name);
+  }
 });
 
 test("non-finite and non-JSON verifier metrics are rejected before receipt digesting", async () => {
@@ -580,6 +1212,131 @@ test("verifier results must use one exact declared status shape", async () => {
     assert.equal(result.error?.code, "verification_result_invalid");
     assert.equal(result.metrics, undefined);
     assert.doesNotMatch(JSON.stringify(result), /secret/u);
+  }
+});
+
+test("verifier result descriptors cannot manufacture measured metrics", async () => {
+  const isolated = isolatedTrial();
+  const trialId = createTrialIdentity(isolated);
+  const artifactDigest = stableDigest("ok");
+  const evidence = boundIsolationEvidence({
+    reference:
+      "https://evidence.example/runs/0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+    detail: "inspectable isolation evidence",
+    trialId,
+    artifactDigest,
+  });
+  const host: HostAdapter = {
+    ref: isolated.host,
+    async execute({ trial: adapterTrial, candidate, workspaceId }) {
+      return {
+        kind: "completed" as const,
+        evidence,
+        candidate: await candidate.run({ trial: adapterTrial, workspaceId }),
+      };
+    },
+    async cleanup() {},
+  };
+
+  const changingStatus: Record<string, unknown> = { reason: "not measured" };
+  let statusReads = 0;
+  Object.defineProperty(changingStatus, "status", {
+    enumerable: true,
+    get() {
+      statusReads += 1;
+      return statusReads === 6 ? "valid" : "unmeasured";
+    },
+  });
+
+  const accessorMetrics: Record<string, unknown> = {};
+  Object.defineProperty(accessorMetrics, "score", {
+    enumerable: true,
+    get: () => 1,
+  });
+
+  const nonEnumerableEnvelope = { status: "valid", metrics: { score: 1 } };
+  Object.defineProperty(nonEnumerableEnvelope, "undeclared", {
+    enumerable: false,
+    value: "secret",
+  });
+  const nonEnumerableMetrics = { score: 1 };
+  Object.defineProperty(nonEnumerableMetrics, "undeclared", {
+    enumerable: false,
+    value: 2,
+  });
+
+  const scenarios: readonly {
+    readonly name: string;
+    readonly verification: unknown;
+    readonly error: "verification_result_invalid" | "verification_metrics_invalid";
+  }[] = [
+    {
+      name: "stateful status accessor",
+      verification: changingStatus,
+      error: "verification_result_invalid",
+    },
+    {
+      name: "symbol verifier field",
+      verification: {
+        status: "valid",
+        metrics: { score: 1 },
+        [Symbol("undeclared")]: "secret",
+      },
+      error: "verification_result_invalid",
+    },
+    {
+      name: "non-enumerable verifier field",
+      verification: nonEnumerableEnvelope,
+      error: "verification_result_invalid",
+    },
+    {
+      name: "throwing verifier key trap",
+      verification: new Proxy(
+        { status: "valid", metrics: { score: 1 } },
+        {
+          ownKeys() {
+            throw new Error("malformed verifier keys");
+          },
+        },
+      ),
+      error: "verification_result_invalid",
+    },
+    {
+      name: "accessor metric",
+      verification: { status: "valid", metrics: accessorMetrics },
+      error: "verification_metrics_invalid",
+    },
+    {
+      name: "symbol metric",
+      verification: {
+        status: "valid",
+        metrics: { score: 1, [Symbol("undeclared")]: 2 },
+      },
+      error: "verification_metrics_invalid",
+    },
+    {
+      name: "non-enumerable metric",
+      verification: { status: "valid", metrics: nonEnumerableMetrics },
+      error: "verification_metrics_invalid",
+    },
+  ];
+
+  for (const scenario of scenarios) {
+    const result = await runTrial({
+      ...fixtureInput(),
+      trial: isolated,
+      host,
+      task: {
+        ...verifier,
+        verify: () => scenario.verification as ReturnType<TaskAdapter["verify"]>,
+      },
+    });
+
+    assert.equal(result.status, "verifier_failure", scenario.name);
+    assert.equal(result.error?.code, scenario.error, scenario.name);
+    assert.equal(result.metrics, undefined, scenario.name);
+    assert.equal(result.performanceClaim, false, scenario.name);
+    assert.doesNotMatch(JSON.stringify(result), /secret/u, scenario.name);
   }
 });
 
@@ -658,7 +1415,7 @@ test("rejects malformed immutable trial provenance before adapter execution", as
   assert.equal(candidateWasCalled, false);
 });
 
-test("rejects candidate repository query or hash before creating a receipt", async () => {
+test("redacts invalid candidate repository provenance into a fixed receipt", async () => {
   for (const repository of [
     "https://github.com/openboa-ai/coffee-chat?token=receipt-secret",
     "https://github.com/openboa-ai/coffee-chat#receipt-secret",
@@ -666,20 +1423,23 @@ test("rejects candidate repository query or hash before creating a receipt", asy
     let candidateWasCalled = false;
     const candidateRef = { ...trial.candidate, repository };
 
-    await assert.rejects(
-      runTrial({
-        ...fixtureInput(),
-        trial: { ...trial, candidate: candidateRef },
-        candidate: {
-          ref: candidateRef,
-          run: async () => {
-            candidateWasCalled = true;
-            return { kind: "failure", message: "must not execute" };
-          },
+    const result = await runTrial({
+      ...fixtureInput(),
+      trial: { ...trial, candidate: candidateRef },
+      candidate: {
+        ref: candidateRef,
+        run: async () => {
+          candidateWasCalled = true;
+          return { kind: "failure", message: "must not execute" };
         },
-      }),
-      /candidate repository provenance is invalid/u,
-    );
+      },
+    });
+    assert.equal(result.status, "invalid");
+    assert.equal(result.error?.code, "trial_provenance_invalid");
+    assert.equal(result.candidate, null);
+    assert.equal(result.task, null);
+    assert.equal(result.host, null);
+    assert.doesNotMatch(JSON.stringify(result), /receipt-secret/u);
     assert.equal(candidateWasCalled, false);
   }
 });
@@ -754,6 +1514,9 @@ test("binds receipts to the allowlisted running evaluator and strips undeclared 
 
   assert.equal(mismatched.status, "invalid");
   assert.equal(mismatched.error?.code, "evaluator_reference_mismatch");
+  assert.equal(mismatched.candidate, null);
+  assert.equal(mismatched.task, null);
+  assert.equal(mismatched.host, null);
   assert.equal(candidateWasCalled, false);
 
   const result = await runTrial({
@@ -888,7 +1651,12 @@ test("rejects supplied trial IDs and keeps the canonical snapshot stable against
     trial: { ...trial, id: "trial-attacker-controlled" },
   });
   assert.equal(suppliedId.status, "invalid");
-  assert.equal(suppliedId.trialId, expectedId);
+  assert.notEqual(suppliedId.trialId, expectedId);
+  assert.equal(suppliedId.candidate, null);
+  assert.equal(suppliedId.task, null);
+  assert.equal(suppliedId.host, null);
+  assert.equal(suppliedId.repetition, null);
+  assert.equal(suppliedId.evidenceClass, null);
   assert.equal(suppliedId.cleanup.status, "not_required");
 
   const mutableTrial = structuredClone(trial);
@@ -912,6 +1680,7 @@ test("rejects supplied trial IDs and keeps the canonical snapshot stable against
     },
   });
   assert.equal(result.trialId, expectedId);
+  assert.ok(result.candidate);
   assert.equal(result.candidate.commit, trial.candidate.commit);
 });
 
@@ -1000,7 +1769,7 @@ test("wall clock retains only ordered canonical UTC timestamps", async () => {
   }
 });
 
-test("binds a host-persisted artifact locator and explicit timing provenance without raw bytes", async () => {
+test("binds an evaluator-persisted artifact locator and timing without raw bytes", async () => {
   const invalidArtifact = await runTrial({
     ...fixtureInput(),
     candidate: {
@@ -1117,5 +1886,11 @@ test("accepts a correctly digested empty artifact without inventing content", as
     locator: `fixture://workspace-${createTrialIdentity(trial)}/artifacts/${stableDigest("").slice("sha256:".length)}`,
     digest: stableDigest(""),
     byteSize: 0,
+    trialId: createTrialIdentity(trial),
+    persistenceDigest: stableDigest({
+      locator: `fixture://workspace-${createTrialIdentity(trial)}/artifacts/${stableDigest("").slice("sha256:".length)}`,
+      trialId: createTrialIdentity(trial),
+      artifactDigest: stableDigest(""),
+    }),
   });
 });

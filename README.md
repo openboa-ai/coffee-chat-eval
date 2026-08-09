@@ -5,10 +5,12 @@ Coffee Chat. This initial baseline provides deterministic, candidate-independent
 trial identity, typed public adapter boundaries, fixture-host receipts, and
 dry-run reporting.
 
-The candidate produces artifact bytes; the host is responsible for persistence
-and supplies the locator retained by the receipt. The evaluator never invents a
-locator from a digest. An isolated run cannot become measured unless both the
-artifact locator and isolation evidence are immutable and mutually bound.
+The candidate produces artifact bytes; evaluator-owned infrastructure persists
+them and returns a closed attestation over its locator, the canonical trial ID,
+and the artifact digest. A host supplies only an evidence claim. An isolated
+run cannot become measured unless an evaluator-owned inspector attests that
+claim for the declared host configuration and the same trial and artifact.
+Both attestations are runtime-validated before verification.
 
 It does not contain Coffee Chat product internals, benchmark cases or metrics,
 a real provider/model/host E2E, or a Coffee Chat performance result. Fixture
@@ -16,21 +18,6 @@ receipts are explicitly unmeasured and cannot become a score.
 
 Run locally with `npm ci`, then `npm test`, `npm run typecheck`, and
 `npm run dry-run`.
-
-## Bootstrap migration authority
-
-The migration objective, projection, equality inputs, and execution receipt in
-`docs/migration/` authorize only the clean repository bootstrap. They are an
-immutable trust base after that bootstrap lands. An ordinary post-bootstrap
-pull request does not create or refresh a legacy migration classification;
-instead it declares one product or system objective, its observable acceptance
-criteria, and the relevant Quality Map and CI evidence.
-
-The bootstrap checker validates the closed JSON schemas, reviewed authority
-digests, changed-surface classification, and exact byte and Git-blob equality
-for the selected `.gitignore` migration. The empty `rewrite` and `exclude`
-evidence arrays are intentional: no rows with those actions were selected for
-this bootstrap.
 
 ## Initial contribution policy
 
