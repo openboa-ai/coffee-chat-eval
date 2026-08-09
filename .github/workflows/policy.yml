@@ -1,0 +1,38 @@
+name: evaluator-policy
+
+on:
+  pull_request:
+  merge_group:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  policy:
+    name: policy
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Verify trusted pull request author
+        if: github.event_name == 'pull_request'
+        env:
+          AUTHOR_ASSOCIATION: ${{ github.event.pull_request.author_association }}
+        run: |
+          case "$AUTHOR_ASSOCIATION" in
+            OWNER|MEMBER)
+              printf '%s\n' 'author=trusted_member'
+              ;;
+            *)
+              printf '%s\n' 'author=untrusted' >&2
+              exit 1
+              ;;
+          esac
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444
+        with:
+          node-version: 24.5.0
+          cache: npm
+      - run: npm ci
+      - run: npm run ci:policy

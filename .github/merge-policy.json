@@ -1,0 +1,26 @@
+{
+  "schema": "coffee-chat/merge-policy",
+  "auto_merge": {
+    "required_checks": true,
+    "verified_members_only": true
+  },
+  "merge_method": "squash",
+  "required_approvals": 0,
+  "eligible_author_associations": ["OWNER", "MEMBER"],
+  "protected_paths": [
+    ".github/**",
+    "AGENTS.md",
+    "LICENSE",
+    "PLAN.md",
+    "SECURITY.md",
+    "package.json",
+    "package-lock.json",
+    "prettier.config.mjs",
+    "src/identity.ts",
+    "src/matrix.ts",
+    "src/runner.ts",
+    "src/types.ts",
+    "tsconfig.json"
+  ],
+  "required_contexts": ["Eval / aggregate", "Eval / dependency review"]
+}

@@ -1,0 +1,13 @@
+/AGENTS.md @openboa
+/LICENSE @openboa
+/PLAN.md @openboa
+/SECURITY.md @openboa
+/.github/ @openboa
+/package.json @openboa
+/package-lock.json @openboa
+/prettier.config.mjs @openboa
+/src/identity.ts @openboa
+/src/matrix.ts @openboa
+/src/runner.ts @openboa
+/src/types.ts @openboa
+/tsconfig.json @openboa
