@@ -338,8 +338,8 @@ test("host execution accepts only closed declared result envelopes", async () =>
       },
     });
 
-    assert.equal(result.status, "evaluator_failure", scenario.name);
-    assert.equal(result.error?.code, "evaluator_execution_failed", scenario.name);
+    assert.equal(result.status, "host_failure", scenario.name);
+    assert.equal(result.error?.code, "host_execution_failed", scenario.name);
     assert.equal(persistenceCalls, 0, scenario.name);
     assert.equal(verifierCalls, 0, scenario.name);
   }
@@ -396,9 +396,9 @@ test("adapter boundary descriptors cannot change measured bytes or bindings", as
     readonly execution: () => unknown;
     readonly inspect?: RunTrialInput["inspectHostEvidence"];
     readonly persist?: RunTrialInput["persistArtifact"];
-    readonly expectedStatus: "evaluator_failure" | "invalid" | "unavailable";
+    readonly expectedStatus: "host_failure" | "invalid" | "unavailable";
     readonly expectedError:
-      | "evaluator_execution_failed"
+      | "host_execution_failed"
       | "artifact_digest_invalid"
       | "isolation_evidence_invalid"
       | "artifact_locator_invalid";
@@ -413,8 +413,8 @@ test("adapter boundary descriptors cannot change measured bytes or bindings", as
         changingProperty(execution, "kind", ["unexpected", "completed"]);
         return execution;
       },
-      expectedStatus: "evaluator_failure",
-      expectedError: "evaluator_execution_failed",
+      expectedStatus: "host_failure",
+      expectedError: "host_execution_failed",
       expectedPersistenceCalls: 0,
     },
     {
@@ -430,8 +430,8 @@ test("adapter boundary descriptors cannot change measured bytes or bindings", as
           candidate,
         });
       },
-      expectedStatus: "evaluator_failure",
-      expectedError: "evaluator_execution_failed",
+      expectedStatus: "host_failure",
+      expectedError: "host_execution_failed",
       expectedPersistenceCalls: 0,
     },
     {
@@ -442,8 +442,8 @@ test("adapter boundary descriptors cannot change measured bytes or bindings", as
             throw new Error("descriptor-secret");
           },
         }),
-      expectedStatus: "evaluator_failure",
-      expectedError: "evaluator_execution_failed",
+      expectedStatus: "host_failure",
+      expectedError: "host_execution_failed",
       expectedPersistenceCalls: 0,
     },
     {
@@ -461,8 +461,8 @@ test("adapter boundary descriptors cannot change measured bytes or bindings", as
             return Reflect.getOwnPropertyDescriptor(target, key);
           },
         }),
-      expectedStatus: "evaluator_failure",
-      expectedError: "evaluator_execution_failed",
+      expectedStatus: "host_failure",
+      expectedError: "host_execution_failed",
       expectedPersistenceCalls: 0,
     },
     {

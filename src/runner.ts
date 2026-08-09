@@ -259,8 +259,8 @@ export async function runTrial(input: RunTrialInput): Promise<TrialReceipt> {
       } else {
         const execution = validateHostExecutionEnvelope(hostAttempt.output);
         if (!execution) {
-          status = "evaluator_failure";
-          error = receiptError("evaluator_execution_failed");
+          status = "host_failure";
+          error = receiptError("host_execution_failed");
         } else if (execution.kind === "host_failure") {
           status = "host_failure";
           error = receiptError("host_execution_failed");
