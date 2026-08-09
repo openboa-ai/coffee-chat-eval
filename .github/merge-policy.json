@@ -1,18 +1,36 @@
 {
   "schema": "coffee-chat/merge-policy",
+  "auto_merge": {
+    "required_checks": true,
+    "verified_members_only": true
+  },
+  "eligible_author_associations": ["OWNER", "MEMBER"],
   "protected_paths": [
     ".github/**",
     "AGENTS.md",
+    "LICENSE",
     "PLAN.md",
+    "SECURITY.md",
     "docs/migration/**",
+    "package.json",
+    "package-lock.json",
+    "prettier.config.mjs",
+    "scripts/check-migration-receipt.mjs",
     "src/adapters/**",
     "src/hosts/**",
+    "src/identity.ts",
+    "src/matrix.ts",
+    "src/registry.ts",
+    "src/report.ts",
     "src/runner.ts",
-    "src/validation.ts"
+    "src/types.ts",
+    "src/validation.ts",
+    "tsconfig.json"
   ],
-  "required_contexts": [
-    "Eval / required",
-    "Eval / dependency review",
-    "Eval CodeQL / JavaScript-TypeScript"
-  ]
+  "required_contexts": ["Eval / aggregate", "Eval / dependency review"],
+  "fork_pull_requests": {
+    "policy": "intake_only",
+    "coverage_upload": "same_repository_only",
+    "promotion": "maintainer_same_repository_branch"
+  }
 }

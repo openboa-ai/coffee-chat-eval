@@ -1,5 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/openboa-ai/coffee-chat-eval/blob/main/.github/migration-selection.schema.json",
+  "title": "Coffee Chat migration selection projection",
   "type": "object",
   "required": [
     "schema",
@@ -7,8 +9,158 @@
     "task",
     "objective",
     "ledger_sha256",
-    "rows",
+    "selected_rows",
     "changed_surface_classification"
   ],
-  "additionalProperties": false
+  "properties": {
+    "schema": { "const": "coffee-chat/migration-selection-projection" },
+    "target_owner": { "$ref": "#/$defs/repository" },
+    "task": { "type": "string", "pattern": "^task-[1-9][0-9]*$" },
+    "objective": { "$ref": "#/$defs/nonEmptyString" },
+    "ledger_sha256": { "$ref": "#/$defs/sha256Hex" },
+    "selected_rows": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/selectedRow" }
+    },
+    "changed_surface_classification": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/classification" }
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "nonEmptyString": { "type": "string", "minLength": 1 },
+    "repository": {
+      "type": "string",
+      "pattern": "^[^/\\s]+/[^/\\s]+$"
+    },
+    "gitOid": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "sha256Hex": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "path": { "type": "string", "minLength": 1 },
+    "rowIdentity": {
+      "type": "object",
+      "required": ["source_repository", "source_ref", "source_commit", "source_path"],
+      "properties": {
+        "source_repository": { "$ref": "#/$defs/repository" },
+        "source_ref": { "$ref": "#/$defs/nonEmptyString" },
+        "source_commit": { "$ref": "#/$defs/gitOid" },
+        "source_path": { "$ref": "#/$defs/path" }
+      },
+      "additionalProperties": false
+    },
+    "selectedRow": {
+      "type": "object",
+      "required": [
+        "source_repository",
+        "source_ref",
+        "source_commit",
+        "source_path",
+        "source_blob_oid",
+        "content_sha256",
+        "action",
+        "target_owner",
+        "target_path_or_surface",
+        "rationale_code",
+        "oracle_code",
+        "confidence",
+        "migration_state"
+      ],
+      "properties": {
+        "source_repository": { "$ref": "#/$defs/repository" },
+        "source_ref": { "$ref": "#/$defs/nonEmptyString" },
+        "source_commit": { "$ref": "#/$defs/gitOid" },
+        "source_path": { "$ref": "#/$defs/path" },
+        "source_blob_oid": { "$ref": "#/$defs/gitOid" },
+        "content_sha256": {
+          "type": "string",
+          "pattern": "^(?:[0-9a-f]{64}|-)$"
+        },
+        "action": { "enum": ["migrate", "rewrite", "exclude"] },
+        "target_owner": { "$ref": "#/$defs/nonEmptyString" },
+        "target_path_or_surface": { "$ref": "#/$defs/path" },
+        "rationale_code": { "$ref": "#/$defs/nonEmptyString" },
+        "oracle_code": { "$ref": "#/$defs/nonEmptyString" },
+        "confidence": { "enum": ["high", "medium", "low"] },
+        "migration_state": {
+          "enum": ["planned", "migrated", "rewritten", "excluded"]
+        },
+        "source_objective_or_failure_mode": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "replacement_observable_oracle": {
+          "$ref": "#/$defs/nonEmptyString"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "action": { "const": "rewrite" } },
+            "required": ["action"]
+          },
+          "then": {
+            "properties": {
+              "source_objective_or_failure_mode": {
+                "$ref": "#/$defs/nonEmptyString"
+              },
+              "replacement_observable_oracle": {
+                "$ref": "#/$defs/nonEmptyString"
+              }
+            },
+            "required": [
+              "source_objective_or_failure_mode",
+              "replacement_observable_oracle"
+            ]
+          },
+          "else": {
+            "properties": {
+              "source_objective_or_failure_mode": false,
+              "replacement_observable_oracle": false
+            },
+            "not": {
+              "anyOf": [
+                { "required": ["source_objective_or_failure_mode"] },
+                { "required": ["replacement_observable_oracle"] }
+              ]
+            }
+          }
+        }
+      ],
+      "additionalProperties": false
+    },
+    "classification": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["target_path_or_surface", "classification", "selected_rows"],
+          "properties": {
+            "target_path_or_surface": { "$ref": "#/$defs/path" },
+            "classification": { "const": "ledger-derived" },
+            "selected_rows": {
+              "type": "array",
+              "minItems": 1,
+              "items": { "$ref": "#/$defs/rowIdentity" }
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "target_path_or_surface",
+            "classification",
+            "objective_or_failure_mode",
+            "observable_oracle"
+          ],
+          "properties": {
+            "target_path_or_surface": { "$ref": "#/$defs/path" },
+            "classification": { "const": "new-authority" },
+            "objective_or_failure_mode": { "$ref": "#/$defs/nonEmptyString" },
+            "observable_oracle": { "$ref": "#/$defs/nonEmptyString" }
+          },
+          "additionalProperties": false
+        }
+      ]
+    }
+  }
 }

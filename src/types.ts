@@ -11,6 +11,15 @@ export type TrialStatus =
 
 export type IsolationClass = "isolated" | "fixture" | "process";
 
+export type Sha256Digest = `sha256:${string}`;
+
+export interface EvaluatorRef {
+  readonly repository: string;
+  readonly commit: string;
+  readonly calver: string;
+  readonly configurationDigest: Sha256Digest;
+}
+
 export interface CandidateRef {
   readonly repository: string;
   readonly commit: string;
@@ -20,26 +29,29 @@ export interface CandidateRef {
 
 export interface TaskRef {
   readonly id: string;
-  readonly digest: `sha256:${string}`;
+  readonly digest: Sha256Digest;
 }
 
 export interface HarnessRef {
   readonly id: string;
-  readonly digest: `sha256:${string}`;
+  readonly digest: Sha256Digest;
 }
 
 export interface ModelRef {
   readonly id: string;
-  readonly digest: `sha256:${string}`;
+  readonly digest: Sha256Digest;
 }
 
 export interface HostRef {
   readonly id: string;
   readonly isolationClass: IsolationClass;
+  readonly configurationDigest: Sha256Digest;
+  readonly isolationReference: string;
 }
 
 export interface TrialSpec {
   readonly id?: string;
+  readonly evaluator: EvaluatorRef;
   readonly candidate: CandidateRef;
   readonly task: TaskRef;
   readonly harness: HarnessRef;
@@ -50,7 +62,7 @@ export interface TrialSpec {
 
 export interface Artifact {
   readonly id: string;
-  readonly digest: `sha256:${string}`;
+  readonly digest: Sha256Digest;
   readonly value: string;
 }
 
@@ -68,12 +80,13 @@ export interface CandidateAdapter {
 
 export interface HostEvidence {
   readonly reference: string;
+  readonly digest: Sha256Digest;
   readonly detail: string;
 }
 
 export interface ReceiptEvidence {
-  readonly locator: `evidence:${string}`;
-  readonly digest: `sha256:${string}`;
+  readonly locator: string;
+  readonly digest: Sha256Digest;
 }
 
 export type ReceiptErrorCode =
@@ -81,12 +94,17 @@ export type ReceiptErrorCode =
   | "artifact_digest_invalid"
   | "candidate_execution_failed"
   | "cleanup_failed"
+  | "evaluator_reference_mismatch"
   | "evaluator_execution_failed"
   | "host_execution_failed"
+  | "isolation_evidence_invalid"
   | "isolation_evidence_missing"
   | "supplied_trial_id_mismatch"
+  | "trial_provenance_invalid"
   | "verification_skipped"
   | "verification_unavailable"
+  | "verification_metrics_invalid"
+  | "verification_result_invalid"
   | "verification_unmeasured"
   | "verifier_execution_failed";
 
@@ -133,7 +151,7 @@ export interface CleanupResult {
 
 export interface TimingProviderRef {
   readonly id: string;
-  readonly digest: `sha256:${string}`;
+  readonly digest: Sha256Digest;
   readonly kind: "monotonic" | "unmeasured";
 }
 
@@ -155,12 +173,13 @@ export type TimingProvenance =
 
 export interface ArtifactReceipt {
   readonly locator: `artifact:${string}`;
-  readonly digest: `sha256:${string}`;
+  readonly digest: Sha256Digest;
   readonly byteSize: number;
 }
 
 export interface TrialReceipt {
   readonly trialId: string;
+  readonly evaluator: EvaluatorRef;
   readonly candidate: CandidateRef;
   readonly task: TaskRef;
   readonly harness: HarnessRef;
@@ -178,10 +197,11 @@ export interface TrialReceipt {
   readonly artifact?: ArtifactReceipt;
   readonly metrics?: Readonly<Record<string, number>>;
   readonly cleanup: CleanupResult;
-  readonly receiptDigest: `sha256:${string}`;
+  readonly receiptDigest: Sha256Digest;
 }
 
 export interface MatrixDefinition {
+  readonly evaluator: EvaluatorRef;
   readonly candidate: CandidateRef;
   readonly tasks: readonly TaskRef[];
   readonly harnesses: readonly HarnessRef[];
