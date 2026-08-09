@@ -5,6 +5,7 @@ import { createFakeCandidate } from "../src/adapters/fake-candidate.ts";
 import { createFakeHost } from "../src/hosts/fake-host.ts";
 import { createTrialIdentity, stableDigest } from "../src/identity.ts";
 import { runTrial } from "../src/runner.ts";
+import { validateTrialProvenance } from "../src/validation.ts";
 import type {
   HostAdapter,
   TaskAdapter,
@@ -428,6 +429,80 @@ test("rejects malformed immutable trial provenance before adapter execution", as
   assert.equal(result.error?.code, "trial_provenance_invalid");
   assert.equal(result.cleanup.status, "not_required");
   assert.equal(candidateWasCalled, false);
+});
+
+test("rejects candidate repository query or hash before creating a receipt", async () => {
+  for (const repository of [
+    "https://github.com/openboa-ai/coffee-chat?token=receipt-secret",
+    "https://github.com/openboa-ai/coffee-chat#receipt-secret",
+  ]) {
+    let candidateWasCalled = false;
+    const candidateRef = { ...trial.candidate, repository };
+
+    await assert.rejects(
+      runTrial({
+        ...fixtureInput(),
+        trial: { ...trial, candidate: candidateRef },
+        candidate: {
+          ref: candidateRef,
+          run: async () => {
+            candidateWasCalled = true;
+            return { kind: "failure", message: "must not execute" };
+          },
+        },
+      }),
+      /candidate repository provenance is invalid/u,
+    );
+    assert.equal(candidateWasCalled, false);
+  }
+});
+
+test("CalVer accepts only calendar-valid four-digit unpadded dates", () => {
+  for (const calver of ["2024.2.29", "2026.8.9", "9999.12.31"]) {
+    assert.equal(
+      validateTrialProvenance({
+        ...trial,
+        candidate: { ...trial.candidate, calver },
+      }),
+      true,
+      `candidate ${calver}`,
+    );
+    assert.equal(
+      validateTrialProvenance({
+        ...trial,
+        evaluator: { ...trial.evaluator, calver },
+      }),
+      true,
+      `evaluator ${calver}`,
+    );
+  }
+
+  for (const calver of [
+    "26.8.9",
+    "02026.8.9",
+    "2026.08.9",
+    "2026.8.09",
+    "2026.13.1",
+    "2026.4.31",
+    "2025.2.29",
+  ]) {
+    assert.equal(
+      validateTrialProvenance({
+        ...trial,
+        candidate: { ...trial.candidate, calver },
+      }),
+      false,
+      `candidate ${calver}`,
+    );
+    assert.equal(
+      validateTrialProvenance({
+        ...trial,
+        evaluator: { ...trial.evaluator, calver },
+      }),
+      false,
+      `evaluator ${calver}`,
+    );
+  }
 });
 
 test("binds receipts to the allowlisted running evaluator and strips undeclared fields", async () => {

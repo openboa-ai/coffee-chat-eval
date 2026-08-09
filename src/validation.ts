@@ -66,14 +66,16 @@ function isValidEvidenceReference(
   }
 }
 
-function isHttpsUrl(value: unknown): boolean {
+export function isSafeHttpsRepositoryUrl(value: unknown): value is string {
   if (typeof value !== "string") return false;
   try {
     const url = new URL(value);
     return (
       url.protocol === "https:" &&
       url.username.length === 0 &&
-      url.password.length === 0
+      url.password.length === 0 &&
+      url.search.length === 0 &&
+      url.hash.length === 0
     );
   } catch {
     return false;
@@ -85,7 +87,16 @@ function isNonEmptyString(value: unknown): value is string {
 }
 
 function isCalVer(value: unknown): value is string {
-  return typeof value === "string" && /^\d+\.[1-9]\d*\.[1-9]\d*$/u.test(value);
+  if (typeof value !== "string") return false;
+  const match = /^(\d{4})\.([1-9]|1[0-2])\.([1-9]|[12]\d|3[01])$/u.exec(value);
+  if (!match) return false;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const leapYear = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+  const daysInMonth = [31, leapYear ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  const maximumDay = daysInMonth[month - 1];
+  return maximumDay !== undefined && day <= maximumDay;
 }
 
 export function canonicalEvaluatorRef(value: unknown): EvaluatorRef | undefined {
@@ -115,7 +126,7 @@ export function validateTrialProvenance(trial: TrialSpec): boolean {
   try {
     return (
       canonicalEvaluatorRef(trial.evaluator) !== undefined &&
-      isHttpsUrl(trial.candidate.repository) &&
+      isSafeHttpsRepositoryUrl(trial.candidate.repository) &&
       /^[0-9a-f]{40}$/u.test(trial.candidate.commit) &&
       isCalVer(trial.candidate.calver) &&
       isNonEmptyString(trial.candidate.adapter) &&

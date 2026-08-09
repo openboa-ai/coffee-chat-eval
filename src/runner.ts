@@ -3,6 +3,7 @@ import {
   artifactReceipt,
   canonicalEvaluatorRef,
   immutableReceipt,
+  isSafeHttpsRepositoryUrl,
   receiptError,
   snapshotAndFreeze,
   validateArtifact,
@@ -97,6 +98,9 @@ export async function runTrial(input: RunTrialInput): Promise<TrialReceipt> {
   const runningEvaluator = canonicalEvaluatorRef(input.runningEvaluator);
   if (!runningEvaluator) {
     throw new TypeError("trusted evaluator provenance is invalid");
+  }
+  if (!isSafeHttpsRepositoryUrl(input.trial.candidate.repository)) {
+    throw new TypeError("candidate repository provenance is invalid");
   }
   const suppliedTrial = snapshotAndFreeze(input.trial);
   const declaredEvaluator = canonicalEvaluatorRef(suppliedTrial.evaluator);

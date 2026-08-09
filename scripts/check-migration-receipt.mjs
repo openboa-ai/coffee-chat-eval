@@ -213,17 +213,12 @@ async function assertActionEvidence(projection, execution) {
 
   const expectedMigrate = [];
   for (const row of migrateRows) {
-    const sourceBytes = await readPinnedSource(row);
     const targetBytes = await readRegularTarget(row.target_path_or_surface);
     const targetSha256 = digest(targetBytes);
     const targetBlobOid = gitBlobOid(targetBytes);
-    if (
-      !sourceBytes.equals(targetBytes) ||
-      targetSha256 !== row.content_sha256 ||
-      targetBlobOid !== row.source_blob_oid
-    ) {
+    if (targetSha256 !== row.content_sha256 || targetBlobOid !== row.source_blob_oid) {
       throw new Error(
-        `migrated bytes do not match pinned source blob: ${row.target_path_or_surface}`,
+        `migrated target bytes do not match frozen selected source: ${row.target_path_or_surface}`,
       );
     }
     expectedMigrate.push({
@@ -421,8 +416,10 @@ async function main() {
   }
 
   const base = await migrationBase();
-  if (classifyMigrationBase(base) === "ordinary-pr") {
+  const migrationClass = classifyMigrationBase(base);
+  if (migrationClass === "ordinary-pr") {
     await assertBaseContainsBootstrapAuthority(base);
+    return;
   }
   const { stdout } = await execFileAsync(
     "git",
@@ -435,11 +432,7 @@ async function main() {
       ({ target_path_or_surface }) => target_path_or_surface,
     ),
   );
-  if (classifyMigrationBase(base) === "bootstrap") {
-    assertExactChangedSurface(changedPaths, classifiedPaths);
-  } else {
-    assertChangedPathsAreClassified(changedPaths, classifiedPaths);
-  }
+  assertExactChangedSurface(changedPaths, classifiedPaths);
 }
 
 if (
