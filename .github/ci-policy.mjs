@@ -13,6 +13,44 @@ const workflows = [
 ];
 const pinnedAction = /uses:\s+[\w/-]+@[0-9a-f]{40}\b/u;
 
+export function assertCheckoutCredentialsDisabled(workflow, source) {
+  const lines = source.split("\n");
+  const checkoutIndexes = lines.flatMap((line, index) =>
+    line.includes("uses: actions/checkout@") ? [index] : [],
+  );
+  for (const checkoutIndex of checkoutIndexes) {
+    const usesIndent = /^\s*/u.exec(lines[checkoutIndex])?.[0].length ?? 0;
+    let stepStart = -1;
+    let stepIndent = -1;
+    for (let index = checkoutIndex; index >= 0; index -= 1) {
+      const marker = /^(\s*)-\s/u.exec(lines[index]);
+      if (marker && marker[1].length <= usesIndent) {
+        stepStart = index;
+        stepIndent = marker[1].length;
+        break;
+      }
+    }
+    if (stepStart === -1) throw new Error(`${workflow} has an unparseable checkout`);
+    let stepEnd = lines.length;
+    for (let index = stepStart + 1; index < lines.length; index += 1) {
+      const marker = /^(\s*)-\s/u.exec(lines[index]);
+      if (marker && marker[1].length === stepIndent) {
+        stepEnd = index;
+        break;
+      }
+    }
+    const step = lines.slice(stepStart, stepEnd).join("\n");
+    const disabledDeclarations =
+      step.match(/^\s*persist-credentials:\s*false\s*$/gmu)?.length ?? 0;
+    if (
+      disabledDeclarations !== 1 ||
+      /^\s*persist-credentials:\s*true\s*$/mu.test(step)
+    ) {
+      throw new Error(`${workflow} checkout must disable persisted credentials`);
+    }
+  }
+}
+
 function namedJobContext(workflow, source, jobId) {
   const workflowName = /^name:\s*(.+)$/mu.exec(source)?.[1];
   const jobStart = source.indexOf(`  ${jobId}:\n`);
@@ -46,6 +84,7 @@ for (const workflow of workflows) {
   ) {
     throw new Error(`${workflow} has an unsafe trigger or unpinned action`);
   }
+  assertCheckoutCredentialsDisabled(workflow, text);
 }
 
 const quality = await readFile(path(".github/workflows/quality.yml"), "utf8");
@@ -63,6 +102,20 @@ if (
   throw new Error(
     "quality workflow lacks the required aggregate or dependency-review lane",
   );
+}
+for (const required of [
+  "name: Verify trusted pull request author",
+  "github.event_name == 'pull_request'",
+  "github.event.pull_request.author_association",
+  "OWNER|MEMBER",
+  "author=untrusted",
+]) {
+  if (!quality.includes(required)) {
+    throw new Error(`quality workflow lacks member eligibility: ${required}`);
+  }
+}
+if (quality.includes("COLLABORATOR")) {
+  throw new Error("quality workflow must not admit non-member collaborators");
 }
 const policy = await readFile(path(".github/workflows/policy.yml"), "utf8");
 if (
@@ -108,6 +161,9 @@ for (const forbidden of ["secrets.", "id-token:", "packages:"]) {
   if (coverage.includes(forbidden))
     throw new Error(`coverage workflow has forbidden authority: ${forbidden}`);
 }
+if (/fail-on-error:\s*false/u.test(coverage)) {
+  throw new Error("coverage upload failures must remain fail-closed");
+}
 const coverageRequirements = await readFile(
   path(".github/coverage-requirements.txt"),
   "utf8",
@@ -121,16 +177,58 @@ if (
 const mergePolicy = JSON.parse(
   await readFile(path(".github/merge-policy.json"), "utf8"),
 );
+if (
+  JSON.stringify(mergePolicy.auto_merge) !==
+    JSON.stringify({ required_checks: true, verified_members_only: true }) ||
+  JSON.stringify(mergePolicy.eligible_author_associations) !==
+    JSON.stringify(["OWNER", "MEMBER"])
+) {
+  throw new Error("merge policy must use approval-free member auto-merge");
+}
+const requiredProtectedPaths = [
+  "LICENSE",
+  "package.json",
+  "package-lock.json",
+  "scripts/check-migration-receipt.mjs",
+  "src/identity.ts",
+  "src/matrix.ts",
+  "src/registry.ts",
+  "src/report.ts",
+  "src/types.ts",
+];
+for (const protectedPath of requiredProtectedPaths) {
+  if (!mergePolicy.protected_paths.includes(protectedPath)) {
+    throw new Error(`merge policy must protect ${protectedPath}`);
+  }
+}
+if (
+  JSON.stringify(mergePolicy.fork_pull_requests) !==
+  JSON.stringify({
+    policy: "intake_only",
+    coverage_upload: "same_repository_only",
+    promotion: "maintainer_same_repository_branch",
+  })
+) {
+  throw new Error("fork pull request intake policy differs");
+}
+const codeowners = await readFile(path(".github/CODEOWNERS"), "utf8");
+for (const protectedPath of requiredProtectedPaths) {
+  if (!codeowners.split("\n").includes(`/${protectedPath} @openboa`)) {
+    throw new Error(`CODEOWNERS must own ${protectedPath}`);
+  }
+}
 assertRequiredContexts(mergePolicy.required_contexts, [
-  namedJobContext("quality.yml", quality, "quality"),
+  namedJobContext("quality.yml", quality, "aggregate"),
   namedJobContext("quality.yml", quality, "dependency-review"),
-  namedJobContext("codeql.yml", codeql, "analyze"),
 ]);
 
 const packageJson = JSON.parse(await readFile(path("package.json"), "utf8"));
 for (const script of ["format:check", "typecheck", "test", "dry-run", "ci:policy"]) {
   if (typeof packageJson.scripts?.[script] !== "string")
     throw new Error(`missing ${script} script`);
+}
+if (packageJson.devDependencies?.ajv !== "8.20.0") {
+  throw new Error("migration schema validator must remain exactly pinned");
 }
 await execFileAsync(process.execPath, ["scripts/check-migration-receipt.mjs"], {
   cwd: path(".").pathname,
