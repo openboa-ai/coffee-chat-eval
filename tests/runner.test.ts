@@ -376,6 +376,47 @@ test("candidate adapter exceptions remain candidate-owned through host execution
   }
 });
 
+test("malformed resolved candidate runs remain candidate-owned through host execution", async () => {
+  const throwingKind = Object.defineProperty({}, "kind", {
+    enumerable: true,
+    get() {
+      throw new Error("candidate-controlled discriminator");
+    },
+  });
+  const scenarios: ReadonlyArray<{
+    readonly name: string;
+    readonly value: unknown;
+  }> = [
+    { name: "undefined", value: undefined },
+    { name: "null", value: null },
+    { name: "missing discriminator", value: {} },
+    { name: "unknown discriminator", value: { kind: "unknown" } },
+    { name: "throwing discriminator", value: throwingKind },
+  ];
+
+  for (const scenario of scenarios) {
+    const result = await runTrial({
+      ...fixtureInput(),
+      candidate: {
+        ref: trial.candidate,
+        run: async () => scenario.value as never,
+      },
+    });
+
+    assert.equal(result.status, "candidate_failure", scenario.name);
+    assert.equal(result.error?.code, "candidate_execution_failed", scenario.name);
+    assert.equal(result.cleanup.status, "completed", scenario.name);
+    assert.equal(result.hostEvidence, undefined, scenario.name);
+    assert.equal(result.artifact, undefined, scenario.name);
+    assert.equal(result.metrics, undefined, scenario.name);
+    assert.doesNotMatch(
+      JSON.stringify(result),
+      /candidate-controlled discriminator/u,
+      scenario.name,
+    );
+  }
+});
+
 test("host, candidate, verifier, and invalid boundaries remain distinct", async () => {
   const hostFailure = await runTrial({
     ...fixtureInput(),
@@ -422,6 +463,8 @@ test("malformed candidate artifacts stay at the candidate invalid boundary", asy
     },
   );
   for (const artifact of [
+    1,
+    {},
     { id: null, digest: stableDigest("ok"), value: "ok" },
     throwingArtifact,
   ]) {

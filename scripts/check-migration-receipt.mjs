@@ -75,6 +75,12 @@ export function gitBlobOid(bytes) {
     .digest("hex");
 }
 
+export function assertMigratedBytesEqual(sourceBytes, targetBytes, targetPath) {
+  if (!sourceBytes.equals(targetBytes)) {
+    throw new Error(`pinned source bytes differ from migrated target: ${targetPath}`);
+  }
+}
+
 export async function readPinnedSource(row, fetchImplementation = fetch) {
   const encodedRepository = row.source_repository
     .split("/")
@@ -87,12 +93,16 @@ export async function readPinnedSource(row, fetchImplementation = fetch) {
   const url =
     `https://api.github.com/repos/${encodedRepository}/contents/${encodedPath}` +
     `?ref=${encodeURIComponent(row.source_commit)}`;
+  const headers = {
+    Accept: "application/vnd.github+json",
+    "User-Agent": "openboa-ai-coffee-chat-eval-migration-check",
+    "X-GitHub-Api-Version": "2022-11-28",
+  };
+  if (process.env.GITHUB_TOKEN) {
+    headers.Authorization = `Bearer ${process.env.GITHUB_TOKEN}`;
+  }
   const response = await fetchImplementation(url, {
-    headers: {
-      Accept: "application/vnd.github+json",
-      "User-Agent": "openboa-ai-coffee-chat-eval-migration-check",
-      "X-GitHub-Api-Version": "2022-11-28",
-    },
+    headers,
     redirect: "error",
     signal: AbortSignal.timeout(10_000),
   });
@@ -218,7 +228,7 @@ function assertSameJson(actual, expected, label) {
   }
 }
 
-async function assertActionEvidence(projection, execution) {
+async function assertActionEvidence(projection, execution, sourceReader) {
   const rows = projection.selected_rows;
   const migrateRows = rows.filter(({ action }) => action === "migrate");
   const rewriteRows = rows.filter(({ action }) => action === "rewrite");
@@ -227,6 +237,10 @@ async function assertActionEvidence(projection, execution) {
   const expectedMigrate = [];
   for (const row of migrateRows) {
     const targetBytes = await readRegularTarget(row.target_path_or_surface);
+    if (sourceReader) {
+      const sourceBytes = await sourceReader(row);
+      assertMigratedBytesEqual(sourceBytes, targetBytes, row.target_path_or_surface);
+    }
     const targetSha256 = digest(targetBytes);
     const targetBlobOid = gitBlobOid(targetBytes);
     if (targetSha256 !== row.content_sha256 || targetBlobOid !== row.source_blob_oid) {
@@ -417,7 +431,16 @@ async function main() {
   ) {
     throw new Error("baseline receipt must remain fixture-only and deterministic");
   }
-  await assertActionEvidence(projection.value, execution.value);
+  const base = await migrationBase();
+  const migrationClass = classifyMigrationBase(base);
+  if (migrationClass === "ordinary-pr") {
+    await assertBaseContainsBootstrapAuthority(base);
+  }
+  await assertActionEvidence(
+    projection.value,
+    execution.value,
+    migrationClass === "bootstrap" ? readPinnedSource : undefined,
+  );
 
   const calver = packageJson.value.version;
   if (!isCalVer(calver)) {
@@ -430,10 +453,7 @@ async function main() {
       throw new Error(`${name} does not project package CalVer`);
   }
 
-  const base = await migrationBase();
-  const migrationClass = classifyMigrationBase(base);
   if (migrationClass === "ordinary-pr") {
-    await assertBaseContainsBootstrapAuthority(base);
     return;
   }
   const { stdout } = await execFileAsync(

@@ -60,7 +60,40 @@ function candidateExecutionBoundary(candidate: CandidateAdapter): CandidateAdapt
     ref: candidate.ref,
     async run(input) {
       try {
-        return await candidate.run(input);
+        const resolved: unknown = await candidate.run(input);
+        if (
+          typeof resolved !== "object" ||
+          resolved === null ||
+          Array.isArray(resolved)
+        ) {
+          return {
+            kind: "failure",
+            message: "candidate adapter returned invalid output",
+          };
+        }
+        const candidateRun = resolved as Record<string, unknown>;
+        if (candidateRun.kind === "failure") {
+          return typeof candidateRun.message === "string"
+            ? { kind: "failure", message: candidateRun.message }
+            : {
+                kind: "failure",
+                message: "candidate adapter returned invalid output",
+              };
+        }
+        if (candidateRun.kind === "success") {
+          try {
+            const artifact = validateArtifact(candidateRun.artifact);
+            return artifact
+              ? { kind: "success", artifact: snapshotAndFreeze(artifact) }
+              : { kind: "success" };
+          } catch {
+            return { kind: "success" };
+          }
+        }
+        return {
+          kind: "failure",
+          message: "candidate adapter returned invalid output",
+        };
       } catch {
         return { kind: "failure", message: "candidate adapter execution failed" };
       }
