@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": [
+    "schema",
+    "target_owner",
+    "task",
+    "objective",
+    "projection_sha256",
+    "equality_receipt_sha256",
+    "execution_class",
+    "oracle"
+  ],
+  "additionalProperties": false
+}

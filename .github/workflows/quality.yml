@@ -1,0 +1,56 @@
+name: Eval
+
+on:
+  pull_request:
+  merge_group:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    name: required
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444
+        with:
+          node-version: 24.5.0
+          cache: npm
+      - run: npm ci
+      - run: npm run format:check
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run ci:policy
+        env:
+          MIGRATION_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}
+          MIGRATION_AUTHORITY_SHA: 75b784af363d5f92c60c885e7e2f8ab568ede502
+      - run: npm run dry-run
+  dependency-review:
+    name: dependency review
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          fetch-depth: 0
+      - if: github.event_name == 'pull_request'
+        uses: actions/dependency-review-action@2031cfc080254a8a887f58cffee85186f0e49e48
+      - if: github.event_name == 'merge_group'
+        uses: actions/dependency-review-action@2031cfc080254a8a887f58cffee85186f0e49e48
+        with:
+          base-ref: ${{ github.event.merge_group.base_sha }}
+          head-ref: ${{ github.sha }}
+      - if: github.event_name == 'workflow_dispatch'
+        run: npm audit --audit-level=high
+  aggregate:
+    name: aggregate
+    if: always()
+    needs: [quality, dependency-review]
+    runs-on: ubuntu-24.04
+    steps:
+      - run: |
+          test "${{ needs.quality.result }}" = success
+          test "${{ needs.dependency-review.result }}" = success

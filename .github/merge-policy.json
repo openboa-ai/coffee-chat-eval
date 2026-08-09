@@ -1,0 +1,18 @@
+{
+  "schema": "coffee-chat/merge-policy",
+  "protected_paths": [
+    ".github/**",
+    "AGENTS.md",
+    "PLAN.md",
+    "docs/migration/**",
+    "src/adapters/**",
+    "src/hosts/**",
+    "src/runner.ts",
+    "src/validation.ts"
+  ],
+  "required_contexts": [
+    "Eval / required",
+    "Eval / dependency review",
+    "Eval CodeQL / JavaScript-TypeScript"
+  ]
+}
