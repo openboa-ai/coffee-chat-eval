@@ -3,8 +3,8 @@
   "target_owner": "openboa-ai/coffee-chat-eval",
   "task": "task-4",
   "objective": "governance-and-deterministic-evaluator-baseline",
-  "projection_sha256": "sha256:35e737c0475f8a290e977e6835ef9de1bc975f1cd7a0c776312076e4b978c400",
-  "equality_receipt_sha256": "sha256:284003ba256af9634bae1a140d16fdda85ac1d466817b8125961a944848613fa",
+  "projection_sha256": "sha256:4c024cb1ed66ead5bea7c7e091218da747773876fb531dbbd2c82b6a6e7ae8c4",
+  "equality_receipt_sha256": "sha256:71e96b691038747c18481d41e056f201e0fe781050f4f7026403dda6eb813440",
   "execution_class": "fixture_only",
   "oracle": "local_deterministic_checks"
 }

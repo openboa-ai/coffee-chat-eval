@@ -53,6 +53,12 @@
       "observable_oracle": "The local policy, deterministic evaluator, typecheck, formatting, full test, dry-run, and migration-equality checks pass while fixture and unavailable states remain explicit."
     },
     {
+      "target_path_or_surface": ".github/coverage-requirements.txt",
+      "classification": "new-authority",
+      "objective_or_failure_mode": "Produce a GitHub-native coverage baseline without granting untrusted pull-request code privileged upload authority.",
+      "observable_oracle": "The full deterministic fixture suite emits hash-locked Cobertura evidence, same-repository runs upload it with least privilege, and fork or merge-group execution cannot enter the privileged upload job."
+    },
+    {
       "target_path_or_surface": ".github/dependabot.yml",
       "classification": "new-authority",
       "objective_or_failure_mode": "Establish the evaluator governance and deterministic fixture-only baseline without importing private product internals, blocked legacy evaluator artifacts, or performance claims.",
@@ -87,6 +93,12 @@
       "classification": "new-authority",
       "objective_or_failure_mode": "Establish the evaluator governance and deterministic fixture-only baseline without importing private product internals, blocked legacy evaluator artifacts, or performance claims.",
       "observable_oracle": "The local policy, deterministic evaluator, typecheck, formatting, full test, dry-run, and migration-equality checks pass while fixture and unavailable states remain explicit."
+    },
+    {
+      "target_path_or_surface": ".github/workflows/github-coverage.yml",
+      "classification": "new-authority",
+      "objective_or_failure_mode": "Produce a GitHub-native coverage baseline without granting untrusted pull-request code privileged upload authority.",
+      "observable_oracle": "The full deterministic fixture suite emits hash-locked Cobertura evidence, same-repository runs upload it with least privilege, and fork or merge-group execution cannot enter the privileged upload job."
     },
     {
       "target_path_or_surface": ".github/workflows/policy.yml",

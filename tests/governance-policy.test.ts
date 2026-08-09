@@ -28,7 +28,7 @@ test("migration policy rejects a changed surface with no pre-PR classification",
   );
 });
 
-test("migration policy rejects a checkout whose reviewed authority bytes changed", () => {
+test("migration policy rejects authority bytes that do not match the reviewed digests", () => {
   assert.throws(
     () =>
       execFileSync(
@@ -36,11 +36,11 @@ test("migration policy rejects a checkout whose reviewed authority bytes changed
         [
           "--input-type=module",
           "--eval",
-          'import { assertAuthorityBytesMatch } from "./scripts/check-migration-receipt.mjs"; assertAuthorityBytesMatch(new Map([["docs/migration/a.json", "reviewed"]]), new Map([["docs/migration/a.json", "rewritten"]]));',
+          'import { assertAuthorityDigestsMatch } from "./scripts/check-migration-receipt.mjs"; assertAuthorityDigestsMatch(new Map([["docs/migration/a.json", "expected"]]), new Map([["docs/migration/a.json", "actual"]]));',
         ],
         { cwd: new URL("..", import.meta.url), stdio: "pipe" },
       ),
-    /reviewed migration authority differs/u,
+    /reviewed migration authority digest differs/u,
   );
 });
 
@@ -65,8 +65,30 @@ test("quality CI supplies a merge-base to the change-aware migration check", () 
   assert.match(workflow, /MIGRATION_BASE_SHA:/u);
   assert.match(workflow, /github\.event\.pull_request\.base\.sha/u);
   assert.match(workflow, /github\.event\.merge_group\.base_sha/u);
+  assert.doesNotMatch(workflow, /MIGRATION_AUTHORITY_SHA/u);
   assert.match(workflow, /needs\.dependency-review\.result/u);
   assert.match(workflow, /^name: Eval$/mu);
   assert.match(workflow, /name: required/u);
   assert.match(workflow, /name: dependency review/u);
+});
+
+test("coverage CI uploads same-repository Cobertura evidence to GitHub", () => {
+  const workflow = readFileSync(
+    new URL("../.github/workflows/github-coverage.yml", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(workflow, /^name: Eval code coverage$/mu);
+  assert.match(workflow, /pull_request:/u);
+  assert.match(workflow, /merge_group:/u);
+  assert.match(workflow, /--experimental-test-coverage/u);
+  assert.match(workflow, /--experimental-strip-types/u);
+  assert.match(workflow, /coverage\/cobertura\.xml/u);
+  assert.match(
+    workflow,
+    /github\.event\.pull_request\.head\.repo\.full_name == github\.repository/u,
+  );
+  assert.match(workflow, /code-quality: write/u);
+  assert.match(workflow, /actions\/upload-code-coverage@[0-9a-f]{40}/u);
+  assert.match(workflow, /label: eval-javascript/u);
 });
