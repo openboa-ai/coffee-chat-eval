@@ -166,9 +166,18 @@ export function validateArtifact(artifact: unknown): Artifact | undefined {
   return artifact as unknown as Artifact;
 }
 
-export function artifactReceipt(artifact: Artifact): ArtifactReceipt {
+export function validateArtifactLocator(
+  value: unknown,
+  isolationClass: IsolationClass,
+): string | undefined {
+  return typeof value === "string" && isValidEvidenceReference(value, isolationClass)
+    ? value
+    : undefined;
+}
+
+export function artifactReceipt(artifact: Artifact, locator: string): ArtifactReceipt {
   return Object.freeze({
-    locator: `artifact:${artifact.digest}`,
+    locator,
     digest: artifact.digest,
     byteSize: Buffer.byteLength(artifact.value, "utf8"),
   });
@@ -180,12 +189,14 @@ export function validateHostEvidence(
   expected: {
     readonly trialId: string;
     readonly artifactDigest: `sha256:${string}`;
+    readonly artifactLocator: string;
   },
 ): ReceiptEvidence | undefined {
   if (
     !isPlainRecord(evidence) ||
     !hasExactKeys(evidence, [
       "artifactDigest",
+      "artifactLocator",
       "detail",
       "digest",
       "reference",
@@ -198,12 +209,14 @@ export function validateHostEvidence(
     evidence.detail.trim().length === 0 ||
     evidence.trialId !== expected.trialId ||
     evidence.artifactDigest !== expected.artifactDigest ||
+    evidence.artifactLocator !== expected.artifactLocator ||
     evidence.digest !==
       stableDigest({
         reference: evidence.reference,
         detail: evidence.detail,
         trialId: evidence.trialId,
         artifactDigest: evidence.artifactDigest,
+        artifactLocator: evidence.artifactLocator,
       })
   ) {
     return undefined;
@@ -213,6 +226,7 @@ export function validateHostEvidence(
     digest: evidence.digest,
     trialId: evidence.trialId,
     artifactDigest: evidence.artifactDigest,
+    artifactLocator: evidence.artifactLocator,
   });
 }
 

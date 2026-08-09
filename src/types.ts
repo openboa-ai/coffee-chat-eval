@@ -84,6 +84,7 @@ export interface HostEvidence {
   readonly detail: string;
   readonly trialId: string;
   readonly artifactDigest: Sha256Digest;
+  readonly artifactLocator: string;
 }
 
 export interface ReceiptEvidence {
@@ -91,11 +92,14 @@ export interface ReceiptEvidence {
   readonly digest: Sha256Digest;
   readonly trialId: string;
   readonly artifactDigest: Sha256Digest;
+  readonly artifactLocator: string;
 }
 
 export type ReceiptErrorCode =
   | "adapter_reference_mismatch"
   | "artifact_digest_invalid"
+  | "artifact_locator_invalid"
+  | "artifact_locator_missing"
   | "candidate_execution_failed"
   | "cleanup_failed"
   | "evaluator_clock_invalid"
@@ -122,6 +126,7 @@ export type HostExecution =
   | {
       readonly kind: "completed";
       readonly evidence?: HostEvidence;
+      readonly artifactLocator?: string;
       readonly candidate: CandidateRun;
     };
 
@@ -178,7 +183,7 @@ export type TimingProvenance =
     };
 
 export interface ArtifactReceipt {
-  readonly locator: `artifact:${string}`;
+  readonly locator: string;
   readonly digest: Sha256Digest;
   readonly byteSize: number;
 }
@@ -191,7 +196,7 @@ export interface TrialReceipt {
   readonly harness: HarnessRef;
   readonly model: ModelRef;
   readonly host: HostRef;
-  readonly repetition: number;
+  readonly repetition: number | null;
   readonly status: TrialStatus;
   readonly evidenceClass: IsolationClass;
   readonly performanceClaim: false;

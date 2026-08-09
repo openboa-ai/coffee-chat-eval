@@ -5,6 +5,11 @@ Coffee Chat. This initial baseline provides deterministic, candidate-independent
 trial identity, typed public adapter boundaries, fixture-host receipts, and
 dry-run reporting.
 
+The candidate produces artifact bytes; the host is responsible for persistence
+and supplies the locator retained by the receipt. The evaluator never invents a
+locator from a digest. An isolated run cannot become measured unless both the
+artifact locator and isolation evidence are immutable and mutually bound.
+
 It does not contain Coffee Chat product internals, benchmark cases or metrics,
 a real provider/model/host E2E, or a Coffee Chat performance result. Fixture
 receipts are explicitly unmeasured and cannot become a score.

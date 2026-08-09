@@ -134,6 +134,7 @@ if (
   !quality.includes(
     "actions/dependency-review-action@2031cfc080254a8a887f58cffee85186f0e49e48",
   ) ||
+  !quality.includes("GITHUB_TOKEN: ${{ github.token }}") ||
   !quality.includes("github.event.merge_group.base_sha") ||
   !quality.includes("MIGRATION_BASE_SHA")
 ) {

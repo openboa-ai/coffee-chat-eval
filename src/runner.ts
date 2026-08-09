@@ -7,6 +7,7 @@ import {
   receiptError,
   snapshotAndFreeze,
   validateArtifact,
+  validateArtifactLocator,
   validateHostEvidence,
   validateTrialProvenance,
   validateVerification,
@@ -39,6 +40,7 @@ export interface RunTrialInput {
 }
 
 const canonicalUtcTimestamp = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/u;
+const invalidTrialId = `trial-invalid-${stableDigest("invalid-trial-provenance").slice("sha256:".length)}`;
 
 function readCanonicalUtcTimestamp(now: () => unknown): string | undefined {
   let value: unknown;
@@ -152,10 +154,14 @@ function finishTiming(
   if (!Number.isFinite(finishedAt) || finishedAt < started.startedAt) {
     return { provider: started.provider, status: "unmeasured" };
   }
+  const durationMs = finishedAt - started.startedAt;
+  if (!Number.isFinite(durationMs)) {
+    return { provider: started.provider, status: "unmeasured" };
+  }
   return {
     provider: started.provider,
     status: "measured",
-    durationMs: finishedAt - started.startedAt,
+    durationMs,
   };
 }
 
@@ -169,11 +175,18 @@ export async function runTrial(input: RunTrialInput): Promise<TrialReceipt> {
   }
   const suppliedTrial = snapshotAndFreeze(input.trial);
   const declaredEvaluator = canonicalEvaluatorRef(suppliedTrial.evaluator);
-  const trial = snapshotAndFreeze({
+  const projectedTrial = snapshotAndFreeze({
     ...suppliedTrial,
     evaluator: runningEvaluator,
   });
-  const canonicalTrialId = createTrialIdentity(trial);
+  const trial = validateTrialProvenance(projectedTrial) ? projectedTrial : undefined;
+  const receiptTrial =
+    trial ??
+    snapshotAndFreeze({
+      ...projectedTrial,
+      repetition: null,
+    });
+  const canonicalTrialId = trial ? createTrialIdentity(trial) : invalidTrialId;
   const startedAt = readCanonicalUtcTimestamp(input.now);
   const timing = startTiming(input.timing);
   const workspaceId = `workspace-${canonicalTrialId}`;
@@ -192,7 +205,7 @@ export async function runTrial(input: RunTrialInput): Promise<TrialReceipt> {
   } else if (stableDigest(declaredEvaluator) !== stableDigest(runningEvaluator)) {
     status = "invalid";
     error = receiptError("evaluator_reference_mismatch");
-  } else if (!validateTrialProvenance(trial)) {
+  } else if (!trial) {
     status = "invalid";
     error = receiptError("trial_provenance_invalid");
   } else if (trial.id !== undefined && trial.id !== canonicalTrialId) {
@@ -217,22 +230,32 @@ export async function runTrial(input: RunTrialInput): Promise<TrialReceipt> {
         status = "candidate_failure";
         error = receiptError("candidate_execution_failed");
       } else {
-        const evidenceWasSupplied = execution.evidence !== undefined;
-        if (trial.host.isolationClass === "isolated" && !evidenceWasSupplied) {
-          status = "unavailable";
-          error = receiptError("isolation_evidence_missing");
+        let artifact: Artifact | undefined;
+        try {
+          artifact = validateArtifact(execution.candidate.artifact);
+        } catch {
+          artifact = undefined;
+        }
+        if (!artifact) {
+          status = "invalid";
+          error = receiptError("artifact_digest_invalid");
         } else {
-          let artifact: Artifact | undefined;
-          try {
-            artifact = validateArtifact(execution.candidate.artifact);
-          } catch {
-            artifact = undefined;
-          }
-          if (!artifact) {
-            status = "invalid";
-            error = receiptError("artifact_digest_invalid");
+          const immutableArtifact = snapshotAndFreeze(artifact);
+          const suppliedArtifactLocator =
+            execution.artifactLocator ?? execution.evidence?.artifactLocator;
+          const artifactLocator = validateArtifactLocator(
+            suppliedArtifactLocator,
+            trial.host.isolationClass,
+          );
+          if (!artifactLocator) {
+            status = "unavailable";
+            error = receiptError(
+              suppliedArtifactLocator === undefined
+                ? "artifact_locator_missing"
+                : "artifact_locator_invalid",
+            );
           } else {
-            const immutableArtifact = snapshotAndFreeze(artifact);
+            const evidenceWasSupplied = execution.evidence !== undefined;
             if (evidenceWasSupplied) {
               try {
                 hostEvidence = validateHostEvidence(
@@ -241,17 +264,21 @@ export async function runTrial(input: RunTrialInput): Promise<TrialReceipt> {
                   {
                     trialId: canonicalTrialId,
                     artifactDigest: immutableArtifact.digest,
+                    artifactLocator,
                   },
                 );
               } catch {
                 hostEvidence = undefined;
               }
             }
-            if (trial.host.isolationClass === "isolated" && !hostEvidence) {
+            if (trial.host.isolationClass === "isolated" && !evidenceWasSupplied) {
+              status = "unavailable";
+              error = receiptError("isolation_evidence_missing");
+            } else if (trial.host.isolationClass === "isolated" && !hostEvidence) {
               status = "unavailable";
               error = receiptError("isolation_evidence_invalid");
             } else {
-              artifactSummary = artifactReceipt(immutableArtifact);
+              artifactSummary = artifactReceipt(immutableArtifact, artifactLocator);
               try {
                 const validation = validateVerification(
                   await input.task.verify(immutableArtifact),
@@ -310,14 +337,14 @@ export async function runTrial(input: RunTrialInput): Promise<TrialReceipt> {
   const base = {
     trialId: canonicalTrialId,
     evaluator: runningEvaluator,
-    candidate: trial.candidate,
-    task: trial.task,
-    harness: trial.harness,
-    model: trial.model,
-    host: trial.host,
-    repetition: trial.repetition,
+    candidate: receiptTrial.candidate,
+    task: receiptTrial.task,
+    harness: receiptTrial.harness,
+    model: receiptTrial.model,
+    host: receiptTrial.host,
+    repetition: receiptTrial.repetition,
     status,
-    evidenceClass: trial.host.isolationClass,
+    evidenceClass: receiptTrial.host.isolationClass,
     performanceClaim: false as const,
     ...(timestampsAreValid ? { startedAt, finishedAt } : {}),
     timing: finishTiming(timing, input.timing),

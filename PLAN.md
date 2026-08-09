@@ -8,8 +8,10 @@ trial identity; typed adapters; redacted immutable receipts; validation; and
 fixture-only dry-run reporting. Trial identity and receipts bind the evaluator
 commit/configuration and host configuration/isolation reference. Structurally
 valid, inspectable host evidence is mandatory before an isolated trial can be
-measured. The fake candidate and fake host are plumbing fixtures, not Coffee
-Chat performance evidence.
+measured. Artifact bytes come from the candidate, while persistence and the
+receipt locator belong to the host; digest-only locators are never fabricated.
+The fake candidate and fake host are plumbing fixtures, not Coffee Chat
+performance evidence.
 
 The next separately authorized vertical slice may add one real pinned
 candidate, provider/model, and inspectably isolated host. It must preserve the

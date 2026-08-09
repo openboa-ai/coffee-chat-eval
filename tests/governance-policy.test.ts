@@ -330,10 +330,16 @@ test("ordinary PR migration checks stay network-free for unrelated new files", (
 
 test("bootstrap migration reads pinned source and compares exact target bytes", () => {
   runBootstrapMigrationCheck();
-  assert.match(
-    readFileSync(new URL("../.github/workflows/policy.yml", import.meta.url), "utf8"),
-    /GITHUB_TOKEN: \$\{\{ github\.token \}\}/u,
-  );
+  for (const workflow of ["quality.yml", "policy.yml"]) {
+    assert.match(
+      readFileSync(
+        new URL(`../.github/workflows/${workflow}`, import.meta.url),
+        "utf8",
+      ),
+      /GITHUB_TOKEN: \$\{\{ github\.token \}\}/u,
+      workflow,
+    );
+  }
   assert.throws(
     () =>
       execFileSync(

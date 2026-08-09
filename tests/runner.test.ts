@@ -88,14 +88,22 @@ function boundIsolationEvidence(binding: {
   readonly detail: string;
   readonly trialId: string;
   readonly artifactDigest: `sha256:${string}`;
+  readonly artifactLocator?: string;
 }) {
-  return { ...binding, digest: stableDigest(binding) };
+  const artifactLocator =
+    binding.artifactLocator ??
+    `https://artifacts.example/runs/${binding.trialId}/artifacts/${binding.artifactDigest.slice("sha256:".length)}`;
+  const evidence = { ...binding, artifactLocator };
+  return { ...evidence, digest: stableDigest(evidence) };
 }
 
 test("fixture trial stores content-addressed host evidence without performance credit", async () => {
   const trialId = createTrialIdentity(trial);
   const artifactDigest = stableDigest("ok");
   const reference = `fixture://workspace-${trialId}`;
+  const artifactLocator =
+    `fixture://workspace-${trialId}/artifacts/` +
+    artifactDigest.slice("sha256:".length);
   const detail = "token=keep-this-secret";
   const result = await runTrial({
     ...fixtureInput(),
@@ -107,9 +115,16 @@ test("fixture trial stores content-addressed host evidence without performance c
   assert.equal(result.cleanup.status, "completed");
   assert.deepEqual(result.hostEvidence, {
     locator: reference,
-    digest: stableDigest({ reference, detail, trialId, artifactDigest }),
+    digest: stableDigest({
+      reference,
+      detail,
+      trialId,
+      artifactDigest,
+      artifactLocator,
+    }),
     trialId,
     artifactDigest,
+    artifactLocator,
   });
   assert.equal(JSON.stringify(result).includes("keep-this-secret"), false);
   assert.equal(result.timing.status, "unmeasured");
@@ -216,7 +231,32 @@ test("isolated trials receive no measured credit without structurally valid insp
     digest: evidence.digest,
     trialId: canonicalTrialId,
     artifactDigest,
+    artifactLocator: evidence.artifactLocator,
   });
+});
+
+test("invalid candidate artifacts are classified before isolation evidence", async () => {
+  const isolated = isolatedTrial();
+  const result = await runTrial({
+    ...fixtureInput(),
+    trial: isolated,
+    candidate: createFakeCandidate({ artifact: undefined }),
+    host: {
+      ref: isolated.host,
+      async execute({ trial: adapterTrial, candidate, workspaceId }) {
+        return {
+          kind: "completed" as const,
+          candidate: await candidate.run({ trial: adapterTrial, workspaceId }),
+        };
+      },
+      async cleanup() {},
+    },
+  });
+
+  assert.equal(result.status, "invalid");
+  assert.equal(result.error?.code, "artifact_digest_invalid");
+  assert.equal(result.hostEvidence, undefined);
+  assert.equal(result.metrics, undefined);
 });
 
 test("unbound or stale isolated evidence cannot produce measured credit", async () => {
@@ -235,6 +275,9 @@ test("unbound or stale isolated evidence cannot produce measured credit", async 
       evidence: {
         reference,
         detail: unboundDetail,
+        artifactLocator:
+          `https://artifacts.example/runs/${canonicalTrialId}/artifacts/` +
+          artifactDigest.slice("sha256:".length),
         digest: stableDigest({ reference, detail: unboundDetail }),
       },
     },
@@ -294,6 +337,9 @@ test("isolated evidence must bind immutable locator and exact evidence bytes", a
       detail: "inspectable bytes",
       trialId: canonicalTrialId,
       artifactDigest,
+      artifactLocator:
+        `https://artifacts.example/runs/${canonicalTrialId}/artifacts/` +
+        artifactDigest.slice("sha256:".length),
     },
     boundIsolationEvidence({
       reference: "https://evidence.example/runs/latest",
@@ -479,6 +525,18 @@ test("malformed candidate artifacts stay at the candidate invalid boundary", asy
     assert.equal(result.status, "invalid");
     assert.equal(result.error?.code, "artifact_digest_invalid");
   }
+});
+
+test("invalid trial provenance becomes an invalid receipt before identity digesting", async () => {
+  const result = await runTrial({
+    ...fixtureInput(),
+    trial: { ...trial, repetition: 1n } as unknown as TrialSpec,
+  });
+
+  assert.equal(result.status, "invalid");
+  assert.equal(result.error?.code, "trial_provenance_invalid");
+  assert.equal(result.cleanup.status, "not_required");
+  assert.equal(result.performanceClaim, false);
 });
 
 test("non-finite and non-JSON verifier metrics are rejected before receipt digesting", async () => {
@@ -942,7 +1000,7 @@ test("wall clock retains only ordered canonical UTC timestamps", async () => {
   }
 });
 
-test("binds a canonical artifact locator and explicit timing provenance without raw bytes", async () => {
+test("binds a host-persisted artifact locator and explicit timing provenance without raw bytes", async () => {
   const invalidArtifact = await runTrial({
     ...fixtureInput(),
     candidate: {
@@ -971,7 +1029,10 @@ test("binds a canonical artifact locator and explicit timing provenance without 
   });
 
   assert.equal(result.artifact?.digest, stableDigest("ok"));
-  assert.equal(result.artifact?.locator, `artifact:${stableDigest("ok")}`);
+  assert.equal(
+    result.artifact?.locator,
+    `fixture://workspace-${createTrialIdentity(trial)}/artifacts/${stableDigest("ok").slice("sha256:".length)}`,
+  );
   assert.equal(result.artifact?.byteSize, 2);
   assert.equal(JSON.stringify(result.artifact).includes("ok"), false);
   assert.deepEqual(result.timing, {
@@ -1004,6 +1065,27 @@ test("binds a canonical artifact locator and explicit timing provenance without 
     },
     status: "unmeasured",
   });
+
+  const overflowingElapsed = [-Number.MAX_VALUE, Number.MAX_VALUE];
+  const overflowingTiming = await runTrial({
+    ...fixtureInput(),
+    timing: {
+      ref: {
+        id: "overflowing-monotonic-clock",
+        digest: "sha256:overflowing-monotonic-clock",
+        kind: "monotonic",
+      },
+      monotonicNowMs: () => overflowingElapsed.shift() ?? Number.MAX_VALUE,
+    } satisfies TimingProvider,
+  });
+  assert.deepEqual(overflowingTiming.timing, {
+    provider: {
+      id: "overflowing-monotonic-clock",
+      digest: "sha256:overflowing-monotonic-clock",
+      kind: "monotonic",
+    },
+    status: "unmeasured",
+  });
   assert.equal(Object.isFrozen(result.metrics), true);
   assert.throws(() => {
     (result.metrics as Record<string, number>).checks = 2;
@@ -1032,7 +1114,7 @@ test("accepts a correctly digested empty artifact without inventing content", as
   assert.equal(result.status, "unmeasured");
   assert.deepEqual(result.metrics, { empty: 1 });
   assert.deepEqual(result.artifact, {
-    locator: `artifact:${stableDigest("")}`,
+    locator: `fixture://workspace-${createTrialIdentity(trial)}/artifacts/${stableDigest("").slice("sha256:".length)}`,
     digest: stableDigest(""),
     byteSize: 0,
   });

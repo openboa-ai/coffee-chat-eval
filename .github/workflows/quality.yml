@@ -41,6 +41,7 @@ jobs:
       - run: npm test
       - run: npm run ci:policy
         env:
+          GITHUB_TOKEN: ${{ github.token }}
           MIGRATION_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}
       - run: npm run dry-run
   dependency-review:

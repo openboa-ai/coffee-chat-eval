@@ -24,15 +24,20 @@ export function createFakeHost(
         return { kind: "completed", candidate: candidateRun };
       }
       const evidenceReference = `fixture://${workspaceId}`;
+      const artifactLocator =
+        `fixture://${workspaceId}/artifacts/` +
+        candidateRun.artifact.digest.slice("sha256:".length);
       const detail = options.evidence ?? "controlled fake host; no external execution";
       const binding = {
         reference: evidenceReference,
         detail,
         trialId,
         artifactDigest: candidateRun.artifact.digest,
+        artifactLocator,
       };
       return {
         kind: "completed",
+        artifactLocator,
         evidence: {
           ...binding,
           digest: stableDigest(binding),
