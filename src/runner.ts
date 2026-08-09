@@ -34,8 +34,27 @@ export interface RunTrialInput {
   readonly candidate: CandidateAdapter;
   readonly host: HostAdapter;
   readonly task: TaskAdapter;
-  readonly now: () => string;
+  readonly now: () => unknown;
   readonly timing: TimingProvider;
+}
+
+const canonicalUtcTimestamp = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/u;
+
+function readCanonicalUtcTimestamp(now: () => unknown): string | undefined {
+  let value: unknown;
+  try {
+    value = now();
+  } catch {
+    return undefined;
+  }
+  if (typeof value !== "string" || !canonicalUtcTimestamp.test(value)) {
+    return undefined;
+  }
+  const epochMs = Date.parse(value);
+  if (!Number.isFinite(epochMs) || new Date(epochMs).toISOString() !== value) {
+    return undefined;
+  }
+  return value;
 }
 
 function cleanupFailure(error: unknown): CleanupResult {
@@ -155,7 +174,7 @@ export async function runTrial(input: RunTrialInput): Promise<TrialReceipt> {
     evaluator: runningEvaluator,
   });
   const canonicalTrialId = createTrialIdentity(trial);
-  const startedAt = input.now();
+  const startedAt = readCanonicalUtcTimestamp(input.now);
   const timing = startTiming(input.timing);
   const workspaceId = `workspace-${canonicalTrialId}`;
   let cleanup: CleanupResult = { status: "not_required" };
@@ -164,7 +183,10 @@ export async function runTrial(input: RunTrialInput): Promise<TrialReceipt> {
   let hostEvidence: TrialReceipt["hostEvidence"];
   let artifactSummary: TrialReceipt["artifact"];
   let metrics: Readonly<Record<string, number>> | undefined;
-  if (!declaredEvaluator) {
+  if (!startedAt) {
+    status = "evaluator_failure";
+    error = receiptError("evaluator_clock_invalid");
+  } else if (!declaredEvaluator) {
     status = "invalid";
     error = receiptError("trial_provenance_invalid");
   } else if (stableDigest(declaredEvaluator) !== stableDigest(runningEvaluator)) {
@@ -273,7 +295,18 @@ export async function runTrial(input: RunTrialInput): Promise<TrialReceipt> {
       }
     }
   }
-  const finishedAt = input.now();
+  const finishedAt = startedAt ? readCanonicalUtcTimestamp(input.now) : undefined;
+  const timestampsAreValid =
+    startedAt !== undefined &&
+    finishedAt !== undefined &&
+    Date.parse(finishedAt) >= Date.parse(startedAt);
+  if (!timestampsAreValid) {
+    status = "evaluator_failure";
+    error = receiptError("evaluator_clock_invalid");
+    hostEvidence = undefined;
+    artifactSummary = undefined;
+    metrics = undefined;
+  }
   const base = {
     trialId: canonicalTrialId,
     evaluator: runningEvaluator,
@@ -286,8 +319,7 @@ export async function runTrial(input: RunTrialInput): Promise<TrialReceipt> {
     status,
     evidenceClass: trial.host.isolationClass,
     performanceClaim: false as const,
-    startedAt,
-    finishedAt,
+    ...(timestampsAreValid ? { startedAt, finishedAt } : {}),
     timing: finishTiming(timing, input.timing),
     cleanup,
   };

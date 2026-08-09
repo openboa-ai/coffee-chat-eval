@@ -857,6 +857,91 @@ test("rejects supplied trial IDs and keeps the canonical snapshot stable against
   assert.equal(result.candidate.commit, trial.candidate.commit);
 });
 
+test("wall clock retains only ordered canonical UTC timestamps", async () => {
+  const canonical = ["2026-08-09T00:00:00.000Z", "2026-08-09T00:00:01.000Z"];
+  const valid = await runTrial({
+    ...fixtureInput(),
+    now: () => canonical.shift() ?? "2026-08-09T00:00:01.000Z",
+  });
+  assert.equal(valid.startedAt, "2026-08-09T00:00:00.000Z");
+  assert.equal(valid.finishedAt, "2026-08-09T00:00:01.000Z");
+  assert.equal(valid.status, "unmeasured");
+
+  const scenarios: ReadonlyArray<{
+    readonly name: string;
+    readonly values: readonly (string | Error)[];
+    readonly hostRuns: boolean;
+  }> = [
+    {
+      name: "secret-bearing start",
+      values: ["clock-secret=start"],
+      hostRuns: false,
+    },
+    {
+      name: "non-canonical offset",
+      values: ["2026-08-09T09:00:00.000+09:00"],
+      hostRuns: false,
+    },
+    {
+      name: "impossible calendar date",
+      values: ["2026-02-30T00:00:00.000Z"],
+      hostRuns: false,
+    },
+    {
+      name: "reversed pair",
+      values: ["2026-08-09T00:00:02.000Z", "2026-08-09T00:00:01.000Z"],
+      hostRuns: true,
+    },
+    {
+      name: "secret-bearing finish",
+      values: ["2026-08-09T00:00:00.000Z", "clock-secret=finish"],
+      hostRuns: true,
+    },
+    {
+      name: "throwing start",
+      values: [new Error("clock-secret=throw")],
+      hostRuns: false,
+    },
+  ];
+
+  for (const scenario of scenarios) {
+    let clockIndex = 0;
+    let hostRan = false;
+    const host = createFakeHost();
+    const result = await runTrial({
+      ...fixtureInput(),
+      now: (() => {
+        const value =
+          scenario.values[clockIndex++] ?? scenario.values[scenario.values.length - 1];
+        if (value instanceof Error) throw value;
+        return value;
+      }) as () => string,
+      host: {
+        ...host,
+        async execute(input) {
+          hostRan = true;
+          return host.execute(input);
+        },
+      },
+    });
+
+    assert.equal(result.status, "evaluator_failure", scenario.name);
+    assert.equal(result.error?.code, "evaluator_clock_invalid", scenario.name);
+    assert.equal(Object.hasOwn(result, "startedAt"), false, scenario.name);
+    assert.equal(Object.hasOwn(result, "finishedAt"), false, scenario.name);
+    assert.equal(result.hostEvidence, undefined, scenario.name);
+    assert.equal(result.artifact, undefined, scenario.name);
+    assert.equal(result.metrics, undefined, scenario.name);
+    assert.equal(hostRan, scenario.hostRuns, scenario.name);
+    assert.equal(
+      result.cleanup.status,
+      scenario.hostRuns ? "completed" : "not_required",
+      scenario.name,
+    );
+    assert.doesNotMatch(JSON.stringify(result), /clock-secret/u, scenario.name);
+  }
+});
+
 test("binds a canonical artifact locator and explicit timing provenance without raw bytes", async () => {
   const invalidArtifact = await runTrial({
     ...fixtureInput(),

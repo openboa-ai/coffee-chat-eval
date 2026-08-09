@@ -98,6 +98,7 @@ export type ReceiptErrorCode =
   | "artifact_digest_invalid"
   | "candidate_execution_failed"
   | "cleanup_failed"
+  | "evaluator_clock_invalid"
   | "evaluator_reference_mismatch"
   | "evaluator_execution_failed"
   | "host_execution_failed"
@@ -194,8 +195,8 @@ export interface TrialReceipt {
   readonly status: TrialStatus;
   readonly evidenceClass: IsolationClass;
   readonly performanceClaim: false;
-  readonly startedAt: string;
-  readonly finishedAt: string;
+  readonly startedAt?: string;
+  readonly finishedAt?: string;
   readonly timing: TimingProvenance;
   readonly error?: ReceiptError;
   readonly hostEvidence?: ReceiptEvidence;
