@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": [
+    "schema",
+    "target_owner",
+    "task",
+    "objective",
+    "ledger_sha256",
+    "rows",
+    "changed_surface_classification"
+  ],
+  "additionalProperties": false
+}

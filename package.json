@@ -1,0 +1,23 @@
+{
+  "name": "@openboa/coffee-chat-eval",
+  "private": true,
+  "version": "2026.8.9",
+  "type": "module",
+  "engines": {
+    "node": "24.5.0",
+    "npm": "11.5.1"
+  },
+  "scripts": {
+    "test": "node --experimental-strip-types --test tests/*.test.ts",
+    "typecheck": "tsc --noEmit",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "dry-run": "node --experimental-strip-types src/cli.ts dry-run",
+    "ci:policy": "node .github/ci-policy.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "24.5.2",
+    "prettier": "3.6.2",
+    "typescript": "5.9.2"
+  }
+}

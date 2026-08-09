@@ -1,0 +1,302 @@
+{
+  "schema": "coffee-chat/migration-selection-projection",
+  "target_owner": "openboa-ai/coffee-chat-eval",
+  "task": "task-4",
+  "objective": "governance-and-deterministic-evaluator-baseline",
+  "ledger_sha256": "a2717ed0750c11081e09933703d256b971235fd1a5bb73f91476f04badf1b8eb",
+  "selected_rows": [
+    {
+      "source_repository": "SonSangjoon/coffee-chat-eval",
+      "source_ref": "origin/main",
+      "source_commit": "1571411f91363dbdfec1aee6b7b5b5709c2289dd",
+      "source_path": ".gitignore",
+      "source_blob_oid": "06c3eac63718c15982a69c6bb19e2466184e6278",
+      "content_sha256": "29f81bde2020654cd0ddab07d8988c8d3ad85209f63016c949e7ea4a7a661c4a",
+      "action": "migrate",
+      "target_owner": "openboa-ai/coffee-chat-eval",
+      "target_path_or_surface": ".gitignore",
+      "rationale_code": "BYTE_STABLE_PRIMITIVE",
+      "oracle_code": "SHA256_MATCH",
+      "confidence": "high",
+      "migration_state": "planned"
+    }
+  ],
+  "changed_surface_classification": [
+    {
+      "target_path_or_surface": ".editorconfig",
+      "classification": "new-authority",
+      "objective_or_failure_mode": "Establish the evaluator governance and deterministic fixture-only baseline without importing private product internals, blocked legacy evaluator artifacts, or performance claims.",
+      "observable_oracle": "The local policy, deterministic evaluator, typecheck, formatting, full test, dry-run, and migration-equality checks pass while fixture and unavailable states remain explicit."
+    },
+    {
+      "target_path_or_surface": ".gitattributes",
+      "classification": "new-authority",
+      "objective_or_failure_mode": "Establish the evaluator governance and deterministic fixture-only baseline without importing private product internals, blocked legacy evaluator artifacts, or performance claims.",
+      "observable_oracle": "The local policy, deterministic evaluator, typecheck, formatting, full test, dry-run, and migration-equality checks pass while fixture and unavailable states remain explicit."
+    },
+    {
+      "target_path_or_surface": ".github/CODEOWNERS",
+      "classification": "new-authority",
+      "objective_or_failure_mode": "Establish the evaluator governance and deterministic fixture-only baseline without importing private product internals, blocked legacy evaluator artifacts, or performance claims.",
+      "observable_oracle": "The local policy, deterministic evaluator, typecheck, formatting, full test, dry-run, and migration-equality checks pass while fixture and unavailable states remain explicit."
+    },
+    {
+      "target_path_or_surface": ".github/PULL_REQUEST_TEMPLATE.md",
+      "classification": "new-authority",
+      "objective_or_failure_mode": "Establish the evaluator governance and deterministic fixture-only baseline without importing private product internals, blocked legacy evaluator artifacts, or performance claims.",
+      "observable_oracle": "The local policy, deterministic evaluator, typecheck, formatting, full test, dry-run, and migration-equality checks pass while fixture and unavailable states remain explicit."
+    },
+    {
+      "target_path_or_surface": ".github/ci-policy.mjs",
+      "classification": "new-authority",
+      "objective_or_failure_mode": "Establish the evaluator governance and deterministic fixture-only baseline without importing private product internals, blocked legacy evaluator artifacts, or performance claims.",
+      "observable_oracle": "The local policy, deterministic evaluator, typecheck, formatting, full test, dry-run, and migration-equality checks pass while fixture and unavailable states remain explicit."
+    },
+    {
+      "target_path_or_surface": ".github/dependabot.yml",
+      "classification": "new-authority",
+      "objective_or_failure_mode": "Establish the evaluator governance and deterministic fixture-only baseline without importing private product internals, blocked legacy evaluator artifacts, or performance claims.",
+      "observable_oracle": "The local policy, deterministic evaluator, typecheck, formatting, full test, dry-run, and migration-equality checks pass while fixture and unavailable states remain explicit."
+    },
+    {
+      "target_path_or_surface": ".github/merge-policy.json",
+      "classification": "new-authority",
+      "objective_or_failure_mode": "Establish the evaluator governance and deterministic fixture-only baseline without importing private product internals, blocked legacy evaluator artifacts, or performance claims.",
+      "observable_oracle": "The local policy, deterministic evaluator, typecheck, formatting, full test, dry-run, and migration-equality checks pass while fixture and unavailable states remain explicit."
+    },
+    {
+      "target_path_or_surface": ".github/migration-equality-receipt.schema.json",
+      "classification": "new-authority",
+      "objective_or_failure_mode": "Establish the evaluator governance and deterministic fixture-only baseline without importing private product internals, blocked legacy evaluator artifacts, or performance claims.",
+      "observable_oracle": "The local policy, deterministic evaluator, typecheck, formatting, full test, dry-run, and migration-equality checks pass while fixture and unavailable states remain explicit."
+    },
+    {
+      "target_path_or_surface": ".github/migration-receipt.schema.json",
+      "classification": "new-authority",
+      "objective_or_failure_mode": "Establish the evaluator governance and deterministic fixture-only baseline without importing private product internals, blocked legacy evaluator artifacts, or performance claims.",
+      "observable_oracle": "The local policy, deterministic evaluator, typecheck, formatting, full test, dry-run, and migration-equality checks pass while fixture and unavailable states remain explicit."
+    },
+    {
+      "target_path_or_surface": ".github/migration-selection.schema.json",
+      "classification": "new-authority",
+      "objective_or_failure_mode": "Establish the evaluator governance and deterministic fixture-only baseline without importing private product internals, blocked legacy evaluator artifacts, or performance claims.",
+      "observable_oracle": "The local policy, deterministic evaluator, typecheck, formatting, full test, dry-run, and migration-equality checks pass while fixture and unavailable states remain explicit."
+    },
+    {
+      "target_path_or_surface": ".github/workflows/codeql.yml",
+      "classification": "new-authority",
+      "objective_or_failure_mode": "Establish the evaluator governance and deterministic fixture-only baseline without importing private product internals, blocked legacy evaluator artifacts, or performance claims.",
+      "observable_oracle": "The local policy, deterministic evaluator, typecheck, formatting, full test, dry-run, and migration-equality checks pass while fixture and unavailable states remain explicit."
+    },
+    {
+      "target_path_or_surface": ".github/workflows/policy.yml",
+      "classification": "new-authority",
+      "objective_or_failure_mode": "Establish the evaluator governance and deterministic fixture-only baseline without importing private product internals, blocked legacy evaluator artifacts, or performance claims.",
+      "observable_oracle": "The local policy, deterministic evaluator, typecheck, formatting, full test, dry-run, and migration-equality checks pass while fixture and unavailable states remain explicit."
+    },
+    {
+      "target_path_or_surface": ".github/workflows/quality.yml",
+      "classification": "new-authority",
+      "objective_or_failure_mode": "Establish the evaluator governance and deterministic fixture-only baseline without importing private product internals, blocked legacy evaluator artifacts, or performance claims.",
+      "observable_oracle": "The local policy, deterministic evaluator, typecheck, formatting, full test, dry-run, and migration-equality checks pass while fixture and unavailable states remain explicit."
+    },
+    {
+      "target_path_or_surface": ".gitignore",
+      "classification": "ledger-derived",
+      "selected_rows": [
+        {
+          "source_repository": "SonSangjoon/coffee-chat-eval",
+          "source_ref": "origin/main",
+          "source_commit": "1571411f91363dbdfec1aee6b7b5b5709c2289dd",
+          "source_path": ".gitignore"
+        }
+      ]
+    },
+    {
+      "target_path_or_surface": "AGENTS.md",
+      "classification": "new-authority",
+      "objective_or_failure_mode": "Establish the evaluator governance and deterministic fixture-only baseline without importing private product internals, blocked legacy evaluator artifacts, or performance claims.",
+      "observable_oracle": "The local policy, deterministic evaluator, typecheck, formatting, full test, dry-run, and migration-equality checks pass while fixture and unavailable states remain explicit."
+    },
+    {
+      "target_path_or_surface": "LICENSE",
+      "classification": "new-authority",
+      "objective_or_failure_mode": "Establish the evaluator governance and deterministic fixture-only baseline without importing private product internals, blocked legacy evaluator artifacts, or performance claims.",
+      "observable_oracle": "The local policy, deterministic evaluator, typecheck, formatting, full test, dry-run, and migration-equality checks pass while fixture and unavailable states remain explicit."
+    },
+    {
+      "target_path_or_surface": "PLAN.md",
+      "classification": "new-authority",
+      "objective_or_failure_mode": "Establish the evaluator governance and deterministic fixture-only baseline without importing private product internals, blocked legacy evaluator artifacts, or performance claims.",
+      "observable_oracle": "The local policy, deterministic evaluator, typecheck, formatting, full test, dry-run, and migration-equality checks pass while fixture and unavailable states remain explicit."
+    },
+    {
+      "target_path_or_surface": "README.md",
+      "classification": "new-authority",
+      "objective_or_failure_mode": "Establish the evaluator governance and deterministic fixture-only baseline without importing private product internals, blocked legacy evaluator artifacts, or performance claims.",
+      "observable_oracle": "The local policy, deterministic evaluator, typecheck, formatting, full test, dry-run, and migration-equality checks pass while fixture and unavailable states remain explicit."
+    },
+    {
+      "target_path_or_surface": "SECURITY.md",
+      "classification": "new-authority",
+      "objective_or_failure_mode": "Establish the evaluator governance and deterministic fixture-only baseline without importing private product internals, blocked legacy evaluator artifacts, or performance claims.",
+      "observable_oracle": "The local policy, deterministic evaluator, typecheck, formatting, full test, dry-run, and migration-equality checks pass while fixture and unavailable states remain explicit."
+    },
+    {
+      "target_path_or_surface": "docs/migration/equality/task-4-governance-and-deterministic-evaluator-baseline.json",
+      "classification": "new-authority",
+      "objective_or_failure_mode": "Establish the evaluator governance and deterministic fixture-only baseline without importing private product internals, blocked legacy evaluator artifacts, or performance claims.",
+      "observable_oracle": "The local policy, deterministic evaluator, typecheck, formatting, full test, dry-run, and migration-equality checks pass while fixture and unavailable states remain explicit."
+    },
+    {
+      "target_path_or_surface": "docs/migration/objectives/task-4-governance-and-deterministic-evaluator-baseline.json",
+      "classification": "new-authority",
+      "objective_or_failure_mode": "Establish the evaluator governance and deterministic fixture-only baseline without importing private product internals, blocked legacy evaluator artifacts, or performance claims.",
+      "observable_oracle": "The local policy, deterministic evaluator, typecheck, formatting, full test, dry-run, and migration-equality checks pass while fixture and unavailable states remain explicit."
+    },
+    {
+      "target_path_or_surface": "docs/migration/receipts/task-4-governance-and-deterministic-evaluator-baseline.json",
+      "classification": "new-authority",
+      "objective_or_failure_mode": "Establish the evaluator governance and deterministic fixture-only baseline without importing private product internals, blocked legacy evaluator artifacts, or performance claims.",
+      "observable_oracle": "The local policy, deterministic evaluator, typecheck, formatting, full test, dry-run, and migration-equality checks pass while fixture and unavailable states remain explicit."
+    },
+    {
+      "target_path_or_surface": "docs/migration/selections/task-4-governance-and-deterministic-evaluator-baseline.json",
+      "classification": "new-authority",
+      "objective_or_failure_mode": "Establish the evaluator governance and deterministic fixture-only baseline without importing private product internals, blocked legacy evaluator artifacts, or performance claims.",
+      "observable_oracle": "The local policy, deterministic evaluator, typecheck, formatting, full test, dry-run, and migration-equality checks pass while fixture and unavailable states remain explicit."
+    },
+    {
+      "target_path_or_surface": "docs/quality-map.md",
+      "classification": "new-authority",
+      "objective_or_failure_mode": "Establish the evaluator governance and deterministic fixture-only baseline without importing private product internals, blocked legacy evaluator artifacts, or performance claims.",
+      "observable_oracle": "The local policy, deterministic evaluator, typecheck, formatting, full test, dry-run, and migration-equality checks pass while fixture and unavailable states remain explicit."
+    },
+    {
+      "target_path_or_surface": "package-lock.json",
+      "classification": "new-authority",
+      "objective_or_failure_mode": "Establish the evaluator governance and deterministic fixture-only baseline without importing private product internals, blocked legacy evaluator artifacts, or performance claims.",
+      "observable_oracle": "The local policy, deterministic evaluator, typecheck, formatting, full test, dry-run, and migration-equality checks pass while fixture and unavailable states remain explicit."
+    },
+    {
+      "target_path_or_surface": "package.json",
+      "classification": "new-authority",
+      "objective_or_failure_mode": "Establish the evaluator governance and deterministic fixture-only baseline without importing private product internals, blocked legacy evaluator artifacts, or performance claims.",
+      "observable_oracle": "The local policy, deterministic evaluator, typecheck, formatting, full test, dry-run, and migration-equality checks pass while fixture and unavailable states remain explicit."
+    },
+    {
+      "target_path_or_surface": "prettier.config.mjs",
+      "classification": "new-authority",
+      "objective_or_failure_mode": "Establish the evaluator governance and deterministic fixture-only baseline without importing private product internals, blocked legacy evaluator artifacts, or performance claims.",
+      "observable_oracle": "The local policy, deterministic evaluator, typecheck, formatting, full test, dry-run, and migration-equality checks pass while fixture and unavailable states remain explicit."
+    },
+    {
+      "target_path_or_surface": "scripts/check-migration-receipt.mjs",
+      "classification": "new-authority",
+      "objective_or_failure_mode": "Establish the evaluator governance and deterministic fixture-only baseline without importing private product internals, blocked legacy evaluator artifacts, or performance claims.",
+      "observable_oracle": "The local policy, deterministic evaluator, typecheck, formatting, full test, dry-run, and migration-equality checks pass while fixture and unavailable states remain explicit."
+    },
+    {
+      "target_path_or_surface": "src/adapters/fake-candidate.ts",
+      "classification": "new-authority",
+      "objective_or_failure_mode": "Establish the evaluator governance and deterministic fixture-only baseline without importing private product internals, blocked legacy evaluator artifacts, or performance claims.",
+      "observable_oracle": "The local policy, deterministic evaluator, typecheck, formatting, full test, dry-run, and migration-equality checks pass while fixture and unavailable states remain explicit."
+    },
+    {
+      "target_path_or_surface": "src/cli.ts",
+      "classification": "new-authority",
+      "objective_or_failure_mode": "Establish the evaluator governance and deterministic fixture-only baseline without importing private product internals, blocked legacy evaluator artifacts, or performance claims.",
+      "observable_oracle": "The local policy, deterministic evaluator, typecheck, formatting, full test, dry-run, and migration-equality checks pass while fixture and unavailable states remain explicit."
+    },
+    {
+      "target_path_or_surface": "src/hosts/fake-host.ts",
+      "classification": "new-authority",
+      "objective_or_failure_mode": "Establish the evaluator governance and deterministic fixture-only baseline without importing private product internals, blocked legacy evaluator artifacts, or performance claims.",
+      "observable_oracle": "The local policy, deterministic evaluator, typecheck, formatting, full test, dry-run, and migration-equality checks pass while fixture and unavailable states remain explicit."
+    },
+    {
+      "target_path_or_surface": "src/identity.ts",
+      "classification": "new-authority",
+      "objective_or_failure_mode": "Establish the evaluator governance and deterministic fixture-only baseline without importing private product internals, blocked legacy evaluator artifacts, or performance claims.",
+      "observable_oracle": "The local policy, deterministic evaluator, typecheck, formatting, full test, dry-run, and migration-equality checks pass while fixture and unavailable states remain explicit."
+    },
+    {
+      "target_path_or_surface": "src/matrix.ts",
+      "classification": "new-authority",
+      "objective_or_failure_mode": "Establish the evaluator governance and deterministic fixture-only baseline without importing private product internals, blocked legacy evaluator artifacts, or performance claims.",
+      "observable_oracle": "The local policy, deterministic evaluator, typecheck, formatting, full test, dry-run, and migration-equality checks pass while fixture and unavailable states remain explicit."
+    },
+    {
+      "target_path_or_surface": "src/registry.ts",
+      "classification": "new-authority",
+      "objective_or_failure_mode": "Establish the evaluator governance and deterministic fixture-only baseline without importing private product internals, blocked legacy evaluator artifacts, or performance claims.",
+      "observable_oracle": "The local policy, deterministic evaluator, typecheck, formatting, full test, dry-run, and migration-equality checks pass while fixture and unavailable states remain explicit."
+    },
+    {
+      "target_path_or_surface": "src/report.ts",
+      "classification": "new-authority",
+      "objective_or_failure_mode": "Establish the evaluator governance and deterministic fixture-only baseline without importing private product internals, blocked legacy evaluator artifacts, or performance claims.",
+      "observable_oracle": "The local policy, deterministic evaluator, typecheck, formatting, full test, dry-run, and migration-equality checks pass while fixture and unavailable states remain explicit."
+    },
+    {
+      "target_path_or_surface": "src/runner.ts",
+      "classification": "new-authority",
+      "objective_or_failure_mode": "Establish the evaluator governance and deterministic fixture-only baseline without importing private product internals, blocked legacy evaluator artifacts, or performance claims.",
+      "observable_oracle": "The local policy, deterministic evaluator, typecheck, formatting, full test, dry-run, and migration-equality checks pass while fixture and unavailable states remain explicit."
+    },
+    {
+      "target_path_or_surface": "src/types.ts",
+      "classification": "new-authority",
+      "objective_or_failure_mode": "Establish the evaluator governance and deterministic fixture-only baseline without importing private product internals, blocked legacy evaluator artifacts, or performance claims.",
+      "observable_oracle": "The local policy, deterministic evaluator, typecheck, formatting, full test, dry-run, and migration-equality checks pass while fixture and unavailable states remain explicit."
+    },
+    {
+      "target_path_or_surface": "src/validation.ts",
+      "classification": "new-authority",
+      "objective_or_failure_mode": "Establish the evaluator governance and deterministic fixture-only baseline without importing private product internals, blocked legacy evaluator artifacts, or performance claims.",
+      "observable_oracle": "The local policy, deterministic evaluator, typecheck, formatting, full test, dry-run, and migration-equality checks pass while fixture and unavailable states remain explicit."
+    },
+    {
+      "target_path_or_surface": "tests/governance-policy.test.ts",
+      "classification": "new-authority",
+      "objective_or_failure_mode": "Establish the evaluator governance and deterministic fixture-only baseline without importing private product internals, blocked legacy evaluator artifacts, or performance claims.",
+      "observable_oracle": "The local policy, deterministic evaluator, typecheck, formatting, full test, dry-run, and migration-equality checks pass while fixture and unavailable states remain explicit."
+    },
+    {
+      "target_path_or_surface": "tests/identity.test.ts",
+      "classification": "new-authority",
+      "objective_or_failure_mode": "Establish the evaluator governance and deterministic fixture-only baseline without importing private product internals, blocked legacy evaluator artifacts, or performance claims.",
+      "observable_oracle": "The local policy, deterministic evaluator, typecheck, formatting, full test, dry-run, and migration-equality checks pass while fixture and unavailable states remain explicit."
+    },
+    {
+      "target_path_or_surface": "tests/matrix.test.ts",
+      "classification": "new-authority",
+      "objective_or_failure_mode": "Establish the evaluator governance and deterministic fixture-only baseline without importing private product internals, blocked legacy evaluator artifacts, or performance claims.",
+      "observable_oracle": "The local policy, deterministic evaluator, typecheck, formatting, full test, dry-run, and migration-equality checks pass while fixture and unavailable states remain explicit."
+    },
+    {
+      "target_path_or_surface": "tests/receipt.test.ts",
+      "classification": "new-authority",
+      "objective_or_failure_mode": "Establish the evaluator governance and deterministic fixture-only baseline without importing private product internals, blocked legacy evaluator artifacts, or performance claims.",
+      "observable_oracle": "The local policy, deterministic evaluator, typecheck, formatting, full test, dry-run, and migration-equality checks pass while fixture and unavailable states remain explicit."
+    },
+    {
+      "target_path_or_surface": "tests/report.test.ts",
+      "classification": "new-authority",
+      "objective_or_failure_mode": "Establish the evaluator governance and deterministic fixture-only baseline without importing private product internals, blocked legacy evaluator artifacts, or performance claims.",
+      "observable_oracle": "The local policy, deterministic evaluator, typecheck, formatting, full test, dry-run, and migration-equality checks pass while fixture and unavailable states remain explicit."
+    },
+    {
+      "target_path_or_surface": "tests/runner.test.ts",
+      "classification": "new-authority",
+      "objective_or_failure_mode": "Establish the evaluator governance and deterministic fixture-only baseline without importing private product internals, blocked legacy evaluator artifacts, or performance claims.",
+      "observable_oracle": "The local policy, deterministic evaluator, typecheck, formatting, full test, dry-run, and migration-equality checks pass while fixture and unavailable states remain explicit."
+    },
+    {
+      "target_path_or_surface": "tsconfig.json",
+      "classification": "new-authority",
+      "objective_or_failure_mode": "Establish the evaluator governance and deterministic fixture-only baseline without importing private product internals, blocked legacy evaluator artifacts, or performance claims.",
+      "observable_oracle": "The local policy, deterministic evaluator, typecheck, formatting, full test, dry-run, and migration-equality checks pass while fixture and unavailable states remain explicit."
+    }
+  ]
+}
