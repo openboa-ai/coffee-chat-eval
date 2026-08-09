@@ -1264,6 +1264,13 @@ test("verifier result descriptors cannot manufacture measured metrics", async ()
     enumerable: false,
     value: 2,
   });
+  const prototypeSetterMetrics = { score: 1 };
+  Object.defineProperty(prototypeSetterMetrics, "__proto__", {
+    enumerable: true,
+    value: {
+      toJSON: () => ({ forged_credit: 1 }),
+    },
+  });
 
   const scenarios: readonly {
     readonly name: string;
@@ -1317,6 +1324,11 @@ test("verifier result descriptors cannot manufacture measured metrics", async ()
     {
       name: "non-enumerable metric",
       verification: { status: "valid", metrics: nonEnumerableMetrics },
+      error: "verification_metrics_invalid",
+    },
+    {
+      name: "prototype-setter metric",
+      verification: { status: "valid", metrics: prototypeSetterMetrics },
       error: "verification_metrics_invalid",
     },
   ];

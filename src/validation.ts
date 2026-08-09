@@ -66,7 +66,7 @@ function canonicalClosedRecord(
     ) {
       return undefined;
     }
-    const snapshot: Record<string, unknown> = {};
+    const snapshot = Object.create(null) as Record<string, unknown>;
     for (const key of stringKeys) {
       const descriptor = Reflect.getOwnPropertyDescriptor(value, key);
       if (!descriptor || !descriptor.enumerable || !("value" in descriptor)) {
