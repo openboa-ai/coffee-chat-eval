@@ -58,7 +58,7 @@ const quality = await readFile(new URL(".github/workflows/quality.yml", root), "
 assertTrustedAuthorGateBeforeCheckout("quality workflow", quality);
 for (const required of [
   "name: dependency review",
-  "actions/dependency-review-action@2031cfc080254a8a887f58cffee85186f0e49e48",
+  "actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294",
   "name: aggregate",
   "if: always()",
   "npm run format:check",

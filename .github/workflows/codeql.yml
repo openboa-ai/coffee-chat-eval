@@ -16,11 +16,11 @@ jobs:
     name: JavaScript-TypeScript
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
-      - uses: github/codeql-action/init@f411752efdf656cb71aa17b755b22c890960da1d
+      - uses: github/codeql-action/init@5595ccaf912efad79be6eef63a5619ff05969be3
         with:
           languages: javascript-typescript
           build-mode: none
-      - uses: github/codeql-action/analyze@f411752efdf656cb71aa17b755b22c890960da1d
+      - uses: github/codeql-action/analyze@5595ccaf912efad79be6eef63a5619ff05969be3
