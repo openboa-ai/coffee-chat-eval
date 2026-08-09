@@ -55,6 +55,7 @@ function runTrustedAuthorGate(
 function runOrdinaryMigrationCheck(options?: {
   changedPath?: string;
   targetBytes?: Buffer;
+  projectedCalVer?: string;
 }): void {
   const sourceRoot = fileURLToPath(repository);
   const temporaryRoot = mkdtempSync(join(tmpdir(), "coffee-chat-eval-migration-"));
@@ -81,6 +82,22 @@ function runOrdinaryMigrationCheck(options?: {
       join(fixtureRoot, "node_modules"),
       "dir",
     );
+    if (options?.projectedCalVer) {
+      for (const relative of [
+        "package.json",
+        "PLAN.md",
+        "src/registry.ts",
+        "src/adapters/fake-candidate.ts",
+      ]) {
+        const projectionPath = join(fixtureRoot, relative);
+        const projection = readFileSync(projectionPath, "utf8");
+        assert.match(projection, /2026\.8\.9/u, relative);
+        writeFileSync(
+          projectionPath,
+          projection.replaceAll("2026.8.9", options.projectedCalVer),
+        );
+      }
+    }
     if (options?.targetBytes) {
       writeFileSync(join(fixtureRoot, ".gitignore"), options.targetBytes);
     }
@@ -246,6 +263,16 @@ test("required migration checks reject locally tampered migrated target bytes", 
     () => runOrdinaryMigrationCheck({ targetBytes: Buffer.from("tampered target\n") }),
     /migrated target bytes do not match frozen selected source/u,
   );
+});
+
+test("migration package and report projections reject non-calendar CalVer", () => {
+  for (const projectedCalVer of ["26.13.40", "2026.99.99"]) {
+    assert.throws(
+      () => runOrdinaryMigrationCheck({ projectedCalVer }),
+      /package version must use four-digit-year unpadded calendar CalVer/u,
+      projectedCalVer,
+    );
+  }
 });
 
 test("external pinned-source provenance helper validates blob and digest independently", () => {

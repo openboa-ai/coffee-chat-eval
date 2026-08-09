@@ -16,19 +16,28 @@ export function createFakeHost(
 ): HostAdapter {
   return {
     ref: reference,
-    async execute({ trial, candidate, workspaceId }) {
+    async execute({ trial, trialId, candidate, workspaceId }) {
       if (options.failure === "host")
         return { kind: "host_failure", message: "fixture host failure" };
+      const candidateRun = await candidate.run({ trial, workspaceId });
+      if (candidateRun.kind === "failure" || !candidateRun.artifact) {
+        return { kind: "completed", candidate: candidateRun };
+      }
       const evidenceReference = `fixture://${workspaceId}`;
       const detail = options.evidence ?? "controlled fake host; no external execution";
+      const binding = {
+        reference: evidenceReference,
+        detail,
+        trialId,
+        artifactDigest: candidateRun.artifact.digest,
+      };
       return {
         kind: "completed",
         evidence: {
-          reference: evidenceReference,
-          digest: stableDigest({ reference: evidenceReference, detail }),
-          detail,
+          ...binding,
+          digest: stableDigest(binding),
         },
-        candidate: await candidate.run({ trial, workspaceId }),
+        candidate: candidateRun,
       };
     },
     async cleanup() {},

@@ -82,11 +82,15 @@ export interface HostEvidence {
   readonly reference: string;
   readonly digest: Sha256Digest;
   readonly detail: string;
+  readonly trialId: string;
+  readonly artifactDigest: Sha256Digest;
 }
 
 export interface ReceiptEvidence {
   readonly locator: string;
   readonly digest: Sha256Digest;
+  readonly trialId: string;
+  readonly artifactDigest: Sha256Digest;
 }
 
 export type ReceiptErrorCode =
@@ -124,6 +128,7 @@ export interface HostAdapter {
   readonly ref: HostRef;
   execute(input: {
     readonly trial: TrialSpec;
+    readonly trialId: string;
     readonly candidate: CandidateAdapter;
     readonly workspaceId: string;
   }): Promise<HostExecution>;
