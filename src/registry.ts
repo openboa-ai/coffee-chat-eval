@@ -5,14 +5,14 @@ export interface DryRunEntry {
 }
 
 export interface DryRunRegistry {
-  readonly calver: "2026.8.9";
+  readonly calver: "2026.8.12";
   readonly mode: "fixture-only";
   readonly entries: readonly DryRunEntry[];
 }
 
 export function createDryRunRegistry(): DryRunRegistry {
   return Object.freeze({
-    calver: "2026.8.9" as const,
+    calver: "2026.8.12" as const,
     mode: "fixture-only" as const,
     entries: Object.freeze([
       {
@@ -23,7 +23,7 @@ export function createDryRunRegistry(): DryRunRegistry {
       {
         id: "real-provider-host",
         status: "unavailable" as const,
-        reason: "not implemented in this baseline",
+        reason: "performance benchmark adapters are not implemented",
       },
     ]),
   });

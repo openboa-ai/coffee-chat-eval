@@ -10,13 +10,13 @@ function matrixDefinition(): MatrixDefinition {
     evaluator: {
       repository: "https://github.com/openboa-ai/coffee-chat-eval",
       commit: "741e54ea6c49b9ab53a6c29ee79ccc033dc548b9",
-      calver: "2026.8.9",
+      calver: "2026.8.12",
       configurationDigest: stableDigest("fixture-evaluator-configuration"),
     },
     candidate: {
       repository: "https://github.com/openboa-ai/coffee-chat",
       commit: "0123456789abcdef0123456789abcdef01234567",
-      calver: "2026.8.9",
+      calver: "2026.8.12",
       adapter: "public-adapter",
     },
     tasks: [{ id: "task-a", digest: stableDigest("task-a") }],

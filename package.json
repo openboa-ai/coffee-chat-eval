@@ -1,7 +1,7 @@
 {
   "name": "@openboa-ai/coffee-chat-eval",
   "private": true,
-  "version": "2026.8.9",
+  "version": "2026.8.12",
   "type": "module",
   "engines": {
     "node": ">=24"
@@ -13,6 +13,11 @@
     "format:check": "prettier --check .",
     "build": "tsc --noEmit",
     "dry-run": "node --experimental-strip-types src/cli.ts dry-run",
+    "canary:check": "python3 -m py_compile integrations/harbor/coffee_chat_codex.py evals/protocol-canary/tests/verify.py evals/ifeval-smoke/tests/verify.py && sh -n evals/protocol-canary/solution/solve.sh evals/protocol-canary/tests/test.sh evals/ifeval-smoke/solution/solve.sh evals/ifeval-smoke/tests/test.sh",
+    "canary:calibrate": "node --experimental-strip-types src/canary-cli.ts calibrate",
+    "canary:codex": "node --experimental-strip-types src/canary-cli.ts codex",
+    "benchmark:smoke": "node --experimental-strip-types src/canary-cli.ts benchmark",
+    "benchmark:calibrate": "node --experimental-strip-types src/canary-cli.ts benchmark-calibrate",
     "smoke": "node --experimental-strip-types --test tests/smoke.test.ts",
     "ci:policy": "node .github/ci-policy.mjs"
   },

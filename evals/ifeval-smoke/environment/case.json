@@ -1,0 +1,6 @@
+{
+  "benchmark": "IFEval",
+  "key": 1001,
+  "prompt": "I am planning a trip to Japan, and I would like thee to write an itinerary for my journey in a Shakespearean style. You are not allowed to use any commas in your response.",
+  "source_digest": "sha256:d5ef5259a025140861c13b78b2be73479893b29d3cd1ed12cfda9446427d0396"
+}

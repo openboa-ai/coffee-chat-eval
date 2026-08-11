@@ -1,0 +1,35 @@
+schema_version = "1.4"
+artifacts = ["/app/ifeval-result.json"]
+
+[task]
+name = "openboa-ai/ifeval-smoke"
+version = "2026.8.12"
+description = "One official IFEval case proving benchmark adapter execution; not a performance result."
+keywords = ["coffee-chat", "ifeval", "smoke"]
+
+[[task.authors]]
+name = "Openboa AI"
+
+[metadata]
+evidence_class = "benchmark-execution-smoke"
+measurement = "unmeasured"
+
+[verifier]
+timeout_sec = 60.0
+environment_mode = "separate"
+collect = []
+
+[verifier.env]
+
+[agent]
+timeout_sec = 600.0
+
+[environment]
+network_mode = "public"
+build_timeout_sec = 300.0
+os = "linux"
+mcp_servers = []
+
+[environment.env]
+
+[solution.env]

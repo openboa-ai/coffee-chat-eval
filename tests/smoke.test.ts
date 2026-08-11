@@ -11,13 +11,13 @@ const trial: TrialSpec = {
   evaluator: {
     repository: "https://github.com/openboa-ai/coffee-chat-eval",
     commit: "741e54ea6c49b9ab53a6c29ee79ccc033dc548b9",
-    calver: "2026.8.9",
+    calver: "2026.8.12",
     configurationDigest: stableDigest("evaluator"),
   },
   candidate: {
     repository: "https://github.com/openboa-ai/coffee-chat",
     commit: "0123456789abcdef0123456789abcdef01234567",
-    calver: "2026.8.9",
+    calver: "2026.8.12",
     adapter: "public-adapter",
   },
   task: { id: "task", digest: stableDigest("task") },
@@ -44,6 +44,6 @@ test("deferred trial execution returns an explicit not implemented state", () =>
   assert.deepEqual(runDeferredTrial(trial), {
     trialId: createTrialIdentity(trial),
     status: "not_implemented",
-    reason: "provider execution is deferred in the migration shell",
+    reason: "performance execution is not implemented by the protocol canary",
   });
 });
