@@ -1,47 +1,77 @@
 # Coffee Chat evaluator plan
 
-CalVer: `2026.8.9`
+CalVer: `2026.8.12`
 
-This clean migration shell establishes public candidate, task, harness, model,
-host, and repetition types plus deterministic Cartesian trial identity. The
-only executable report is a dry run: its fixture entry is `unmeasured`; its
-real-host entry is `unavailable`; neither produces a performance score.
+## Current executable boundary
 
-The workspace's 2026-08-11 external-benchmark decision is projected in
-[`docs/external-benchmark-portfolio.md`](docs/external-benchmark-portfolio.md).
-Coffee Chat and Coffee Blend share one AI objective and one result model. Eval
-separates application fidelity, output-level utility-proxy uplift, reliability
-guardrails, and efficiency. Realized downstream utility remains unmeasured.
-When valid in a derived Coffee run, `C0` is no selected Taste, `C1` is one
-selected person, and `CN` is the complete selected multi-person set. No selected
-external source natively measures all three; `CN` remains unmeasured.
+`coffee-chat-eval` is Harbor-first and Codex-only. Its first executable path
+is the evaluator-owned `protocol-canary`:
 
-The selected queue is:
+```text
+Harbor task
+  -> clean Docker host
+  -> exact Coffee Chat commit installed through a local Codex marketplace
+  -> fresh Codex session and public coffee-chat Skill invocation
+  -> separate verifier
+  -> native Harbor result
+  -> Coffee Chat receipt/report marked unmeasured
+```
 
-1. PersonaMem 32k as a deterministic application-fidelity and harness
-   diagnostic, never as value proof;
-2. BESPOKE as the primary conversational application and output utility-proxy
-   track; and
-3. PDR-Bench as a calibrated agentic application/actionability and Q/R
-   guardrail pilot.
+Oracle=1 and no-op=0 calibrate the same task/verifier package. Both rewards are
+pipeline evidence, never Coffee Chat performance. Malformed verifier output,
+host failure, candidate failure, and invalid artifacts remain distinct.
 
-This selection changes no runtime capability: no adapter exists and no Coffee
-Chat performance has been measured. The next Goal must first pin source bytes,
-rights, environments, native reference behavior, exact `source_condition`, and
-separate `coffee_condition`. Native runs keep Coffee condition not applicable;
-Coffee-derived projection results remain distinct, and benchmark data never
-enters an owner's Roastery.
+Required CI validates deterministic job projection, result parsing, receipt and
+report contracts, task/verifier separation, Plugin evidence parsing, and status
+crosswalks. It performs no model call or performance evaluation. The real Codex
+trial is manual:
 
-Provider execution, artifact persistence, isolation attestation, verifier
-metrics, clocks/timing, detailed receipts, and real E2E remain deferred. Public
-execution APIs return an explicit deferred state until a separately authorized
-implementation slice exists. `coffee-chat-bench` owns any later
-candidate-independent `C0/C1/CN` construct, verifier, metric, and validity
-evidence.
+```sh
+npm run canary:codex -- \
+  --candidate-repo /absolute/path/to/coffee-chat \
+  --candidate-commit <40-character-commit> \
+  --model <codex-model>
+```
 
-Migration planning and bootstrap proof are workspace coordination concerns,
-not evaluator runtime capabilities. Ordinary changes use format, typecheck,
-build, scenario tests, dry-run, smoke, policy, dependency review, and CodeQL.
-GitHub-native squash merge permits `OWNER` and `MEMBER` authors with zero
-required approvals. CalVer is the only release identity; no compatibility layer
-is retained.
+One official IFEval case is also projected into a separate Harbor task to
+prove the external-benchmark execution boundary:
+
+```text
+pinned source manifest + candidate-visible case without judgment labels
+  -> task reads input and invokes the exact installed Coffee Chat Plugin boundary
+  -> separate verifier with sealed reference
+  -> native Harbor/Codex evidence
+  -> benchmark execution receipt
+     executionStatus=executed
+     resultState=not_implemented
+     measurement=not_performed
+     candidateInputDelivery=not_supported
+```
+
+Run it manually with `npm run benchmark:smoke -- --candidate-repo ...
+--candidate-commit ... --model ...`. This real Codex/model run is excluded from
+required CI; required CI executes only the deterministic Oracle/no-op Harbor
+calibration.
+
+Harbor is pinned at `0.21.0` and Codex at `0.147.0`. The candidate remains
+external: Eval stages only `git archive <exact-commit>`, installs it through
+the public Plugin interface, and never imports Product internals.
+
+## Performance boundary
+
+The current Product `coffee-chat` entrypoint is discoverable but reports
+`not_implemented`. The canary verifies that this honest status survives the
+actual host path. It does not establish application fidelity, utility,
+efficiency, or benchmark value.
+
+IFEval's single-case smoke is executable, source-pinned, and execution only.
+Full IFEval measurement and the remaining rights-cleared portfolio tracks stay
+inactive pending native metric reproduction, bounded cost, and a justified
+Coffee Chat projection.
+Coffee Blend is excluded from this initial evaluation scope.
+
+`coffee-chat-bench` remains `not_active`. A later candidate-independent Taste
+benchmark requires separate construct-validity evidence and must not be
+inferred from this evaluator-owned canary.
+
+CalVer is the only release identity and no compatibility layer is provided.

@@ -5,6 +5,6 @@ export function runDeferredTrial(trial: TrialSpec): DeferredExecution {
   return {
     trialId: createTrialIdentity(trial),
     status: "not_implemented",
-    reason: "provider execution is deferred in the migration shell",
+    reason: "performance execution is not implemented by the protocol canary",
   };
 }

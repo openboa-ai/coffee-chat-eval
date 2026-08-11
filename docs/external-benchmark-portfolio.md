@@ -5,7 +5,25 @@
   receipts, and performance reporting
 - **Canonical rationale:** workspace
   `docs/engineering/external-benchmark-portfolio.md`
-- **Runtime state:** no selected adapter or measured Coffee Chat result exists
+- **Runtime state:** one IFEval case has an execution-only adapter smoke; no
+  measured Coffee Chat result exists
+
+## Current execution smoke
+
+`evals/ifeval-smoke/` pins official IFEval case `1001`, its source commit,
+source-file digest, exact-line digest, Apache-2.0 attribution, and excluded
+historical response assets. The candidate sees only the prompt and source
+identity; the deterministic `punctuation:no_comma` constraint remains in the
+separate verifier.
+
+This smoke proves only that benchmark input is staged and read in the same task
+that invokes an exact installed Coffee Chat Plugin boundary, and that Harbor
+artifact collection, verifier execution, Codex trace evidence, cleanup, and
+receipt generation work. The current entrypoint cannot accept that input, so
+`candidateInputDelivery=not_supported` remains separate from
+`executionStatus=executed`, `resultState=not_implemented`, and
+`measurement=not_performed`. Native reward is raw pipeline evidence and is not
+a Coffee Chat score.
 
 ## Shared evaluation target
 

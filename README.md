@@ -1,40 +1,82 @@
-# Coffee Chat evaluator
+# Coffee Chat Eval
 
-`@openboa-ai/coffee-chat-eval` is the evaluation-orchestration and reporting
-repository for Coffee Chat. This clean migration shell provides public trial
-types, deterministic matrix expansion and identity, and an honest dry run.
+`@openboa-ai/coffee-chat-eval` owns Coffee Chat evaluation orchestration,
+receipts, and reports. Product implementation remains in `coffee-chat`;
+candidate-independent benchmark constructs remain in `coffee-chat-bench`.
 
-`npm run dry-run` emits one fixture `unmeasured` entry and one real-host
-`unavailable` entry. It produces no performance score. Public execution remains
-explicitly `not_implemented` until a separately authorized implementation.
+The first executable evaluator paths are a Harbor-first, Codex-only
+`protocol-canary` and a one-case IFEval execution smoke. They run real
+Harbor tasks through an exact Coffee Chat
+Plugin commit, a clean Codex profile, a fresh session, and a separate verifier.
+The result is always reported as `unmeasured`: it proves the evaluation plumbing
+works but says nothing about Coffee Chat quality or value.
 
-The external benchmark portfolio and activation requirements are documented in
-[`docs/external-benchmark-portfolio.md`](docs/external-benchmark-portfolio.md).
-Coffee Chat and Coffee Blend share one objective: determine whether explicitly
-selected Taste is applied correctly and improves an output-level utility proxy.
-Application fidelity, utility proxy, reliability, and efficiency are reported
-separately; realized downstream utility remains unmeasured.
+The IFEval smoke uses one pinned official Apache-2.0 case, keeps its constraint
+metadata in the separate
+verifier, and records `executed` independently from semantic measurement. With
+the current deferred Product entrypoint its receipt is `not_implemented` and
+`measurement: not_performed`; no benchmark score is claimed.
 
-The selected queue is PersonaMem as a deterministic fidelity diagnostic,
-BESPOKE as the primary conversational output-proxy track, and PDR-Bench as a
-calibrated agentic application/actionability and Q/R guardrail pilot. No adapter
-or Coffee result exists yet, and no selected source natively measures the
-multi-person `CN` condition.
+The task is calibrated with Harbor Oracle and no-op agents. Oracle must produce
+native reward 1, no-op must produce native reward 0, and malformed verifier
+output must remain invalid rather than becoming reward 0. Required CI checks
+these implementation contracts without model calls.
 
-This repository does not contain Coffee Chat product internals or own a new
-benchmark construct. Native external tasks and scores remain source-faithful;
-Coffee-derived projections are separately labeled and may use only public
-candidate interfaces. Native `source_condition` and derived Coffee
-`C0/C1/CN` condition identity must remain separate. A later missing
-`C0/C1/CN` construct belongs to `coffee-chat-bench` after validity work.
+Run the Harbor Oracle/no-op calibration:
 
-Run locally with `npm ci`, then `npm run format:check`, `npm run typecheck`,
-`npm run build`, `npm test`, `npm run smoke`, `npm run dry-run`, and
-`npm run ci:policy`.
+```sh
+npm run canary:calibrate
+```
 
-## Initial contribution policy
+Run deterministic verification:
+
+```sh
+npm ci
+npm run format:check
+npm run typecheck
+npm run canary:check
+npm test
+npm run dry-run
+npm run smoke
+npm run ci:policy
+```
+
+Run the manual real Codex canary:
+
+```sh
+npm run canary:codex -- \
+  --candidate-repo /absolute/path/to/coffee-chat \
+  --candidate-commit <40-character-commit> \
+  --model <codex-model>
+```
+
+The command stages only the requested Git commit, installs it using Codex's
+local marketplace flow, verifies discovery/enabled state and source-cache
+digest equality, executes the public `coffee-chat` entrypoint, retains native
+Harbor/Codex artifacts, verifies cleanup, and emits an `unmeasured` receipt and
+report under `artifacts/harbor/`.
+
+Run the same exact candidate through the IFEval execution smoke:
+
+```sh
+npm run benchmark:smoke -- \
+  --candidate-repo /absolute/path/to/coffee-chat \
+  --candidate-commit <40-character-commit> \
+  --model <codex-model>
+```
+
+This proves that pinned benchmark input is staged and read in the same task
+that invokes the installed Plugin boundary, and that native Harbor, collected
+artifact, Codex trace, separate verifier, cleanup, and an execution receipt are
+produced. Because the current entrypoint accepts no benchmark input, the
+receipt explicitly records `candidateInputDelivery: not_supported`. It is not
+a performance evaluation.
+
+IFEval has only this bounded execution smoke. Its full track and the other
+rights-cleared portfolio tracks remain inactive; no measured Coffee Chat result exists.
+`coffee-chat-bench` remains inactive.
 
 GitHub-native squash merge is the only merge method. Candidate-executing
-workflows admit only `OWNER` and `MEMBER` authors, require zero human approvals,
-and retain dependency review and CodeQL. This shell has no compatibility layer;
-CalVer is its only release identity.
+workflows admit only `OWNER` and `MEMBER` authors, require zero human
+approvals, and retain dependency review and CodeQL. CalVer is the only release
+identity and no compatibility layer is supported.

@@ -39,6 +39,7 @@ jobs:
       - run: npm run typecheck
       - run: npm run build
       - run: npm test
+      - run: npm run canary:check
       - run: npm run dry-run
       - run: npm run smoke
       - run: npm run ci:policy
@@ -59,12 +60,40 @@ jobs:
           head-ref: ${{ github.sha }}
       - if: github.event_name == 'workflow_dispatch'
         run: npm audit --audit-level=high
+  harbor-contract:
+    name: harbor contract
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Verify trusted pull request author
+        if: github.event_name == 'pull_request'
+        env:
+          AUTHOR_ASSOCIATION: ${{ github.event.pull_request.author_association }}
+        run: |
+          case "$AUTHOR_ASSOCIATION" in
+            OWNER|MEMBER)
+              printf '%s\n' 'author=trusted_member'
+              ;;
+            *)
+              printf '%s\n' 'author=untrusted' >&2
+              exit 1
+              ;;
+          esac
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 24.5.0
+      - run: python -m pip install --disable-pip-version-check uv==0.8.3
+      - run: npm run canary:calibrate
+      - run: npm run benchmark:calibrate
   aggregate:
     name: aggregate
     if: always()
-    needs: [quality, dependency-review]
+    needs: [quality, dependency-review, harbor-contract]
     runs-on: ubuntu-24.04
     steps:
       - run: |
           test "${{ needs.quality.result }}" = success
           test "${{ needs.dependency-review.result }}" = success
+          test "${{ needs.harbor-contract.result }}" = success

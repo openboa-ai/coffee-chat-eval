@@ -65,9 +65,20 @@ for (const required of [
   "npm run typecheck",
   "npm run build",
   "npm test",
+  "npm run canary:check",
   "npm run dry-run",
   "npm run smoke",
   "npm run ci:policy",
+]) {
+  if (!quality.includes(required))
+    throw new Error(`quality workflow lacks ${required}`);
+}
+for (const required of [
+  "name: harbor contract",
+  "python -m pip install --disable-pip-version-check uv==0.8.3",
+  "npm run canary:calibrate",
+  "npm run benchmark:calibrate",
+  "needs: [quality, dependency-review, harbor-contract]",
 ]) {
   if (!quality.includes(required))
     throw new Error(`quality workflow lacks ${required}`);
@@ -107,6 +118,9 @@ for (const script of [
   "typecheck",
   "build",
   "test",
+  "canary:check",
+  "canary:calibrate",
+  "benchmark:calibrate",
   "dry-run",
   "smoke",
   "ci:policy",

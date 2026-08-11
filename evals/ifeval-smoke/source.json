@@ -1,0 +1,18 @@
+{
+  "benchmark": "IFEval",
+  "paper": "https://arxiv.org/abs/2311.07911",
+  "source_repository": "https://github.com/google-research/google-research",
+  "source_commit": "e6890f85757dd84e27ca6df2dd30651dafad28e0",
+  "dataset_file": "instruction_following_eval/data/input_data.jsonl",
+  "dataset_file_sha256": "67ffeee0fcb87c317c5b08a2de85557b4a7e96ada6178aa645b4954fe4b53d49",
+  "case_key": 1001,
+  "case_source_digest": "sha256:d5ef5259a025140861c13b78b2be73479893b29d3cd1ed12cfda9446427d0396",
+  "case_digest_definition": "SHA-256 of the exact official JSONL line including its trailing newline",
+  "license": "Apache-2.0",
+  "license_url": "https://github.com/google-research/google-research/blob/e6890f85757dd84e27ca6df2dd30651dafad28e0/LICENSE",
+  "attribution_file": "THIRD_PARTY_NOTICES.md",
+  "excluded_assets": [
+    "instruction_following_eval/data/input_response_data_gpt4_*.jsonl"
+  ],
+  "usage": "One-case execution smoke only; no benchmark score or Coffee Chat performance claim."
+}

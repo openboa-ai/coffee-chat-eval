@@ -33,6 +33,15 @@ test("candidate workflows admit only owners or members before checkout", () => {
   }
 });
 
+test("required CI calibrates Harbor tasks without running model evaluation", () => {
+  const workflow = read(".github/workflows/quality.yml");
+
+  assert.match(workflow, /npm run canary:check/u);
+  assert.match(workflow, /npm run canary:calibrate/u);
+  assert.match(workflow, /npm run benchmark:calibrate/u);
+  assert.doesNotMatch(workflow, /canary:codex|benchmark:smoke|OPENAI_API_KEY/u);
+});
+
 test("the shell has no private Coffee Chat package dependency", () => {
   const packageJson = JSON.parse(read("package.json")) as {
     dependencies?: Record<string, string>;
