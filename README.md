@@ -28,6 +28,25 @@ Run the Harbor Oracle/no-op calibration:
 npm run canary:calibrate
 ```
 
+Run deterministic PCDA contract calibration:
+
+```sh
+npm run pcda:calibrate
+```
+
+Task 2 stages Bench commit
+`1a743f17a88a1e5b50b4b7e19c2cbeaef76922fa`, sends unsigned execution evidence
+to its public `attest` CLI through `COFFEE_CHAT_EVAL_ATTESTATION_KEY`, and never
+implements MAC canonicalization locally. Candidate credentials are accepted
+only through a dedicated parent binding and mapped to child `OPENAI_API_KEY`
+immediately before spawn; ambient Codex/provider auth is not inherited.
+
+`pcda:codex` is manual-only. It projects and runs T0/T1-A/T1-B sequentially,
+validates native evidence and cleanup, then invokes staged Bench `attest` and
+`judge`. Judge receives the remaining combined cap through
+`COFFEE_CHAT_EVAL_JUDGE_CAP_NANO_USD`; missing candidate cost evidence remains
+unmeasured and stops before judgment.
+
 Run deterministic verification:
 
 ```sh
@@ -39,6 +58,7 @@ npm run canary:check
 npm test
 npm run dry-run
 npm run smoke
+npm run pcda:calibrate
 npm run ci:policy
 npm run security:scan
 ```

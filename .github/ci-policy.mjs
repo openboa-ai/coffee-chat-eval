@@ -78,6 +78,7 @@ for (const required of [
   "python -m pip install --disable-pip-version-check uv==0.8.3",
   "npm run canary:calibrate",
   "npm run benchmark:calibrate",
+  "npm run pcda:calibrate",
   "needs: [quality, dependency-review, harbor-contract]",
 ]) {
   if (!quality.includes(required))
@@ -147,12 +148,17 @@ for (const script of [
   "canary:check",
   "canary:calibrate",
   "benchmark:calibrate",
+  "pcda:calibrate",
+  "pcda:codex",
   "dry-run",
   "smoke",
   "ci:policy",
 ]) {
   if (typeof packageJson.scripts?.[script] !== "string")
     throw new Error(`missing ${script} script`);
+}
+if (quality.includes("npm run pcda:codex")) {
+  throw new Error("live PCDA Codex execution must remain outside required CI");
 }
 if (Object.hasOwn(packageJson.dependencies ?? {}, "@openboa/coffee-chat")) {
   throw new Error("the evaluator must not depend on private Coffee Chat source");

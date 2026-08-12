@@ -90,11 +90,35 @@ export type PcdaHarborLaunch =
       readonly network: PcdaLaunchNetworkContract;
     };
 
+export interface PcdaSpawnInput {
+  readonly launch: Extract<PcdaHarborLaunch, { readonly state: "ready" }>;
+  readonly credentialName: string;
+  readonly loadCredential: (name: string) => string;
+  readonly spawn: (
+    command: string,
+    args: readonly string[],
+    environment: Readonly<Record<string, string>>,
+  ) => { readonly exitCode: number; readonly boundedOutput?: string };
+}
+
+export interface PcdaSpawnResult {
+  readonly state: "completed" | "failed";
+  readonly exitCode: number;
+  readonly jobDirectory: string;
+}
+
 const SETUP_ALLOWLIST = Object.freeze([
   "dl-cdn.alpinelinux.org",
   "registry.npmjs.org",
 ] as const);
 const RESOLVED_UVX_TOOLS = new WeakSet<object>();
+const READY_LAUNCHES = new WeakMap<
+  object,
+  {
+    readonly tool: ResolvedUvxTool;
+    readonly projection: ProjectedPcdaCondition;
+  }
+>();
 const RESOLVED_UVX_INSPECTIONS = new WeakMap<
   object,
   {
@@ -538,7 +562,7 @@ export function buildPcdaHarborArgs(input: PcdaHarborInput): PcdaHarborLaunch {
     agentAllowlist: Object.freeze([candidateProviderHost] as const),
     verifierNetwork: "no-network",
   });
-  return Object.freeze({
+  const launch = Object.freeze({
     state: "ready",
     command: uvxTool.path,
     uvx: Object.freeze({
@@ -553,5 +577,50 @@ export function buildPcdaHarborArgs(input: PcdaHarborInput): PcdaHarborLaunch {
     credentialBinding,
     jobDirectory,
     network,
+  });
+  READY_LAUNCHES.set(launch, { tool: uvxTool, projection: input.projection });
+  return launch;
+}
+
+export function executePcdaSpawn(input: PcdaSpawnInput): PcdaSpawnResult {
+  const authority = READY_LAUNCHES.get(input.launch);
+  if (authority === undefined) {
+    throw new Error("launch must be returned by buildPcdaHarborArgs");
+  }
+  if (
+    input.credentialName === "OPENAI_API_KEY" ||
+    !/^[A-Z][A-Z0-9_]{2,127}$/u.test(input.credentialName)
+  ) {
+    throw new Error("candidate credential requires a dedicated parent credential name");
+  }
+
+  recheckResolvedUvxTool(authority.tool);
+  verifyTrustedProjection(authority.projection);
+  if (
+    computeExecutionTreeDigest(authority.projection.projectionRoot) !==
+    authority.projection.executionTreeDigest
+  ) {
+    throw new Error("projection execution tree digest changed before spawn");
+  }
+
+  const credential = input.loadCredential(input.credentialName);
+  if (credential.length === 0 || credential.length > 16_384) {
+    throw new Error("candidate credential is missing or unbounded");
+  }
+  const environment = Object.freeze({
+    ...input.launch.environmentTemplate,
+    [input.launch.credentialBinding.childVariable]: credential,
+  });
+  const result = input.spawn(input.launch.command, input.launch.args, environment);
+  if (!Number.isSafeInteger(result.exitCode) || result.exitCode < 0) {
+    throw new Error("spawn exitCode must be a non-negative safe integer");
+  }
+  if (result.boundedOutput?.includes(credential)) {
+    throw new Error("Harbor child output contained credential material");
+  }
+  return Object.freeze({
+    state: result.exitCode === 0 ? "completed" : "failed",
+    exitCode: result.exitCode,
+    jobDirectory: input.launch.jobDirectory,
   });
 }

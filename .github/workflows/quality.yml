@@ -102,6 +102,7 @@ jobs:
       - run: python -m pip install --disable-pip-version-check uv==0.8.3
       - run: npm run canary:calibrate
       - run: npm run benchmark:calibrate
+      - run: npm run pcda:calibrate
   aggregate:
     name: aggregate
     if: always()

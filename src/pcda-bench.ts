@@ -11,6 +11,7 @@ import {
   realpathSync,
   renameSync,
   rmSync,
+  writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
@@ -64,12 +65,66 @@ export interface ProjectedPcdaCondition {
   readonly projectionDigest: Digest;
   readonly executionTreeDigest: Digest;
   readonly trialId: string;
+  readonly caseId: string;
   readonly projectionRoot: string;
   readonly taskPath: string;
   readonly taskTomlPath: string;
   readonly perspectivePath: string | null;
   readonly candidateForbiddenFindings: readonly string[];
 }
+
+export interface StagedBenchInvocation {
+  readonly command: string;
+  readonly args: readonly string[];
+  readonly environment: Readonly<Record<string, string>>;
+}
+
+export interface StagedBenchInvocationResult {
+  readonly exitCode: number;
+  readonly stdout: string;
+}
+
+export interface StagedBenchJudgmentInput {
+  readonly snapshot: BenchSnapshot;
+  readonly projection: ProjectedPcdaCondition;
+  readonly artifactPath: string;
+  readonly unsignedAttestation: Readonly<Record<string, unknown>>;
+  readonly capabilityKey: string;
+  readonly remainingJudgeCapNanoUsd: number;
+  readonly credentialName: string;
+  readonly loadCredential: (name: string) => string;
+  readonly workspace: string;
+  readonly invoke: (
+    invocation: StagedBenchInvocation,
+  ) => Promise<StagedBenchInvocationResult>;
+}
+
+export interface StagedBenchJudgmentResult {
+  readonly state: "judged";
+  readonly judgeState: BenchJudgeState;
+  readonly measurementState: "measured" | "unmeasured";
+  readonly resultDigest: Digest;
+  readonly settledNanoUsd?: number;
+}
+
+type BenchJudgeState =
+  | "measured"
+  | "judge_disagreement"
+  | "judge_unavailable"
+  | "candidate_invalid"
+  | "candidate_failure"
+  | "verifier_failure"
+  | "unmeasured";
+
+const BENCH_JUDGE_STATES = new Set<BenchJudgeState>([
+  "measured",
+  "judge_disagreement",
+  "judge_unavailable",
+  "candidate_invalid",
+  "candidate_failure",
+  "verifier_failure",
+  "unmeasured",
+]);
 
 interface ProjectionReport {
   readonly release: string;
@@ -96,6 +151,170 @@ interface BenchSnapshotInspection {
 
 const BENCH_SNAPSHOTS = new WeakSet<object>();
 const BENCH_SNAPSHOT_INSPECTIONS = new WeakMap<object, BenchSnapshotInspection>();
+
+function parseBenchCliReport(stdout: string, label: string): Record<string, unknown> {
+  if (Buffer.byteLength(stdout, "utf8") > 1_000_000) {
+    throw new Error(`${label} output exceeds the bounded size`);
+  }
+  try {
+    const value = JSON.parse(stdout) as unknown;
+    if (value === null || typeof value !== "object" || Array.isArray(value)) {
+      throw new Error("not an object");
+    }
+    return value as Record<string, unknown>;
+  } catch (error) {
+    throw new Error(`${label} output must be one JSON object`, { cause: error });
+  }
+}
+
+export async function attestAndJudgeWithStagedBench(
+  input: StagedBenchJudgmentInput,
+): Promise<StagedBenchJudgmentResult> {
+  verifyBenchSnapshot(input.snapshot);
+  if (input.projection.benchCommit !== input.snapshot.commit) {
+    throw new Error("projection and staged Bench commit differ");
+  }
+  if (
+    computeExecutionTreeDigest(input.projection.projectionRoot) !==
+    input.projection.executionTreeDigest
+  ) {
+    throw new Error("projection execution tree digest changed before judgment");
+  }
+  if (!/^[A-Za-z0-9_-]{43}$/u.test(input.capabilityKey)) {
+    throw new Error("execution capability must be 32-byte base64url");
+  }
+  if (
+    !Number.isSafeInteger(input.remainingJudgeCapNanoUsd) ||
+    input.remainingJudgeCapNanoUsd < 0 ||
+    input.remainingJudgeCapNanoUsd > 50_000_000_000
+  ) {
+    throw new Error("remaining judge cap must be a bounded nano-USD integer");
+  }
+  if (
+    input.credentialName === "OPENAI_API_KEY" ||
+    !/^[A-Z][A-Z0-9_]{2,127}$/u.test(input.credentialName)
+  ) {
+    throw new Error("judge requires a dedicated parent credential name");
+  }
+  if (Object.hasOwn(input.unsignedAttestation, "attestationMac")) {
+    throw new Error("Eval must pass an unsigned attestation to Bench");
+  }
+  const artifactPath = realpathSync(input.artifactPath);
+  if (!lstatSync(artifactPath).isFile()) {
+    throw new Error("candidate artifact must be a regular file");
+  }
+  if (existsSync(input.workspace)) {
+    throw new Error("judgment workspace must be fresh");
+  }
+  mkdirSync(input.workspace, { recursive: false, mode: 0o700 });
+  const unsignedPath = join(input.workspace, "unsigned-attestation.json");
+  const signedPath = join(input.workspace, "signed-attestation.json");
+  writeFileSync(unsignedPath, `${JSON.stringify(input.unsignedAttestation)}\n`, {
+    encoding: "utf8",
+    flag: "wx",
+    mode: 0o600,
+  });
+  const cli = join(input.snapshot.root, "src", "cli.ts");
+  const baseEnvironment = Object.freeze({
+    HOME: input.workspace,
+    LANG: "C.UTF-8",
+    PATH: "/usr/bin:/bin",
+  });
+  try {
+    const attested = await input.invoke({
+      command: process.execPath,
+      args: ["--experimental-strip-types", cli, "attest", unsignedPath, signedPath],
+      environment: {
+        ...baseEnvironment,
+        COFFEE_CHAT_EVAL_ATTESTATION_KEY: input.capabilityKey,
+      },
+    });
+    const attestedReport = parseBenchCliReport(attested.stdout, "Bench attest");
+    if (attested.exitCode !== 0 || attestedReport.state !== "signed") {
+      throw new Error("staged Bench attest rejected execution evidence");
+    }
+    verifyBenchSnapshot(input.snapshot);
+    const signed = JSON.parse(readFileSync(signedPath, "utf8")) as unknown;
+    if (
+      signed === null ||
+      typeof signed !== "object" ||
+      Array.isArray(signed) ||
+      !/^[A-Za-z0-9_-]{43}$/u.test(
+        String((signed as Record<string, unknown>).attestationMac ?? ""),
+      )
+    ) {
+      throw new Error("staged Bench attest did not produce a bounded signed artifact");
+    }
+    if ((lstatSync(signedPath).mode & 0o777) !== 0o600) {
+      throw new Error("staged Bench signed attestation must have mode 0600");
+    }
+    const judgeCredential = input.loadCredential(input.credentialName);
+    if (judgeCredential.length === 0 || judgeCredential.length > 16_384) {
+      throw new Error("loaded judge credential has invalid length");
+    }
+    const judged = await input.invoke({
+      command: process.execPath,
+      args: [
+        "--experimental-strip-types",
+        cli,
+        "judge",
+        input.projection.projectionRoot,
+        artifactPath,
+        signedPath,
+      ],
+      environment: {
+        ...baseEnvironment,
+        COFFEE_CHAT_EVAL_ATTESTATION_KEY: input.capabilityKey,
+        COFFEE_CHAT_EVAL_JUDGE_CAP_NANO_USD: String(input.remainingJudgeCapNanoUsd),
+        OPENAI_API_KEY: judgeCredential,
+      },
+    });
+    if (
+      judged.stdout.includes(input.capabilityKey) ||
+      judged.stdout.includes(judgeCredential)
+    ) {
+      throw new Error("Bench judge output must not contain execution credentials");
+    }
+    const report = parseBenchCliReport(judged.stdout, "Bench judge");
+    const judgeState = String(report.state ?? "");
+    if (!BENCH_JUDGE_STATES.has(judgeState as BenchJudgeState)) {
+      throw new Error("staged Bench judge returned an unknown state");
+    }
+    const resultDigest = String(report.resultDigest ?? "");
+    if (!DIGEST_PATTERN.test(resultDigest)) {
+      throw new Error("staged Bench judge must return a result digest");
+    }
+    if (
+      (judgeState === "measured" && judged.exitCode !== 0) ||
+      (judgeState !== "measured" && judged.exitCode !== 1)
+    ) {
+      throw new Error("staged Bench judge exit code does not match its state");
+    }
+    const campaign = report.campaign;
+    const settledNanoUsd =
+      campaign !== null && typeof campaign === "object" && !Array.isArray(campaign)
+        ? (campaign as Record<string, unknown>).settledNanoUsd
+        : undefined;
+    if (
+      settledNanoUsd !== undefined &&
+      (!Number.isSafeInteger(settledNanoUsd) || Number(settledNanoUsd) < 0)
+    ) {
+      throw new Error("staged Bench judge returned invalid settled cost");
+    }
+    return Object.freeze({
+      state: "judged",
+      judgeState: judgeState as BenchJudgeState,
+      measurementState: judgeState === "measured" ? "measured" : "unmeasured",
+      resultDigest: resultDigest as Digest,
+      ...(settledNanoUsd === undefined
+        ? {}
+        : { settledNanoUsd: Number(settledNanoUsd) }),
+    });
+  } finally {
+    rmSync(unsignedPath, { force: true });
+    rmSync(signedPath, { force: true });
+  }
+}
 
 function digestBytes(bytes: Buffer): Digest {
   return `sha256:${createHash("sha256").update(bytes).digest("hex")}`;
@@ -713,6 +932,7 @@ export function projectPcdaFamily(
         projectionDigest: report.projectionDigest,
         executionTreeDigest: computeExecutionTreeDigest(projectionRoot),
         trialId,
+        caseId: report.caseId,
         projectionRoot,
         taskPath: report.harborDirectory,
         taskTomlPath: realpathSync(join(report.harborDirectory, "task.toml")),
