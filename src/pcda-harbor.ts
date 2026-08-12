@@ -8,6 +8,7 @@ import {
   readdirSync,
   realpathSync,
   rmSync,
+  writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import {
@@ -36,6 +37,7 @@ export interface PcdaHarborInput {
   readonly uvxTool: ResolvedUvxTool;
   readonly candidateProviderHost: string;
   readonly candidateModel: string;
+  readonly dockerHost: string;
   readonly jobsRoot: string;
   readonly candidateCredential?: CandidateCredentialMetadata;
 }
@@ -475,6 +477,26 @@ function requireCandidateModel(model: string): "gpt-5.6-terra" {
   return model;
 }
 
+function requireDockerHost(value: string): string {
+  let parsed: URL;
+  try {
+    parsed = new URL(value);
+  } catch (error) {
+    throw new Error("dockerHost must be an absolute unix socket URL", {
+      cause: error,
+    });
+  }
+  if (
+    parsed.protocol !== "unix:" ||
+    parsed.host !== "" ||
+    !isAbsolute(parsed.pathname) ||
+    value.length > 4_096
+  ) {
+    throw new Error("dockerHost must be an absolute unix socket URL");
+  }
+  return value;
+}
+
 export function buildPcdaHarborArgs(input: PcdaHarborInput): PcdaHarborLaunch {
   verifyTrustedProjection(input.projection);
   verifyTaskToml(input.projection.taskTomlPath);
@@ -488,6 +510,7 @@ export function buildPcdaHarborArgs(input: PcdaHarborInput): PcdaHarborLaunch {
     input.candidateProviderHost,
   );
   const candidateModel = requireCandidateModel(input.candidateModel);
+  const dockerHost = requireDockerHost(input.dockerHost);
 
   if (
     input.candidateCredential === undefined ||
@@ -514,8 +537,17 @@ export function buildPcdaHarborArgs(input: PcdaHarborInput): PcdaHarborLaunch {
   );
   const home = join(jobDirectory, "home");
   const config = join(jobDirectory, "config");
+  const dockerConfig = join(jobDirectory, "docker-config");
   mkdirSync(home);
   mkdirSync(config);
+  mkdirSync(dockerConfig);
+  writeFileSync(
+    join(dockerConfig, "config.json"),
+    `${JSON.stringify({
+      cliPluginsExtraDirs: ["/opt/homebrew/lib/docker/cli-plugins"],
+    })}\n`,
+    { encoding: "utf8", mode: 0o600 },
+  );
 
   const args = Object.freeze([
     "--from",
@@ -546,9 +578,13 @@ export function buildPcdaHarborArgs(input: PcdaHarborInput): PcdaHarborLaunch {
     "--quiet",
   ]);
   const environmentTemplate = Object.freeze({
+    DOCKER_CONFIG: dockerConfig,
+    DOCKER_HOST: dockerHost,
     HOME: home,
     LANG: "C.UTF-8",
-    PATH: "/usr/bin:/bin",
+    // Harbor needs the host Docker CLI before it creates the isolated trial.
+    // Keep this allowlist deterministic instead of inheriting the caller's PATH.
+    PATH: "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin",
     XDG_CONFIG_HOME: config,
   });
   const credentialBinding = Object.freeze({
