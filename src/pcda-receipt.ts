@@ -317,7 +317,12 @@ export function buildUnsignedPcdaAttestation(input: {
         taskBaseline: "no-network",
         setup: {
           policy: "allowlist",
-          hosts: ["dl-cdn.alpinelinux.org", "registry.npmjs.org"],
+          hosts: [
+            "snapshot.debian.org",
+            "raw.githubusercontent.com",
+            "nodejs.org",
+            "registry.npmjs.org",
+          ],
         },
         agent: { policy: "allowlist", hosts: ["api.openai.com"] },
         verifierBaseline: "no-network",

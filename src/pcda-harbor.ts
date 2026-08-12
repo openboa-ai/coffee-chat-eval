@@ -44,7 +44,12 @@ export interface PcdaHarborInput {
 
 export interface PcdaLaunchNetworkContract {
   readonly networkBaseline: "no-network";
-  readonly setupAllowlist: readonly ["dl-cdn.alpinelinux.org", "registry.npmjs.org"];
+  readonly setupAllowlist: readonly [
+    "snapshot.debian.org",
+    "raw.githubusercontent.com",
+    "nodejs.org",
+    "registry.npmjs.org",
+  ];
   readonly agentAllowlist: readonly ["api.openai.com"];
   readonly verifierNetwork: "no-network";
 }
@@ -110,7 +115,9 @@ export interface PcdaSpawnResult {
 }
 
 const SETUP_ALLOWLIST = Object.freeze([
-  "dl-cdn.alpinelinux.org",
+  "snapshot.debian.org",
+  "raw.githubusercontent.com",
+  "nodejs.org",
   "registry.npmjs.org",
 ] as const);
 const RESOLVED_UVX_TOOLS = new WeakSet<object>();
@@ -564,10 +571,7 @@ export function buildPcdaHarborArgs(input: PcdaHarborInput): PcdaHarborLaunch {
     "version=0.147.0",
     "--env",
     "docker",
-    "--allow-environment-host",
-    SETUP_ALLOWLIST[0],
-    "--allow-environment-host",
-    SETUP_ALLOWLIST[1],
+    ...SETUP_ALLOWLIST.flatMap((host) => ["--allow-environment-host", host]),
     "--allow-agent-host",
     candidateProviderHost,
     "--job-name",
