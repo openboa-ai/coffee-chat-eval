@@ -35,13 +35,14 @@ import {
 } from "../src/pcda-harbor.ts";
 import {
   authorizeCombinedBudget,
+  buildPcdaFailureReceipt,
   buildUnsignedPcdaAttestation,
   buildPcdaCampaignReceipt,
   calibratePcdaNativeResults,
   parsePcdaNativeResult,
 } from "../src/pcda-receipt.ts";
 import { runPcdaCli } from "../src/pcda-cli.ts";
-import { candidateSettledNanoUsd } from "../src/pcda-runner.ts";
+import { candidateSettledNanoUsd, debitJudgeCost } from "../src/pcda-runner.ts";
 
 const DIGEST_PATTERN = /^sha256:[0-9a-f]{64}$/u;
 const canonicalTemporaryRoot = realpathSync(tmpdir());
@@ -1106,6 +1107,33 @@ test("PCDA native evidence preserves malformed, missing-output, and verifier fai
   }
 });
 
+test("PCDA live evidence requires the exact Codex Terra candidate identity", () => {
+  assert.equal(
+    parsePcdaNativeResult(pcdaNativeResult(), {
+      agentName: "codex",
+      modelName: "gpt-5.6-terra",
+    }).state,
+    "accepted",
+  );
+  for (const evidence of [
+    pcdaNativeResult({ agent_info: { name: "other", version: "1" } }),
+    pcdaNativeResult({
+      agent_info: {
+        name: "codex",
+        version: "0.147.0",
+        model_info: { name: "gpt-5.6-luna" },
+      },
+    }),
+  ]) {
+    const parsed = parsePcdaNativeResult(evidence, {
+      agentName: "codex",
+      modelName: "gpt-5.6-terra",
+    });
+    assert.equal(parsed.state, "invalid");
+    if (parsed.state === "invalid") assert.equal(parsed.failureClass, "candidate");
+  }
+});
+
 test("spawn-local credential boundary maps only an explicit dedicated key", () => {
   const fixture = projectedFixture("T0");
   const launch = buildPcdaHarborArgs(readyInput(fixture));
@@ -1195,6 +1223,12 @@ test("combined candidate and judge budget fails closed at USD 50", () => {
     }).state,
     "unmeasured",
   );
+});
+
+test("every invoked judge requires settled cost before another call", () => {
+  assert.equal(debitJudgeCost(10_000, 4_000), 6_000);
+  assert.throws(() => debitJudgeCost(10_000, undefined), /cost evidence/u);
+  assert.throws(() => debitJudgeCost(10_000, 10_001), /exceeded USD 50/u);
 });
 
 test("candidate cost uses the conservative pinned Terra estimate and never invents zero", () => {
@@ -1311,6 +1345,70 @@ test("campaign receipt preserves measured, disagreement, and unavailable judge s
       }),
     /cleanup/u,
   );
+});
+
+test("campaign receipt preserves candidate and verifier failure dimensions", () => {
+  const states = [
+    "candidate_invalid",
+    "candidate_failure",
+    "verifier_failure",
+  ] as const;
+  const conditions = (["T0", "T1-A", "T1-B"] as const).map((condition, index) => ({
+    condition,
+    native: parsePcdaNativeResult(pcdaNativeResult()),
+    artifactDigest: `sha256:${"6".repeat(64)}` as const,
+    candidateSettledNanoUsd: 1_000_000_000,
+    cleanup: { state: "completed" as const, matchingContainers: 0 },
+    judge: {
+      state: states[index]!,
+      resultDigest: `sha256:${String(index + 7).repeat(64)}` as const,
+      settledNanoUsd: 1_000_000_000,
+    },
+  }));
+  const receipt = buildPcdaCampaignReceipt({
+    evaluatorCommit: "d".repeat(40),
+    evaluatorTreeClean: true,
+    benchCommit: "a".repeat(40),
+    bankDigest: `sha256:${"b".repeat(64)}`,
+    candidateModel: "gpt-5.6-terra",
+    campaignCapNanoUsd: 50_000_000_000,
+    candidateReservationNanoUsd: 20_000_000_000,
+    candidateCallReservationNanoUsd: 6_000_000_000,
+    remainingBudgetNanoUsd: 44_000_000_000,
+    conditions,
+  });
+  assert.deepEqual(
+    receipt.conditions.map(({ candidateState, verifierState, judgeState }) => ({
+      candidateState,
+      verifierState,
+      judgeState,
+    })),
+    [
+      { candidateState: "invalid", verifierState: "unmeasured", judgeState: "skipped" },
+      { candidateState: "failed", verifierState: "unmeasured", judgeState: "skipped" },
+      { candidateState: "completed", verifierState: "failed", judgeState: "skipped" },
+    ],
+  );
+});
+
+test("candidate failure receipt preserves cleanup and unknown failed-call cost", () => {
+  const receipt = buildPcdaFailureReceipt({
+    evaluatorCommit: "d".repeat(40),
+    evaluatorTreeClean: true,
+    benchCommit: "a".repeat(40),
+    bankDigest: `sha256:${"b".repeat(64)}`,
+    candidateModel: "gpt-5.6-terra",
+    failedCondition: "T1-A",
+    completedCandidateSettledNanoUsd: 2_000_000_000,
+    reason: "Harbor candidate failed after verified cleanup",
+    cleanup: { state: "completed", matchingContainers: 0 },
+  });
+  assert.equal(receipt.state, "unmeasured");
+  assert.equal(receipt.failure.candidateState, "failed");
+  assert.equal(receipt.failure.cleanup.state, "completed");
+  assert.equal(receipt.cost.observedCandidateSettledNanoUsd, 2_000_000_000);
+  assert.equal(receipt.cost.failedCallSettledNanoUsd, null);
+  assert.equal(receipt.cost.remainingBudgetNanoUsd, null);
 });
 
 test("Eval calls staged Bench attest then judge with explicit remaining cap and key", async () => {

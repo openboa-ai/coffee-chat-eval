@@ -24,6 +24,7 @@ import {
 import {
   authorizeCombinedBudget,
   buildPcdaCampaignReceipt,
+  buildPcdaFailureReceipt,
   buildUnsignedPcdaAttestation,
   parsePcdaNativeResult,
   type Digest,
@@ -34,6 +35,23 @@ const CAMPAIGN_CAP_NANO_USD = 50_000_000_000;
 const CANDIDATE_RESERVATION_NANO_USD = 20_000_000_000;
 const CANDIDATE_CALL_RESERVATION_NANO_USD = 6_000_000_000;
 const LIVE_TIMEOUT_MS = 30 * 60 * 1_000;
+
+export function debitJudgeCost(
+  remainingNanoUsd: number,
+  settledNanoUsd: number | undefined,
+): number {
+  if (settledNanoUsd === undefined) {
+    throw new Error("judge cost evidence is unavailable");
+  }
+  if (
+    !Number.isSafeInteger(settledNanoUsd) ||
+    settledNanoUsd < 0 ||
+    settledNanoUsd > remainingNanoUsd
+  ) {
+    throw new Error("combined campaign cost exceeded USD 50");
+  }
+  return remainingNanoUsd - settledNanoUsd;
+}
 
 export interface PcdaManualRequest {
   readonly benchRepo: string;
@@ -77,7 +95,10 @@ function filesNamed(root: string, name: string): string[] {
   return found;
 }
 
-function inspectTrial(jobDirectory: string): {
+function inspectTrial(
+  jobDirectory: string,
+  candidateModel: "gpt-5.6-terra",
+): {
   native: ReturnType<typeof parsePcdaNativeResult>;
   artifactPath: string;
   artifactDigest: Digest;
@@ -89,7 +110,10 @@ function inspectTrial(jobDirectory: string): {
   }
   const resultPath = results[0]!;
   const raw = JSON.parse(readFileSync(resultPath, "utf8")) as unknown;
-  const native = parsePcdaNativeResult(raw);
+  const native = parsePcdaNativeResult(raw, {
+    agentName: "codex",
+    modelName: candidateModel,
+  });
   if (native.state === "invalid") throw new Error(native.reason);
   const trial = dirname(resultPath);
   const artifactPath = join(trial, "artifacts", "app", "output.json");
@@ -340,11 +364,28 @@ export async function runPcdaManualCampaign(
       }
     }
     if (spawned === undefined || spawned.state !== "completed") {
-      throw new Error("Harbor candidate failed after verified cleanup");
+      const completedCandidateSettledNanoUsd = evidence.reduce(
+        (total, item) => total + (item.trial.settledNanoUsd ?? 0),
+        0,
+      );
+      return {
+        exitCode: 2,
+        report: buildPcdaFailureReceipt({
+          evaluatorCommit,
+          evaluatorTreeClean,
+          benchCommit: snapshot.commit,
+          bankDigest: snapshot.bankDigest,
+          candidateModel: request.candidateModel,
+          failedCondition: projection.condition,
+          completedCandidateSettledNanoUsd,
+          reason: "Harbor candidate failed after verified cleanup",
+          cleanup: { state: "completed", matchingContainers: 0 },
+        }),
+      };
     }
     evidence.push({
       projection,
-      trial: inspectTrial(spawned.jobDirectory),
+      trial: inspectTrial(spawned.jobDirectory, request.candidateModel),
       cleanup: { state: "completed", matchingContainers: 0 },
     });
     if (evidence.at(-1)?.trial.settledNanoUsd === null) {
@@ -415,11 +456,7 @@ export async function runPcdaManualCampaign(
       workspace: join(campaignRoot, `judge-${item.projection.condition.toLowerCase()}`),
       invoke: benchInvoke,
     });
-    if (item.trial.native.state === "accepted" && judged.settledNanoUsd === undefined) {
-      throw new Error("judge cost evidence is unavailable");
-    }
-    if (judged.settledNanoUsd !== undefined) remaining -= judged.settledNanoUsd;
-    if (remaining < 0) throw new Error("combined campaign cost exceeded USD 50");
+    remaining = debitJudgeCost(remaining, judged.settledNanoUsd);
     conditions.push({
       condition: item.projection.condition,
       native: item.trial.native,

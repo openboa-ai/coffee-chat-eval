@@ -65,7 +65,13 @@ function classifyFailure(value: NativeRecord): PcdaFailureClass {
   return "host";
 }
 
-export function parsePcdaNativeResult(value: unknown): ParsedPcdaNativeResult {
+export function parsePcdaNativeResult(
+  value: unknown,
+  expected?: {
+    readonly agentName: "codex";
+    readonly modelName: "gpt-5.6-terra";
+  },
+): ParsedPcdaNativeResult {
   const result = record(value);
   if (result === undefined) {
     return invalid("artifact", "Harbor result must be a JSON object");
@@ -110,6 +116,12 @@ export function parsePcdaNativeResult(value: unknown): ParsedPcdaNativeResult {
   ) {
     return invalid("artifact", "Harbor result is missing exact native identity");
   }
+  if (
+    expected !== undefined &&
+    (agent.name !== expected.agentName || model?.name !== expected.modelName)
+  ) {
+    return invalid("candidate", "Harbor candidate identity does not match the launch");
+  }
   return {
     state: reward === 1 ? "accepted" : "rejected",
     nativeReward: reward,
@@ -124,6 +136,60 @@ export function parsePcdaNativeResult(value: unknown): ParsedPcdaNativeResult {
     verifierEnvironmentMode: "separate",
     artifactPath: "/app/output.json",
   };
+}
+
+export function buildPcdaFailureReceipt(input: {
+  readonly evaluatorCommit: string;
+  readonly evaluatorTreeClean: boolean;
+  readonly benchCommit: string;
+  readonly bankDigest: Digest;
+  readonly candidateModel: "gpt-5.6-terra";
+  readonly failedCondition: PcdaCondition;
+  readonly completedCandidateSettledNanoUsd: number;
+  readonly reason: string;
+  readonly cleanup: { readonly state: "completed"; readonly matchingContainers: 0 };
+}) {
+  if (!input.evaluatorTreeClean || !/^[0-9a-f]{40}$/u.test(input.evaluatorCommit)) {
+    throw new Error("failure receipt requires a clean evaluator commit");
+  }
+  if (!/^[0-9a-f]{40}$/u.test(input.benchCommit)) {
+    throw new Error("failure receipt requires an exact Bench commit");
+  }
+  digest(input.bankDigest, "bankDigest");
+  boundedNanoUsd(
+    input.completedCandidateSettledNanoUsd,
+    "completedCandidateSettledNanoUsd",
+  );
+  if (input.reason.length === 0 || input.reason.length > 1_000) {
+    throw new Error("failure receipt reason must be bounded");
+  }
+  return Object.freeze({
+    release: "2026.8.12" as const,
+    evaluatorCommit: input.evaluatorCommit,
+    benchCommit: input.benchCommit,
+    bankDigest: input.bankDigest,
+    candidateModel: input.candidateModel,
+    repetition: 0 as const,
+    state: "unmeasured" as const,
+    failure: Object.freeze({
+      condition: input.failedCondition,
+      executionState: "failed" as const,
+      candidateState: "failed" as const,
+      verifierState: "unmeasured" as const,
+      judgeState: "skipped" as const,
+      measurementState: "unmeasured" as const,
+      reason: input.reason,
+      cleanup: input.cleanup,
+    }),
+    cost: Object.freeze({
+      campaignCapNanoUsd: 50_000_000_000 as const,
+      candidateReservationNanoUsd: 20_000_000_000 as const,
+      candidateCallReservationNanoUsd: 6_000_000_000 as const,
+      observedCandidateSettledNanoUsd: input.completedCandidateSettledNanoUsd,
+      failedCallSettledNanoUsd: null,
+      remainingBudgetNanoUsd: null,
+    }),
+  });
 }
 
 export function calibratePcdaNativeResults(input: {
@@ -353,23 +419,47 @@ export function buildPcdaCampaignReceipt(input: PcdaCampaignReceiptInput) {
       });
     }
     digest(condition.judge.resultDigest, "judge.resultDigest");
-    const judgeState =
-      condition.judge.state === "measured"
-        ? "measured"
-        : condition.judge.state === "judge_disagreement"
-          ? "disagreement"
-          : condition.judge.state === "judge_unavailable"
-            ? "unavailable"
-            : "skipped";
+    const benchState = condition.judge.state;
+    const componentStates =
+      benchState === "candidate_invalid"
+        ? {
+            candidateState: "invalid",
+            verifierState: "unmeasured",
+            judgeState: "skipped",
+            measurementState: "invalid",
+          }
+        : benchState === "candidate_failure"
+          ? {
+              candidateState: "failed",
+              verifierState: "unmeasured",
+              judgeState: "skipped",
+              measurementState: "unmeasured",
+            }
+          : benchState === "verifier_failure"
+            ? {
+                candidateState: "completed",
+                verifierState: "failed",
+                judgeState: "skipped",
+                measurementState: "unmeasured",
+              }
+            : {
+                candidateState: "completed",
+                verifierState: condition.native.state,
+                judgeState:
+                  benchState === "measured"
+                    ? "measured"
+                    : benchState === "judge_disagreement"
+                      ? "disagreement"
+                      : benchState === "judge_unavailable"
+                        ? "unavailable"
+                        : "unmeasured",
+                measurementState: benchState === "measured" ? "measured" : "unmeasured",
+              };
     return Object.freeze({
       condition: condition.condition,
       executionState: "completed",
-      candidateState: "completed",
-      verifierState: condition.native.state,
-      judgeState,
-      measurementState:
-        condition.judge.state === "measured" ? "measured" : "unmeasured",
-      reason: condition.judge.state,
+      ...componentStates,
+      reason: benchState,
       artifactDigest: condition.artifactDigest,
       nativeTrialId: condition.native.nativeTrialId,
       nativeTrialName: condition.native.nativeTrialName,
