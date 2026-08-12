@@ -20,6 +20,8 @@
     "canary:codex": "node --experimental-strip-types src/canary-cli.ts codex",
     "benchmark:smoke": "node --experimental-strip-types src/canary-cli.ts benchmark",
     "benchmark:calibrate": "node --experimental-strip-types src/canary-cli.ts benchmark-calibrate",
+    "pcda:calibrate": "node --experimental-strip-types src/pcda-cli.ts calibrate --oracle-result $PWD/tests/fixtures/pcda-calibration/oracle-result.json --noop-result $PWD/tests/fixtures/pcda-calibration/noop-result.json",
+    "pcda:codex": "node --experimental-strip-types src/pcda-cli.ts codex",
     "smoke": "node --experimental-strip-types --test tests/smoke.test.ts",
     "ci:policy": "node .github/ci-policy.mjs"
   },

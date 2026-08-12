@@ -20,7 +20,16 @@ and receipt split into execution status, candidate status, and measurement
 status. Required CI runs only its deterministic Harbor Oracle/no-op calibration;
 the real Codex/model benchmark smoke remains manual.
 
+PCDA is the first performance-capable path. Eval may use only staged Bench
+public CLIs and must not import or reproduce Bench MAC, verifier, judgment, or
+metric logic. Bench commit `1a743f17a88a1e5b50b4b7e19c2cbeaef76922fa`
+owns public `attest <unsigned> <signed>` and `judge` boundaries. Eval passes
+the candidate-settled remainder through
+`COFFEE_CHAT_EVAL_JUDGE_CAP_NANO_USD` and stops unmeasured when cost evidence
+is unavailable.
+
 Use the single unpadded `YYYY.M.D` CalVer in `package.json`, `PLAN.md`, dry-run
 reports, and receipts. Run `npm run format:check`, `npm run typecheck`,
 `npm run build`, `npm run canary:check`, `npm test`, `npm run smoke`, `npm run ci:policy`, and
-`npm run dry-run` before committing.
+`npm run dry-run`, and `npm run pcda:calibrate` before committing. Real
+`npm run pcda:codex` remains manual-only and fail-closed.

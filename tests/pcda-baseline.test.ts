@@ -19,6 +19,7 @@ import { join } from "node:path";
 import test from "node:test";
 
 import {
+  attestAndJudgeWithStagedBench,
   projectPcdaFamily,
   stageBenchSnapshot,
   type BenchSnapshot,
@@ -26,11 +27,21 @@ import {
 } from "../src/pcda-bench.ts";
 import {
   buildPcdaHarborArgs,
+  executePcdaSpawn,
   resolveUvxTool,
   type CandidateCredentialMetadata,
   type PcdaHarborInput,
   type UvxTrustPolicy,
 } from "../src/pcda-harbor.ts";
+import {
+  authorizeCombinedBudget,
+  buildUnsignedPcdaAttestation,
+  buildPcdaCampaignReceipt,
+  calibratePcdaNativeResults,
+  parsePcdaNativeResult,
+} from "../src/pcda-receipt.ts";
+import { runPcdaCli } from "../src/pcda-cli.ts";
+import { candidateSettledNanoUsd } from "../src/pcda-runner.ts";
 
 const DIGEST_PATTERN = /^sha256:[0-9a-f]{64}$/u;
 const canonicalTemporaryRoot = realpathSync(tmpdir());
@@ -1025,5 +1036,439 @@ test("buildPcdaHarborArgs allows only the explicitly authorized candidate model"
         candidateModel: "gpt-5.6-luna",
       }),
     /candidateModel must be gpt-5\.6-terra/u,
+  );
+});
+
+function pcdaNativeResult(overrides: Record<string, unknown> = {}): unknown {
+  return {
+    id: "native-trial-t1-a",
+    trial_name: "coffee-chat-pcda-t1-a__codex__1",
+    task_name: "openboa-ai/pcda-case-projection",
+    exception_info: null,
+    verifier_environment_mode: "separate",
+    verifier_result: { rewards: { reward: 1 } },
+    agent_info: {
+      name: "codex",
+      version: "0.147.0",
+      model_info: { name: "gpt-5.6-terra" },
+    },
+    config: { environment: { type: "docker", delete: true } },
+    artifact_paths: ["/app/output.json"],
+    ...overrides,
+  };
+}
+
+test("PCDA calibration accepts Oracle=1 and no-op=0 and rejects reversed evidence", () => {
+  assert.deepEqual(
+    calibratePcdaNativeResults({
+      oracle: pcdaNativeResult(),
+      noop: pcdaNativeResult({
+        id: "native-trial-nop",
+        trial_name: "coffee-chat-pcda-nop__nop__1",
+        agent_info: { name: "nop", version: "0.1.0" },
+        verifier_result: { rewards: { reward: 0 } },
+      }),
+    }),
+    { state: "accepted", oracleReward: 1, noopReward: 0 },
+  );
+  assert.deepEqual(
+    calibratePcdaNativeResults({
+      oracle: pcdaNativeResult({ verifier_result: { rewards: { reward: 0 } } }),
+      noop: pcdaNativeResult({
+        agent_info: { name: "nop", version: "0.1.0" },
+        verifier_result: { rewards: { reward: 1 } },
+      }),
+    }),
+    { state: "rejected", reason: "Oracle must be 1 and no-op must be 0" },
+  );
+});
+
+test("PCDA native evidence preserves malformed, missing-output, and verifier failures", () => {
+  assert.deepEqual(parsePcdaNativeResult("bad"), {
+    state: "invalid",
+    failureClass: "artifact",
+    reason: "Harbor result must be a JSON object",
+  });
+  assert.deepEqual(parsePcdaNativeResult(pcdaNativeResult({ artifact_paths: [] })), {
+    state: "invalid",
+    failureClass: "artifact",
+    reason: "Harbor result must expose exactly one /app/output.json artifact",
+  });
+  const verifierFailure = parsePcdaNativeResult(
+    pcdaNativeResult({
+      exception_info: { exception_type: "VerifierError" },
+      verifier: {},
+    }),
+  );
+  assert.equal(verifierFailure.state, "invalid");
+  if (verifierFailure.state === "invalid") {
+    assert.equal(verifierFailure.failureClass, "verifier");
+  }
+});
+
+test("spawn-local credential boundary maps only an explicit dedicated key", () => {
+  const fixture = projectedFixture("T0");
+  const launch = buildPcdaHarborArgs(readyInput(fixture));
+  assert.equal(launch.state, "ready");
+  if (launch.state !== "ready") return;
+  const secret = "task2-secret-canary";
+  let captured: Readonly<Record<string, string>> | undefined;
+  const result = executePcdaSpawn({
+    launch,
+    credentialName: "COFFEE_CHAT_CANDIDATE_API_KEY",
+    loadCredential(name) {
+      assert.equal(name, "COFFEE_CHAT_CANDIDATE_API_KEY");
+      return secret;
+    },
+    spawn(_command, args, environment) {
+      assert.equal(args.includes(secret), false);
+      captured = environment;
+      return { exitCode: 0 };
+    },
+  });
+  assert.equal(captured?.OPENAI_API_KEY, secret);
+  assert.deepEqual(Object.keys(captured!).sort(), [
+    "HOME",
+    "LANG",
+    "OPENAI_API_KEY",
+    "PATH",
+    "XDG_CONFIG_HOME",
+  ]);
+  assert.equal(JSON.stringify(result).includes(secret), false);
+  assert.throws(
+    () =>
+      executePcdaSpawn({
+        launch,
+        credentialName: "OPENAI_API_KEY",
+        loadCredential: () => secret,
+        spawn: () => ({ exitCode: 0 }),
+      }),
+    /dedicated parent credential name/u,
+  );
+});
+
+test("spawn-local credential boundary rejects leaked child output on success or failure", () => {
+  const fixture = projectedFixture("T0");
+  const launch = buildPcdaHarborArgs(readyInput(fixture));
+  assert.equal(launch.state, "ready");
+  if (launch.state !== "ready") return;
+  const credential = "candidate-output-leak-canary";
+  for (const exitCode of [0, 1]) {
+    assert.throws(
+      () =>
+        executePcdaSpawn({
+          launch,
+          credentialName: "COFFEE_CHAT_CANDIDATE_API_KEY",
+          loadCredential: () => credential,
+          spawn: () => ({ exitCode, boundedOutput: `log:${credential}` }),
+        }),
+      /output contained credential/u,
+    );
+  }
+});
+
+test("combined candidate and judge budget fails closed at USD 50", () => {
+  assert.deepEqual(
+    authorizeCombinedBudget({
+      capNanoUsd: 50_000_000_000,
+      candidatePlannedNanoUsd: 20_000_000_000,
+      candidateSettledNanoUsd: 12_000_000_000,
+      judgeWorstCaseNanoUsd: 38_000_000_000,
+    }),
+    { state: "authorized", judgeBudgetNanoUsd: 38_000_000_000 },
+  );
+  assert.equal(
+    authorizeCombinedBudget({
+      capNanoUsd: 50_000_000_000,
+      candidatePlannedNanoUsd: 20_000_000_000,
+      candidateSettledNanoUsd: 12_000_000_000,
+      judgeWorstCaseNanoUsd: 38_000_000_001,
+    }).state,
+    "budget_exceeded",
+  );
+  assert.equal(
+    authorizeCombinedBudget({
+      capNanoUsd: 50_000_000_000,
+      candidatePlannedNanoUsd: 20_000_000_000,
+      candidateSettledNanoUsd: null,
+      judgeWorstCaseNanoUsd: 1,
+    }).state,
+    "unmeasured",
+  );
+});
+
+test("candidate cost uses the conservative pinned Terra estimate and never invents zero", () => {
+  assert.equal(
+    candidateSettledNanoUsd({
+      agent_result: {
+        n_input_tokens: 1_000_000,
+        n_cache_tokens: 500_000,
+        n_output_tokens: 1_000_000,
+        cost_usd: 10,
+      },
+    }),
+    14_000_000_000,
+  );
+  assert.equal(
+    candidateSettledNanoUsd({
+      agent_result: {
+        n_input_tokens: 1,
+        n_cache_tokens: 0,
+        n_output_tokens: 0,
+        cost_usd: null,
+      },
+    }),
+    2_000,
+  );
+  assert.equal(candidateSettledNanoUsd({ agent_result: {} }), null);
+});
+
+test("campaign receipt preserves measured, disagreement, and unavailable judge states", () => {
+  const conditions = (["T0", "T1-A", "T1-B"] as const).map((condition, index) => ({
+    condition,
+    native: parsePcdaNativeResult(pcdaNativeResult()),
+    artifactDigest: `sha256:${"6".repeat(64)}` as const,
+    candidateSettledNanoUsd: 1_000_000_000,
+    cleanup: { state: "completed" as const, matchingContainers: 0 },
+    judge: {
+      state: (["measured", "judge_disagreement", "judge_unavailable"] as const)[index]!,
+      resultDigest: `sha256:${String(index + 7).repeat(64)}` as const,
+      settledNanoUsd: 1_000_000_000,
+    },
+  }));
+  const receipt = buildPcdaCampaignReceipt({
+    evaluatorCommit: "d".repeat(40),
+    evaluatorTreeClean: true,
+    benchCommit: "a".repeat(40),
+    bankDigest: `sha256:${"b".repeat(64)}`,
+    candidateModel: "gpt-5.6-terra",
+    campaignCapNanoUsd: 50_000_000_000,
+    candidateReservationNanoUsd: 20_000_000_000,
+    candidateCallReservationNanoUsd: 6_000_000_000,
+    remainingBudgetNanoUsd: 44_000_000_000,
+    conditions,
+  });
+  assert.equal(receipt.conditions.length, 3);
+  assert.deepEqual(receipt.cost, {
+    campaignCapNanoUsd: 50_000_000_000,
+    candidateReservationNanoUsd: 20_000_000_000,
+    candidateCallReservationNanoUsd: 6_000_000_000,
+    candidateSettledNanoUsd: 3_000_000_000,
+    judgeSettledNanoUsd: 3_000_000_000,
+    remainingBudgetNanoUsd: 44_000_000_000,
+  });
+  assert.deepEqual(
+    receipt.conditions.map((condition) => [
+      condition.judgeState,
+      condition.measurementState,
+    ]),
+    [
+      ["measured", "measured"],
+      ["disagreement", "unmeasured"],
+      ["unavailable", "unmeasured"],
+    ],
+  );
+  const serialized = JSON.stringify(receipt);
+  for (const forbidden of ["response", "prompt", "Authorization", "OPENAI_API_KEY"]) {
+    assert.equal(serialized.includes(forbidden), false);
+  }
+  assert.throws(
+    () =>
+      buildPcdaCampaignReceipt({
+        evaluatorCommit: "d".repeat(40),
+        evaluatorTreeClean: false,
+        benchCommit: "a".repeat(40),
+        bankDigest: `sha256:${"b".repeat(64)}`,
+        candidateModel: "gpt-5.6-terra",
+        campaignCapNanoUsd: 50_000_000_000,
+        candidateReservationNanoUsd: 20_000_000_000,
+        candidateCallReservationNanoUsd: 6_000_000_000,
+        remainingBudgetNanoUsd: 44_000_000_000,
+        conditions,
+      }),
+    /clean evaluator commit/u,
+  );
+  assert.throws(
+    () =>
+      buildPcdaCampaignReceipt({
+        evaluatorCommit: "d".repeat(40),
+        evaluatorTreeClean: true,
+        benchCommit: "a".repeat(40),
+        bankDigest: `sha256:${"b".repeat(64)}`,
+        candidateModel: "gpt-5.6-terra",
+        campaignCapNanoUsd: 50_000_000_000,
+        candidateReservationNanoUsd: 20_000_000_000,
+        candidateCallReservationNanoUsd: 6_000_000_000,
+        remainingBudgetNanoUsd: 44_000_000_000,
+        conditions: conditions.map((condition, index) =>
+          index === 2
+            ? {
+                ...condition,
+                cleanup: { state: "failed" as const, matchingContainers: 1 },
+              }
+            : condition,
+        ),
+      }),
+    /cleanup/u,
+  );
+});
+
+test("Eval calls staged Bench attest then judge with explicit remaining cap and key", async () => {
+  const fixture = projectedFixture("T1-A");
+  const artifactPath = join(fixture.root, "output.json");
+  writeJson(artifactPath, { artifact: "candidate" });
+  const unsigned = buildUnsignedPcdaAttestation({
+    projection: fixture.projection,
+    artifactDigest: `sha256:${"6".repeat(64)}`,
+    benchCommit: fixture.snapshot.commit,
+    bankDigest: fixture.snapshot.bankDigest,
+    deterministic: {
+      state: "unmeasured",
+      accepted: true,
+      criticalFailure: false,
+      reasonCode: "none",
+    },
+  });
+  const capability = "c".repeat(43);
+  const calls: string[] = [];
+  const judgeCredential = "test-judge-credential";
+  const credentialLoads: string[] = [];
+  const result = await attestAndJudgeWithStagedBench({
+    snapshot: fixture.snapshot,
+    projection: fixture.projection,
+    artifactPath,
+    unsignedAttestation: unsigned,
+    capabilityKey: capability,
+    remainingJudgeCapNanoUsd: 38_000_000_000,
+    credentialName: "COFFEE_CHAT_CANDIDATE_API_KEY",
+    loadCredential: (name) => {
+      credentialLoads.push(name);
+      assert.deepEqual(calls, ["attest"]);
+      return judgeCredential;
+    },
+    workspace: join(fixture.root, "judgment"),
+    invoke: async ({ args, environment }) => {
+      const command = args[2];
+      calls.push(String(command));
+      assert.equal(args.includes(capability), false);
+      assert.equal(environment.COFFEE_CHAT_EVAL_ATTESTATION_KEY, capability);
+      if (command === "attest") {
+        assert.equal(Object.hasOwn(environment, "OPENAI_API_KEY"), false);
+        assert.equal(
+          Object.hasOwn(environment, "COFFEE_CHAT_EVAL_JUDGE_CAP_NANO_USD"),
+          false,
+        );
+        const unsignedPath = args[3]!;
+        const signedPath = args[4]!;
+        const parsed = JSON.parse(readFileSync(unsignedPath, "utf8"));
+        assert.equal(Object.hasOwn(parsed, "attestationMac"), false);
+        writeFileSync(
+          signedPath,
+          `${JSON.stringify({ ...parsed, attestationMac: "m".repeat(43) })}\n`,
+          { encoding: "utf8", mode: 0o600 },
+        );
+        return { exitCode: 0, stdout: '{"state":"signed"}\n' };
+      }
+      assert.equal(command, "judge");
+      assert.equal(environment.OPENAI_API_KEY, judgeCredential);
+      assert.equal(environment.COFFEE_CHAT_EVAL_JUDGE_CAP_NANO_USD, "38000000000");
+      assert.equal(args.includes(judgeCredential), false);
+      return {
+        exitCode: 0,
+        stdout: `${JSON.stringify({
+          state: "measured",
+          resultDigest: `sha256:${"7".repeat(64)}`,
+          campaign: { settledNanoUsd: 1_000_000_000 },
+        })}\n`,
+      };
+    },
+  });
+  assert.deepEqual(calls, ["attest", "judge"]);
+  assert.deepEqual(credentialLoads, ["COFFEE_CHAT_CANDIDATE_API_KEY"]);
+  assert.deepEqual(result, {
+    state: "judged",
+    judgeState: "measured",
+    measurementState: "measured",
+    resultDigest: `sha256:${"7".repeat(64)}`,
+    settledNanoUsd: 1_000_000_000,
+  });
+  assert.equal(JSON.stringify(result).includes(capability), false);
+  assert.equal(JSON.stringify(result).includes(judgeCredential), false);
+});
+
+test("PCDA CLI keeps calibration deterministic and live Codex manual-only", async () => {
+  const calibration = await runPcdaCli([
+    "calibrate",
+    "--oracle-result",
+    join(process.cwd(), "tests/fixtures/pcda-calibration/oracle-result.json"),
+    "--noop-result",
+    join(process.cwd(), "tests/fixtures/pcda-calibration/noop-result.json"),
+  ]);
+  assert.deepEqual(calibration, {
+    exitCode: 0,
+    report: { state: "accepted", oracleReward: 1, noopReward: 0 },
+  });
+
+  let dispatched = false;
+  const manual = await runPcdaCli(
+    [
+      "codex",
+      "--bench-repo",
+      "/tmp/coffee-chat-bench",
+      "--bench-commit",
+      "1a743f17a88a1e5b50b4b7e19c2cbeaef76922fa",
+      "--case",
+      "bank/campaign/development/000.json",
+      "--candidate-model",
+      "gpt-5.6-terra",
+      "--candidate-credential-env",
+      "COFFEE_CHAT_CANDIDATE_API_KEY",
+      "--uvx-path",
+      "/tmp/uvx",
+      "--uvx-digest",
+      `sha256:${"a".repeat(64)}`,
+      "--uvx-version",
+      "uvx 0.8.13",
+      "--jobs-root",
+      "/tmp/pcda-jobs",
+    ],
+    {
+      runManual: async (request) => {
+        dispatched = true;
+        assert.equal(request.benchCommit, "1a743f17a88a1e5b50b4b7e19c2cbeaef76922fa");
+        assert.equal(request.credentialName, "COFFEE_CHAT_CANDIDATE_API_KEY");
+        return { exitCode: 0, report: { state: "completed" } };
+      },
+    },
+  );
+  assert.deepEqual(manual, {
+    exitCode: 0,
+    report: { state: "completed" },
+  });
+  assert.equal(dispatched, true);
+  await assert.rejects(
+    async () =>
+      await runPcdaCli([
+        "codex",
+        "--bench-repo",
+        "/tmp/coffee-chat-bench",
+        "--bench-commit",
+        "1a743f17a88a1e5b50b4b7e19c2cbeaef76922fa",
+        "--case",
+        "bank/campaign/development/000.json",
+        "--candidate-model",
+        "gpt-5.6-terra",
+        "--candidate-credential-env",
+        "OPENAI_API_KEY",
+        "--uvx-path",
+        "/tmp/uvx",
+        "--uvx-digest",
+        `sha256:${"a".repeat(64)}`,
+        "--uvx-version",
+        "uvx 0.8.13",
+        "--jobs-root",
+        "/tmp/pcda-jobs",
+      ]),
+    /dedicated parent credential name/u,
   );
 });
