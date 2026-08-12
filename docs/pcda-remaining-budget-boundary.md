@@ -1,6 +1,6 @@
 # PCDA remaining-budget contract
 
-Bench commit `16dbfe4ce1ee7b181b6b0af28905592b00fc8941` provides the public
+Bench commit `3bec0fe9f8f03216418fd437dfb30eb40a2e5775` provides the public
 `attest` and remaining-budget `judge` boundary.
 
 Eval invokes `attest <unsigned> <signed>` and then

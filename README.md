@@ -35,7 +35,7 @@ npm run pcda:calibrate
 ```
 
 Task 2 stages Bench commit
-`16dbfe4ce1ee7b181b6b0af28905592b00fc8941`, sends unsigned execution evidence
+`3bec0fe9f8f03216418fd437dfb30eb40a2e5775`, sends unsigned execution evidence
 to its public `attest` CLI through `COFFEE_CHAT_EVAL_ATTESTATION_KEY`, and never
 implements MAC canonicalization locally. Candidate credentials are accepted
 only through a dedicated parent binding and mapped to child `OPENAI_API_KEY`
