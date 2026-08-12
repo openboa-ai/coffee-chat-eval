@@ -1,0 +1,10 @@
+#!/bin/sh
+set -eu
+
+scanner=${GITLEAKS_BIN:-gitleaks}
+if ! command -v "$scanner" >/dev/null 2>&1; then
+  printf '%s\n' 'Gitleaks is required; install Gitleaks before committing.' >&2
+  exit 1
+fi
+
+exec "$scanner" git --pre-commit --staged --redact --no-banner .

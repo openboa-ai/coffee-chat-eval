@@ -7,11 +7,13 @@
     "node": ">=24"
   },
   "scripts": {
-    "test": "node --experimental-strip-types --test tests/*.test.ts",
+    "test": "node --experimental-strip-types --test tests/*.test.*",
     "typecheck": "tsc --noEmit",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
+    "hooks:install": "git config core.hooksPath .githooks",
     "build": "tsc --noEmit",
+    "security:scan": "gitleaks git --redact --no-banner .",
     "dry-run": "node --experimental-strip-types src/cli.ts dry-run",
     "canary:check": "python3 -m py_compile integrations/harbor/coffee_chat_codex.py evals/protocol-canary/tests/verify.py evals/ifeval-smoke/tests/verify.py && sh -n evals/protocol-canary/solution/solve.sh evals/protocol-canary/tests/test.sh evals/ifeval-smoke/solution/solve.sh evals/ifeval-smoke/tests/test.sh",
     "canary:calibrate": "node --experimental-strip-types src/canary-cli.ts calibrate",

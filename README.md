@@ -32,6 +32,7 @@ Run deterministic verification:
 
 ```sh
 npm ci
+npm run hooks:install
 npm run format:check
 npm run typecheck
 npm run canary:check
@@ -39,7 +40,11 @@ npm test
 npm run dry-run
 npm run smoke
 npm run ci:policy
+npm run security:scan
 ```
+
+Gitleaks must be installed before enabling the hook. The local hook checks
+staged changes and required CI independently scans the complete Git history.
 
 Run the manual real Codex canary:
 
