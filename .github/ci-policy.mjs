@@ -120,7 +120,6 @@ if (
 ) {
   throw new Error("secret boundary must treat the candidate only as data");
 }
-
 const mergePolicy = JSON.parse(
   await readFile(new URL(".github/merge-policy.json", root), "utf8"),
 );
@@ -134,6 +133,9 @@ if (
   throw new Error(
     "merge policy must require OWNER|MEMBER, squash, checks, and zero approvals",
   );
+}
+if (!mergePolicy.required_contexts?.includes("Secret boundary / Secret boundary")) {
+  throw new Error("merge policy must require the trusted secret boundary");
 }
 
 const packageJson = JSON.parse(await readFile(new URL("package.json", root), "utf8"));
