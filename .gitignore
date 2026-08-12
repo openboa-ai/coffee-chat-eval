@@ -15,6 +15,16 @@ private-key.pem
 *.private.key
 private.key
 private-key.key
+id_rsa
+id_dsa
+id_ecdsa
+id_ed25519
+tls.key
+server.key
+server-key.pem
+*-private-key.pem
+*-private-key.key
+privkey*.pem
 *.p12
 *.pfx
 *.jks

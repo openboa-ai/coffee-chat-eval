@@ -21,6 +21,11 @@ test("local credential files are ignored without hiding the example", () => {
     "credentials.json",
     "private-key.pem",
     "private.key",
+    "id_rsa",
+    "id_ed25519",
+    "tls.key",
+    "server-private-key.pem",
+    "privkey1.pem",
     "identity.p12",
     "identity.pfx",
     "keystore.jks",
@@ -44,14 +49,15 @@ test("local credential files are ignored without hiding the example", () => {
   assert.notEqual(publicKey.status, 0, "public keys must remain publishable");
 });
 
-test("trusted boundary scans merge groups and raw introduced blobs", () => {
+test("trusted boundary fetches the fork base and scans raw introduced blobs", () => {
   const source = readFileSync(
     join(root, ".github", "workflows", "secret-boundary.yml"),
     "utf8",
   );
-  assert.match(source, /merge_group:/u);
-  assert.match(source, /merge_group\.base_sha/u);
-  assert.match(source, /merge_group\.head_sha/u);
+  assert.doesNotMatch(source, /merge_group:/u);
+  assert.match(source, /set -o pipefail/u);
+  assert.match(source, /git -C candidate fetch --no-tags --depth=1/u);
+  assert.match(source, /BASE_REPOSITORY/u);
   assert.match(source, /git -C candidate rev-list --objects/u);
   assert.match(source, /git -C candidate cat-file blob/u);
 });
