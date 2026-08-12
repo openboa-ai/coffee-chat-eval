@@ -81,18 +81,31 @@ function artifactManifestDigest(path: string): Digest {
   return value as Digest;
 }
 
-function filesNamed(root: string, name: string): string[] {
-  const found: string[] = [];
-  const visit = (directory: string): void => {
-    for (const entry of readdirSync(directory, { withFileTypes: true })) {
-      const path = join(directory, entry.name);
-      if (entry.isSymbolicLink()) throw new Error("Harbor evidence must not be linked");
-      if (entry.isDirectory()) visit(path);
-      else if (entry.isFile() && entry.name === name) found.push(path);
-    }
-  };
-  visit(root);
-  return found;
+export function locatePcdaTrialResult(jobDirectory: string): string {
+  const root = resolve(jobDirectory);
+  const rootStat = lstatSync(root);
+  if (rootStat.isSymbolicLink() || !rootStat.isDirectory()) {
+    throw new Error("Harbor jobs root must be a real directory");
+  }
+  const jobs = readdirSync(root, { withFileTypes: true }).filter((entry) =>
+    /^coffee-chat-pcda-(?:t0|t1-a|t1-b)$/u.test(entry.name),
+  );
+  if (jobs.length !== 1 || jobs[0]!.isSymbolicLink() || !jobs[0]!.isDirectory()) {
+    throw new Error("Harbor jobs root must contain exactly one native job");
+  }
+  const job = join(root, jobs[0]!.name);
+  const trials = readdirSync(job, { withFileTypes: true }).filter((entry) =>
+    /^harbor__[A-Za-z0-9_-]+$/u.test(entry.name),
+  );
+  if (trials.length !== 1 || trials[0]!.isSymbolicLink() || !trials[0]!.isDirectory()) {
+    throw new Error("Harbor job must contain exactly one native trial");
+  }
+  const result = join(job, trials[0]!.name, "result.json");
+  const resultStat = lstatSync(result);
+  if (resultStat.isSymbolicLink() || !resultStat.isFile()) {
+    throw new Error("Harbor native trial result must be a real file");
+  }
+  return result;
 }
 
 function inspectTrial(
@@ -104,11 +117,7 @@ function inspectTrial(
   artifactDigest: Digest;
   settledNanoUsd: number | null;
 } {
-  const results = filesNamed(jobDirectory, "result.json");
-  if (results.length !== 1) {
-    throw new Error("Harbor job must contain exactly one native trial result");
-  }
-  const resultPath = results[0]!;
+  const resultPath = locatePcdaTrialResult(jobDirectory);
   const raw = JSON.parse(readFileSync(resultPath, "utf8")) as unknown;
   const native = parsePcdaNativeResult(raw, {
     agentName: "codex",

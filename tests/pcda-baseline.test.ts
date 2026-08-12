@@ -42,7 +42,11 @@ import {
   parsePcdaNativeResult,
 } from "../src/pcda-receipt.ts";
 import { runPcdaCli } from "../src/pcda-cli.ts";
-import { candidateSettledNanoUsd, debitJudgeCost } from "../src/pcda-runner.ts";
+import {
+  candidateSettledNanoUsd,
+  debitJudgeCost,
+  locatePcdaTrialResult,
+} from "../src/pcda-runner.ts";
 
 const DIGEST_PATTERN = /^sha256:[0-9a-f]{64}$/u;
 const canonicalTemporaryRoot = realpathSync(tmpdir());
@@ -1174,6 +1178,27 @@ test("PCDA live evidence requires the exact Codex Terra candidate identity", () 
   }
 });
 
+test("PCDA result discovery ignores host caches and selects one native trial", () => {
+  const root = temporaryDirectory("pcda-harbor-result-");
+  try {
+    const cache = join(root, "home", ".cache");
+    const target = join(root, "cache-target");
+    mkdirSync(cache, { recursive: true });
+    mkdirSync(target);
+    symlinkSync(target, join(cache, "normal-uv-cache-link"));
+
+    const job = join(root, "coffee-chat-pcda-t0");
+    const trial = join(job, "harbor__trial123");
+    mkdirSync(trial, { recursive: true });
+    writeFileSync(join(job, "result.json"), "{}\n");
+    writeFileSync(join(trial, "result.json"), "{}\n");
+
+    assert.equal(locatePcdaTrialResult(root), join(trial, "result.json"));
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("spawn-local credential boundary maps only an explicit dedicated key", () => {
   const fixture = projectedFixture("T0");
   const launch = buildPcdaHarborArgs(readyInput(fixture));
@@ -1556,7 +1581,7 @@ test("PCDA CLI keeps calibration deterministic and live Codex manual-only", asyn
       "--bench-repo",
       "/tmp/coffee-chat-bench",
       "--bench-commit",
-      "b8b7328c0df402b0935b1bb390109164d689bb8f",
+      "16dbfe4ce1ee7b181b6b0af28905592b00fc8941",
       "--case",
       "bank/campaign/development/000.json",
       "--candidate-model",
@@ -1575,7 +1600,7 @@ test("PCDA CLI keeps calibration deterministic and live Codex manual-only", asyn
     {
       runManual: async (request) => {
         dispatched = true;
-        assert.equal(request.benchCommit, "b8b7328c0df402b0935b1bb390109164d689bb8f");
+        assert.equal(request.benchCommit, "16dbfe4ce1ee7b181b6b0af28905592b00fc8941");
         assert.equal(request.credentialName, "COFFEE_CHAT_CANDIDATE_API_KEY");
         return { exitCode: 0, report: { state: "completed" } };
       },
@@ -1593,7 +1618,7 @@ test("PCDA CLI keeps calibration deterministic and live Codex manual-only", asyn
         "--bench-repo",
         "/tmp/coffee-chat-bench",
         "--bench-commit",
-        "b8b7328c0df402b0935b1bb390109164d689bb8f",
+        "16dbfe4ce1ee7b181b6b0af28905592b00fc8941",
         "--case",
         "bank/campaign/development/000.json",
         "--candidate-model",
