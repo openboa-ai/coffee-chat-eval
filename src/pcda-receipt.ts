@@ -15,7 +15,6 @@ export type ParsedPcdaNativeResult =
       readonly nativeEnvironmentType: "docker";
       readonly nativeEnvironmentDelete: true;
       readonly verifierEnvironmentMode: "separate";
-      readonly artifactPath: "/app/output.json";
     }
   | {
       readonly state: "invalid";
@@ -89,17 +88,6 @@ export function parsePcdaNativeResult(
   if (result.verifier_environment_mode !== "separate") {
     return invalid("verifier", "PCDA requires a separate verifier environment");
   }
-  const artifacts = result.artifact_paths;
-  if (
-    !Array.isArray(artifacts) ||
-    artifacts.length !== 1 ||
-    artifacts[0] !== "/app/output.json"
-  ) {
-    return invalid(
-      "artifact",
-      "Harbor result must expose exactly one /app/output.json artifact",
-    );
-  }
   const agent = record(result.agent_info);
   const model = record(agent?.model_info);
   const config = record(result.config);
@@ -137,7 +125,6 @@ export function parsePcdaNativeResult(
     nativeEnvironmentType: "docker",
     nativeEnvironmentDelete: true,
     verifierEnvironmentMode: "separate",
-    artifactPath: "/app/output.json",
   };
 }
 
