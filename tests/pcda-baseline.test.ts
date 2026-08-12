@@ -1142,12 +1142,20 @@ test("PCDA live evidence requires the exact Codex Terra candidate identity", () 
   assert.equal(
     parsePcdaNativeResult(pcdaNativeResult(), {
       agentName: "codex",
+      agentVersion: "0.147.0",
       modelName: "gpt-5.6-terra",
     }).state,
     "accepted",
   );
   for (const evidence of [
     pcdaNativeResult({ agent_info: { name: "other", version: "1" } }),
+    pcdaNativeResult({
+      agent_info: {
+        name: "codex",
+        version: "0.148.0",
+        model_info: { name: "gpt-5.6-terra" },
+      },
+    }),
     pcdaNativeResult({
       agent_info: {
         name: "codex",
@@ -1158,6 +1166,7 @@ test("PCDA live evidence requires the exact Codex Terra candidate identity", () 
   ]) {
     const parsed = parsePcdaNativeResult(evidence, {
       agentName: "codex",
+      agentVersion: "0.147.0",
       modelName: "gpt-5.6-terra",
     });
     assert.equal(parsed.state, "invalid");
