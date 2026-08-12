@@ -76,7 +76,7 @@ PCDA now has deterministic Oracle/no-op calibration, spawn-local candidate
 credential injection, exact native-result/state parsing, cleanup-gated
 receipts, phase-network execution evidence, and one USD 50 combined budget
 ledger. Eval stages exact Bench commit
-`1a743f17a88a1e5b50b4b7e19c2cbeaef76922fa` and invokes only its public
+`b8b7328c0df402b0935b1bb390109164d689bb8f` and invokes only its public
 `attest <unsigned> <signed>` and `judge` commands. Eval contains no MAC,
 verifier, or judgment implementation. The manual path passes the
 candidate-settled remainder through `COFFEE_CHAT_EVAL_JUDGE_CAP_NANO_USD` and
