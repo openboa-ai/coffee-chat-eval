@@ -636,7 +636,7 @@ test("buildPcdaHarborArgs maps only the explicit candidate key into a phase-boun
     policyVersion: "uvx 0.8.3",
   });
   assert.match(launch.uvx.observedDigest, DIGEST_PATTERN);
-  assert.deepEqual(launch.args.slice(0, 12), [
+  assert.deepEqual(launch.args.slice(0, 14), [
     "--from",
     "harbor==0.21.0",
     "harbor",
@@ -647,10 +647,17 @@ test("buildPcdaHarborArgs maps only the explicit candidate key into a phase-boun
     "codex",
     "--model",
     "gpt-5.6-terra",
+    "--agent-kwarg",
+    "version=0.147.0",
     "--env",
     "docker",
   ]);
   assert.equal(launch.args.includes("--n-concurrent"), true);
+  assert.equal(launch.args.includes("--agent-kwarg"), true);
+  assert.equal(
+    launch.args[launch.args.indexOf("--agent-kwarg") + 1],
+    "version=0.147.0",
+  );
   assert.equal(launch.args[launch.args.indexOf("--n-concurrent") + 1], "1");
   assert.equal(launch.args.includes("--yes"), true);
   assert.equal(launch.args.includes("--quiet"), true);

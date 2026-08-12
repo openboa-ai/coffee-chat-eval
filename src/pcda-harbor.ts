@@ -560,6 +560,8 @@ export function buildPcdaHarborArgs(input: PcdaHarborInput): PcdaHarborLaunch {
     "codex",
     "--model",
     candidateModel,
+    "--agent-kwarg",
+    "version=0.147.0",
     "--env",
     "docker",
     "--allow-environment-host",
