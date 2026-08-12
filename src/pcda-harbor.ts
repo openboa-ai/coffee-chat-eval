@@ -44,12 +44,7 @@ export interface PcdaHarborInput {
 
 export interface PcdaLaunchNetworkContract {
   readonly networkBaseline: "no-network";
-  readonly setupAllowlist: readonly [
-    "snapshot.debian.org",
-    "raw.githubusercontent.com",
-    "nodejs.org",
-    "registry.npmjs.org",
-  ];
+  readonly setupAllowlist: readonly ["dl-cdn.alpinelinux.org", "registry.npmjs.org"];
   readonly agentAllowlist: readonly ["api.openai.com"];
   readonly verifierNetwork: "no-network";
 }
@@ -115,9 +110,7 @@ export interface PcdaSpawnResult {
 }
 
 const SETUP_ALLOWLIST = Object.freeze([
-  "snapshot.debian.org",
-  "raw.githubusercontent.com",
-  "nodejs.org",
+  "dl-cdn.alpinelinux.org",
   "registry.npmjs.org",
 ] as const);
 const RESOLVED_UVX_TOOLS = new WeakSet<object>();

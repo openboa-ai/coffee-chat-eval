@@ -713,26 +713,16 @@ test("buildPcdaHarborArgs maps only the explicit candidate key into a phase-boun
   const setupHosts = launch.args.flatMap((argument, index) =>
     argument === "--allow-environment-host" ? [launch.args[index + 1]!] : [],
   );
-  assert.deepEqual(setupHosts, [
-    "snapshot.debian.org",
-    "raw.githubusercontent.com",
-    "nodejs.org",
-    "registry.npmjs.org",
-  ]);
+  assert.deepEqual(setupHosts, ["dl-cdn.alpinelinux.org", "registry.npmjs.org"]);
   assert.equal(launch.args.includes("public"), false);
   assert.equal(launch.args.includes("--network"), false);
   assert.equal(
     launch.args.filter((argument) => argument === "--allow-environment-host").length,
-    4,
+    2,
   );
   assert.deepEqual(launch.network, {
     networkBaseline: "no-network",
-    setupAllowlist: [
-      "snapshot.debian.org",
-      "raw.githubusercontent.com",
-      "nodejs.org",
-      "registry.npmjs.org",
-    ],
+    setupAllowlist: ["dl-cdn.alpinelinux.org", "registry.npmjs.org"],
     agentAllowlist: ["api.openai.com"],
     verifierNetwork: "no-network",
   });
