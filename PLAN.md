@@ -74,8 +74,10 @@ Coffee Blend is excluded from this initial evaluation scope.
 
 PCDA now has deterministic Oracle/no-op calibration, spawn-local candidate
 credential injection, exact native-result/state parsing, cleanup-gated
-receipts, phase-network execution evidence, and one USD 50 combined budget
-ledger. Eval stages exact Bench commit
+receipts, phase-network execution evidence, and a combined candidate-plus-judge
+budget ledger. The current manual execution profile authorizes up to USD 50;
+that amount reflects available API funds and is not a benchmark sample-size,
+validity, or activation criterion. Eval stages exact Bench commit
 `347ce5187c697a316aafe47409f428f59babbdc4` and invokes only its public
 `attest <unsigned> <signed>` and `judge` commands. Eval contains no MAC,
 verifier, or judgment implementation. The manual path passes the
