@@ -1144,7 +1144,14 @@ test("PCDA trial inspection trusts Harbor artifact manifest evidence", () => {
   const artifacts = join(trial, "artifacts");
   const output = join(artifacts, "app", "output.json");
   mkdirSync(join(artifacts, "app"), { recursive: true });
+  mkdirSync(join(trial, "verifier"), { recursive: true });
   writeJson(join(trial, "result.json"), pcdaNativeResult());
+  writeJson(join(trial, "verifier", "verdict.json"), {
+    accepted: true,
+    criticalFailure: false,
+    reasons: [],
+    state: "unmeasured",
+  });
   writeJson(output, {
     manifest: { artifactDigest: `sha256:${"a".repeat(64)}` },
   });
@@ -1180,6 +1187,56 @@ test("PCDA trial inspection trusts Harbor artifact manifest evidence", () => {
     },
   ]);
   assert.throws(() => inspectPcdaTrial(root, "gpt-5.6-terra"), /artifact manifest/u);
+});
+
+test("PCDA trial inspection binds the structured verifier state to native reward", () => {
+  const root = temporaryDirectory("pcda-verifier-state-");
+  const trial = join(root, "coffee-chat-pcda-t0", "harbor__trial123");
+  const artifacts = join(trial, "artifacts");
+  const output = join(artifacts, "app", "output.json");
+  mkdirSync(join(artifacts, "app"), { recursive: true });
+  mkdirSync(join(trial, "verifier"), { recursive: true });
+  writeJson(
+    join(trial, "result.json"),
+    pcdaNativeResult({ verifier_result: { rewards: { reward: 0 } } }),
+  );
+  writeJson(output, {
+    manifest: { artifactDigest: `sha256:${"a".repeat(64)}` },
+  });
+  writeJson(join(artifacts, "manifest.json"), [
+    {
+      source: "/app/output.json",
+      destination: "artifacts/app/output.json",
+      type: "file",
+      status: "ok",
+      service: null,
+    },
+  ]);
+  writeJson(join(trial, "verifier", "verdict.json"), {
+    accepted: false,
+    criticalFailure: false,
+    reasons: ["selected region is not accepted"],
+    state: "candidate_failure",
+  });
+
+  const inspected = inspectPcdaTrial(root, "gpt-5.6-terra");
+  assert.deepEqual(inspected.deterministic, {
+    state: "candidate_failure",
+    accepted: false,
+    criticalFailure: false,
+    reasonCode: "candidate_failure",
+  });
+
+  writeJson(join(trial, "verifier", "verdict.json"), {
+    accepted: true,
+    criticalFailure: false,
+    reasons: [],
+    state: "unmeasured",
+  });
+  assert.throws(
+    () => inspectPcdaTrial(root, "gpt-5.6-terra"),
+    /reward and verifier verdict disagree/u,
+  );
 });
 
 test("PCDA live evidence requires the exact Codex Terra candidate identity", () => {
