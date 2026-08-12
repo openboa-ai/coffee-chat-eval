@@ -42,7 +42,11 @@ import {
   parsePcdaNativeResult,
 } from "../src/pcda-receipt.ts";
 import { runPcdaCli } from "../src/pcda-cli.ts";
-import { candidateSettledNanoUsd, debitJudgeCost } from "../src/pcda-runner.ts";
+import {
+  candidateSettledNanoUsd,
+  debitJudgeCost,
+  locatePcdaTrialResult,
+} from "../src/pcda-runner.ts";
 
 const DIGEST_PATTERN = /^sha256:[0-9a-f]{64}$/u;
 const canonicalTemporaryRoot = realpathSync(tmpdir());
@@ -1171,6 +1175,27 @@ test("PCDA live evidence requires the exact Codex Terra candidate identity", () 
     });
     assert.equal(parsed.state, "invalid");
     if (parsed.state === "invalid") assert.equal(parsed.failureClass, "candidate");
+  }
+});
+
+test("PCDA result discovery ignores host caches and selects one native trial", () => {
+  const root = temporaryDirectory("pcda-harbor-result-");
+  try {
+    const cache = join(root, "home", ".cache");
+    const target = join(root, "cache-target");
+    mkdirSync(cache, { recursive: true });
+    mkdirSync(target);
+    symlinkSync(target, join(cache, "normal-uv-cache-link"));
+
+    const job = join(root, "coffee-chat-pcda-t0");
+    const trial = join(job, "harbor__trial123");
+    mkdirSync(trial, { recursive: true });
+    writeFileSync(join(job, "result.json"), "{}\n");
+    writeFileSync(join(trial, "result.json"), "{}\n");
+
+    assert.equal(locatePcdaTrialResult(root), join(trial, "result.json"));
+  } finally {
+    rmSync(root, { recursive: true, force: true });
   }
 });
 
