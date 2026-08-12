@@ -42,6 +42,17 @@ test("required CI calibrates Harbor tasks without running model evaluation", () 
   assert.doesNotMatch(workflow, /canary:codex|benchmark:smoke|OPENAI_API_KEY/u);
 });
 
+test("secret scanning uses trusted base controls and never executes candidate code", () => {
+  const workflow = read(".github/workflows/secret-boundary.yml");
+  assert.match(workflow, /pull_request_target:/u);
+  assert.match(workflow, /contents: read/u);
+  assert.match(workflow, /path: trusted/u);
+  assert.match(workflow, /path: candidate/u);
+  assert.match(workflow, /gitleaks git/u);
+  assert.match(workflow, /gitleaks dir/u);
+  assert.doesNotMatch(workflow, /npm |node |secrets\./u);
+});
+
 test("the shell has no private Coffee Chat package dependency", () => {
   const packageJson = JSON.parse(read("package.json")) as {
     dependencies?: Record<string, string>;

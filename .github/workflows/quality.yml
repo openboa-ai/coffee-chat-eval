@@ -29,7 +29,22 @@ jobs:
           esac
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
+          fetch-depth: 0
           persist-credentials: false
+      - name: Install immutable Gitleaks
+        run: .github/scripts/install-gitleaks.sh
+      - name: Scan complete Git history
+        run: |
+          test ! -e .gitleaks.toml
+          printf '%s  %s\n' \
+            '5b78ddc165d282a346988abf15a48875a24020aa340a0984dd3cee9d27da9a50' \
+            '.gitleaksignore' | sha256sum --check
+          gitleaks git --config "$GITLEAKS_TRUSTED_CONFIG" \
+            --gitleaks-ignore-path .gitleaksignore --ignore-gitleaks-allow \
+            --redact --no-banner .
+          gitleaks dir --config "$GITLEAKS_TRUSTED_CONFIG" \
+            --gitleaks-ignore-path .gitleaksignore --ignore-gitleaks-allow \
+            --redact --no-banner .
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
         with:
           node-version: 24.5.0
