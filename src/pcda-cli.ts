@@ -6,7 +6,7 @@ import { calibratePcdaNativeResults } from "./pcda-receipt.ts";
 import { runPcdaManualCampaign, type PcdaManualRequest } from "./pcda-runner.ts";
 
 export const PCDA_BENCH_SIGNER_COMMIT =
-  "3bec0fe9f8f03216418fd437dfb30eb40a2e5775" as const;
+  "347ce5187c697a316aafe47409f428f59babbdc4" as const;
 
 export interface PcdaCliResult {
   readonly exitCode: number;

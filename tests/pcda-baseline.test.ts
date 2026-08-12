@@ -1697,7 +1697,7 @@ test("PCDA CLI keeps calibration deterministic and live Codex manual-only", asyn
       "--bench-repo",
       "/tmp/coffee-chat-bench",
       "--bench-commit",
-      "3bec0fe9f8f03216418fd437dfb30eb40a2e5775",
+      "347ce5187c697a316aafe47409f428f59babbdc4",
       "--case",
       "bank/campaign/development/000.json",
       "--candidate-model",
@@ -1716,7 +1716,7 @@ test("PCDA CLI keeps calibration deterministic and live Codex manual-only", asyn
     {
       runManual: async (request) => {
         dispatched = true;
-        assert.equal(request.benchCommit, "3bec0fe9f8f03216418fd437dfb30eb40a2e5775");
+        assert.equal(request.benchCommit, "347ce5187c697a316aafe47409f428f59babbdc4");
         assert.equal(request.credentialName, "COFFEE_CHAT_CANDIDATE_API_KEY");
         return { exitCode: 0, report: { state: "completed" } };
       },
@@ -1734,7 +1734,7 @@ test("PCDA CLI keeps calibration deterministic and live Codex manual-only", asyn
         "--bench-repo",
         "/tmp/coffee-chat-bench",
         "--bench-commit",
-        "3bec0fe9f8f03216418fd437dfb30eb40a2e5775",
+        "347ce5187c697a316aafe47409f428f59babbdc4",
         "--case",
         "bank/campaign/development/000.json",
         "--candidate-model",
