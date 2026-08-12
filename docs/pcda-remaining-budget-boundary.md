@@ -21,3 +21,10 @@ later candidate or judge calls when observed cost cannot fit, but Harbor/Codex
 does not expose a per-request dollar cap. A live campaign that must never cross
 USD 50 therefore also requires a verified provider/project hard spend limit;
 without that external precondition the campaign remains unavailable.
+
+USD 50 is the current operator-authorized API funding profile, not a property
+of PCDA or its measurement design. It must not determine the declared cases,
+controls, repetitions, statistical method, validity evidence, or activation
+criteria. If a prespecified campaign cannot fit the available funds, Eval marks
+the campaign unavailable or incomplete and waits for separately authorized
+funding; it does not shrink the design or lower an evidence threshold.
