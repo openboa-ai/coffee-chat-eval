@@ -40,6 +40,20 @@ test("local credential files are ignored without hiding the example", () => {
     0,
     "public certificates must remain publishable",
   );
+  const publicKey = git(["check-ignore", "--no-index", "--quiet", "public.key"], root);
+  assert.notEqual(publicKey.status, 0, "public keys must remain publishable");
+});
+
+test("trusted boundary scans merge groups and raw introduced blobs", () => {
+  const source = readFileSync(
+    join(root, ".github", "workflows", "secret-boundary.yml"),
+    "utf8",
+  );
+  assert.match(source, /merge_group:/u);
+  assert.match(source, /merge_group\.base_sha/u);
+  assert.match(source, /merge_group\.head_sha/u);
+  assert.match(source, /git -C candidate rev-list --objects/u);
+  assert.match(source, /git -C candidate cat-file blob/u);
 });
 
 test("the repository hook rejects a generated staged secret and redacts output", () => {

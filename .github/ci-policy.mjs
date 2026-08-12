@@ -134,7 +134,7 @@ if (
     "merge policy must require OWNER|MEMBER, squash, checks, and zero approvals",
   );
 }
-if (!mergePolicy.required_contexts?.includes("Secret boundary / Secret boundary")) {
+if (!mergePolicy.required_contexts?.includes("Secret boundary")) {
   throw new Error("merge policy must require the trusted secret boundary");
 }
 

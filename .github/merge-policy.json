@@ -25,6 +25,6 @@
   "required_contexts": [
     "Eval / aggregate",
     "Eval / dependency review",
-    "Secret boundary / Secret boundary"
+    "Secret boundary"
   ]
 }

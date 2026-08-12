@@ -22,6 +22,11 @@ if [ -e .gitleaksignore ]; then
   ignore_path=.gitleaksignore
 fi
 unset GITLEAKS_CONFIG GITLEAKS_CONFIG_TOML
-exec "$scanner" git --pre-commit --staged \
+"$scanner" git --pre-commit --staged \
   --gitleaks-ignore-path "$ignore_path" --ignore-gitleaks-allow \
   --redact --no-banner .
+staged_dir="$(mktemp -d)"
+trap 'rm -rf "$staged_dir"' EXIT HUP INT TERM
+git checkout-index --all --prefix="$staged_dir/"
+"$scanner" dir --gitleaks-ignore-path "$ignore_path" \
+  --ignore-gitleaks-allow --redact --no-banner "$staged_dir"

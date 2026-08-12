@@ -12,7 +12,9 @@ credentials.json
 secrets.json
 *.private.pem
 private-key.pem
-*.key
+*.private.key
+private.key
+private-key.key
 *.p12
 *.pfx
 *.jks
