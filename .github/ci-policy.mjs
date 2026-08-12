@@ -97,6 +97,30 @@ for (const permission of [
     throw new Error(`CodeQL must declare ${permission}`);
 }
 
+const boundary = await readFile(
+  new URL(".github/workflows/secret-boundary.yml", root),
+  "utf8",
+);
+for (const required of [
+  "pull_request_target:",
+  "contents: read",
+  "path: trusted",
+  "path: candidate",
+  "cmp trusted/.gitleaksignore candidate/.gitleaksignore",
+  "gitleaks git",
+  "gitleaks dir",
+]) {
+  if (!boundary.includes(required))
+    throw new Error(`secret boundary lacks ${required}`);
+}
+if (
+  boundary.includes("npm ") ||
+  boundary.includes("node ") ||
+  boundary.includes("secrets.")
+) {
+  throw new Error("secret boundary must treat the candidate only as data");
+}
+
 const mergePolicy = JSON.parse(
   await readFile(new URL(".github/merge-policy.json", root), "utf8"),
 );
