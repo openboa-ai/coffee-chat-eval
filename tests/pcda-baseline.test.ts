@@ -45,6 +45,7 @@ import { runPcdaCli } from "../src/pcda-cli.ts";
 import {
   candidateSettledNanoUsd,
   debitJudgeCost,
+  inspectPcdaTrial,
   locatePcdaTrialResult,
 } from "../src/pcda-runner.ts";
 
@@ -1089,7 +1090,6 @@ function pcdaNativeResult(overrides: Record<string, unknown> = {}): unknown {
       model_info: { name: "gpt-5.6-terra" },
     },
     config: { environment: { type: "docker", delete: true } },
-    artifact_paths: ["/app/output.json"],
     ...overrides,
   };
 }
@@ -1119,16 +1119,11 @@ test("PCDA calibration accepts Oracle=1 and no-op=0 and rejects reversed evidenc
   );
 });
 
-test("PCDA native evidence preserves malformed, missing-output, and verifier failures", () => {
+test("PCDA native evidence preserves malformed and verifier failures", () => {
   assert.deepEqual(parsePcdaNativeResult("bad"), {
     state: "invalid",
     failureClass: "artifact",
     reason: "Harbor result must be a JSON object",
-  });
-  assert.deepEqual(parsePcdaNativeResult(pcdaNativeResult({ artifact_paths: [] })), {
-    state: "invalid",
-    failureClass: "artifact",
-    reason: "Harbor result must expose exactly one /app/output.json artifact",
   });
   const verifierFailure = parsePcdaNativeResult(
     pcdaNativeResult({
@@ -1140,6 +1135,50 @@ test("PCDA native evidence preserves malformed, missing-output, and verifier fai
   if (verifierFailure.state === "invalid") {
     assert.equal(verifierFailure.failureClass, "verifier");
   }
+});
+
+test("PCDA trial inspection trusts Harbor artifact manifest evidence", () => {
+  const root = temporaryDirectory("pcda-harbor-artifact-");
+  const trial = join(root, "coffee-chat-pcda-t0", "harbor__trial123");
+  const artifacts = join(trial, "artifacts");
+  const output = join(artifacts, "app", "output.json");
+  mkdirSync(join(artifacts, "app"), { recursive: true });
+  writeJson(join(trial, "result.json"), pcdaNativeResult());
+  writeJson(output, {
+    manifest: { artifactDigest: `sha256:${"a".repeat(64)}` },
+  });
+  writeJson(join(artifacts, "manifest.json"), [
+    {
+      source: "/logs/artifacts",
+      destination: "artifacts/logs/artifacts",
+      type: "directory",
+      status: "empty",
+      service: null,
+    },
+    {
+      source: "/app/output.json",
+      destination: "artifacts/app/output.json",
+      type: "file",
+      status: "ok",
+      service: null,
+    },
+  ]);
+
+  const inspected = inspectPcdaTrial(root, "gpt-5.6-terra");
+  assert.equal(inspected.native.state, "accepted");
+  assert.equal(inspected.artifactPath, output);
+  assert.equal(inspected.artifactDigest, `sha256:${"a".repeat(64)}`);
+
+  writeJson(join(artifacts, "manifest.json"), [
+    {
+      source: "/app/output.json",
+      destination: "artifacts/app/output.json",
+      type: "file",
+      status: "missing",
+      service: null,
+    },
+  ]);
+  assert.throws(() => inspectPcdaTrial(root, "gpt-5.6-terra"), /artifact manifest/u);
 });
 
 test("PCDA live evidence requires the exact Codex Terra candidate identity", () => {

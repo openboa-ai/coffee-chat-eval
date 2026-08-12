@@ -108,7 +108,54 @@ export function locatePcdaTrialResult(jobDirectory: string): string {
   return result;
 }
 
-function inspectTrial(
+function requireHarborOutputArtifact(trial: string): string {
+  const artifacts = join(trial, "artifacts");
+  const manifestPath = join(artifacts, "manifest.json");
+  if (!existsSync(manifestPath)) {
+    throw new Error("Harbor artifact manifest is missing");
+  }
+  const manifestStat = lstatSync(manifestPath);
+  if (manifestStat.isSymbolicLink() || !manifestStat.isFile()) {
+    throw new Error("Harbor artifact manifest must be a real file");
+  }
+  let manifest: unknown;
+  try {
+    manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as unknown;
+  } catch {
+    throw new Error("Harbor artifact manifest must be valid JSON");
+  }
+  if (!Array.isArray(manifest)) {
+    throw new Error("Harbor artifact manifest must be an array");
+  }
+  const outputs = manifest.filter(
+    (entry) =>
+      entry !== null &&
+      typeof entry === "object" &&
+      !Array.isArray(entry) &&
+      (entry as Record<string, unknown>).source === "/app/output.json",
+  );
+  const output = outputs[0] as Record<string, unknown> | undefined;
+  if (
+    outputs.length !== 1 ||
+    output?.destination !== "artifacts/app/output.json" ||
+    output.type !== "file" ||
+    output.status !== "ok" ||
+    output.service !== null
+  ) {
+    throw new Error("Harbor artifact manifest must record one successful output");
+  }
+  const artifactPath = join(artifacts, "app", "output.json");
+  if (!existsSync(artifactPath)) {
+    throw new Error("Harbor output artifact is missing");
+  }
+  const artifactStat = lstatSync(artifactPath);
+  if (artifactStat.isSymbolicLink() || !artifactStat.isFile()) {
+    throw new Error("Harbor output artifact must be a real file");
+  }
+  return artifactPath;
+}
+
+export function inspectPcdaTrial(
   jobDirectory: string,
   candidateModel: "gpt-5.6-terra",
 ): {
@@ -126,10 +173,7 @@ function inspectTrial(
   });
   if (native.state === "invalid") throw new Error(native.reason);
   const trial = dirname(resultPath);
-  const artifactPath = join(trial, "artifacts", "app", "output.json");
-  if (!existsSync(artifactPath) || !lstatSync(artifactPath).isFile()) {
-    throw new Error("Harbor trial must contain exactly one output.json artifact");
-  }
+  const artifactPath = requireHarborOutputArtifact(trial);
   const settledNanoUsd = candidateSettledNanoUsd(raw);
   return {
     native,
@@ -307,7 +351,7 @@ export async function runPcdaManualCampaign(
   );
   const evidence: Array<{
     projection: (typeof projections)[number];
-    trial: ReturnType<typeof inspectTrial>;
+    trial: ReturnType<typeof inspectPcdaTrial>;
     cleanup: { state: "completed"; matchingContainers: 0 };
   }> = [];
   const dockerHost = currentDockerHost();
@@ -410,7 +454,7 @@ export async function runPcdaManualCampaign(
     }
     evidence.push({
       projection,
-      trial: inspectTrial(spawned.jobDirectory, request.candidateModel),
+      trial: inspectPcdaTrial(spawned.jobDirectory, request.candidateModel),
       cleanup: { state: "completed", matchingContainers: 0 },
     });
     if (evidence.at(-1)?.trial.settledNanoUsd === null) {
