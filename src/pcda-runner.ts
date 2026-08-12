@@ -177,11 +177,71 @@ function requireHarborOutputArtifact(trial: string): string {
   return artifactPath;
 }
 
+type PcdaDeterministicVerdict = {
+  readonly state:
+    "unmeasured" | "candidate_invalid" | "candidate_failure" | "verifier_failure";
+  readonly accepted: boolean;
+  readonly criticalFailure: boolean;
+  readonly reasonCode:
+    "none" | "candidate_invalid" | "candidate_failure" | "verifier_failure";
+};
+
+function requireHarborVerifierVerdict(
+  trial: string,
+  nativeState: "accepted" | "rejected",
+): PcdaDeterministicVerdict {
+  const path = join(trial, "verifier", "verdict.json");
+  const stat = lstatSync(path);
+  if (stat.isSymbolicLink() || !stat.isFile()) {
+    throw new Error("Harbor verifier verdict must be a real file");
+  }
+  const value = JSON.parse(readFileSync(path, "utf8")) as unknown;
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error("Harbor verifier verdict must be an object");
+  }
+  const verdict = value as Record<string, unknown>;
+  if (
+    Object.keys(verdict).sort().join(",") !==
+      "accepted,criticalFailure,reasons,state" ||
+    typeof verdict.accepted !== "boolean" ||
+    typeof verdict.criticalFailure !== "boolean" ||
+    !Array.isArray(verdict.reasons) ||
+    !verdict.reasons.every((reason) => typeof reason === "string")
+  ) {
+    throw new Error("Harbor verifier verdict has an invalid shape");
+  }
+  const state = verdict.state;
+  if (
+    state !== "unmeasured" &&
+    state !== "candidate_invalid" &&
+    state !== "candidate_failure" &&
+    state !== "verifier_failure"
+  ) {
+    throw new Error("Harbor verifier verdict has an invalid state");
+  }
+  const accepted = verdict.accepted;
+  const criticalFailure = verdict.criticalFailure;
+  if (
+    (nativeState === "accepted" &&
+      (state !== "unmeasured" || !accepted || criticalFailure)) ||
+    (nativeState === "rejected" && (state === "unmeasured" || accepted))
+  ) {
+    throw new Error("Harbor reward and verifier verdict disagree");
+  }
+  return {
+    state,
+    accepted,
+    criticalFailure,
+    reasonCode: state === "unmeasured" ? "none" : state,
+  };
+}
+
 export function inspectPcdaTrial(
   jobDirectory: string,
   candidateModel: "gpt-5.6-terra",
 ): {
   native: ReturnType<typeof parsePcdaNativeResult>;
+  deterministic: PcdaDeterministicVerdict;
   artifactPath: string;
   artifactDigest: Digest;
   settledNanoUsd: number | null;
@@ -199,6 +259,7 @@ export function inspectPcdaTrial(
   const settledNanoUsd = candidateSettledNanoUsd(raw);
   return {
     native,
+    deterministic: requireHarborVerifierVerdict(trial, native.state),
     artifactPath,
     artifactDigest: artifactManifestDigest(artifactPath),
     settledNanoUsd,
@@ -519,21 +580,7 @@ export async function runPcdaManualCampaign(
       artifactDigest: item.trial.artifactDigest,
       benchCommit: snapshot.commit,
       bankDigest: snapshot.bankDigest,
-      deterministic: {
-        ...(item.trial.native.state === "accepted"
-          ? {
-              state: "unmeasured" as const,
-              accepted: true,
-              criticalFailure: false,
-              reasonCode: "none" as const,
-            }
-          : {
-              state: "candidate_invalid" as const,
-              accepted: false,
-              criticalFailure: true,
-              reasonCode: "candidate_invalid" as const,
-            }),
-      },
+      deterministic: item.trial.deterministic,
     });
     const judged = await attestAndJudgeWithStagedBench({
       snapshot,

@@ -7,10 +7,16 @@ the public PCDA family. It does **not** provide a Coffee Chat performance score
 or evidence that Coffee Chat Bench is ready for activation.
 
 The campaign result is `unmeasured`. Harbor completed T0, T1-A, and T1-B, and
-each condition produced an inspectable artifact. The Bench contract classified
-all three candidate artifacts as `candidate_invalid`, so the verifier state
-remained `unmeasured`, the measurement state was `invalid`, and judging was
-correctly skipped without a provider call.
+each condition produced an inspectable artifact. The native verifier classified
+all three outputs as `candidate_failure`, so judging was correctly skipped
+without a provider call and no condition became measured.
+
+The raw campaign receipt is preserved exactly as emitted, but its
+`candidate_invalid` condition states must not be used. Eval collapsed every
+rejected verifier verdict while constructing the Bench attestation. The
+operator-audited native verdict digests and corrected interpretation are bound
+in `baseline-state-correction.json`; the evaluator regression fix preserves
+these states for subsequent runs.
 
 ## Fixed provenance
 
@@ -35,9 +41,9 @@ receipt.
 
 | Condition | Execution | Candidate | Verifier   | Judge   | Measurement | Settled candidate cost |
 | --------- | --------- | --------- | ---------- | ------- | ----------- | ---------------------: |
-| T0        | completed | invalid   | unmeasured | skipped | invalid     |              $0.194616 |
-| T1-A      | completed | invalid   | unmeasured | skipped | invalid     |              $0.218704 |
-| T1-B      | completed | invalid   | unmeasured | skipped | invalid     |              $0.213106 |
+| T0        | completed | failed    | unmeasured | skipped | unmeasured  |              $0.194616 |
+| T1-A      | completed | failed    | unmeasured | skipped | unmeasured  |              $0.218704 |
+| T1-B      | completed | failed    | unmeasured | skipped | unmeasured  |              $0.213106 |
 
 The campaign settled candidate cost is $0.626426. Judge cost is $0 because no
 judge provider call was made. The receipt preserves $49.373574 of the $50
@@ -49,9 +55,10 @@ efficiency measurements.
 - A clean, pinned Eval commit consumed a clean, pinned Bench commit.
 - Harbor executed all three projected conditions sequentially with native
   trial identities and artifact digests.
-- Candidate failure, verifier state, judge state, and measurement state stayed
-  distinct.
-- Invalid candidate artifacts did not receive inferred scores or trigger judge
+- The native verifier distinguished a structurally valid but rejected candidate
+  response from an invalid artifact; the published correction preserves that
+  evidence while leaving the original receipt bytes unchanged.
+- Rejected candidate outputs did not receive inferred scores or trigger judge
   spending.
 - The run completed without a host or verifier exception, and Docker cleanup
   completed after every condition.

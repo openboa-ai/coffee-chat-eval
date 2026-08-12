@@ -1,0 +1,41 @@
+{
+  "type": "operator_audited_state_correction",
+  "release": "2026.8.12",
+  "rawReceipt": {
+    "path": "reports/pcda/2026.8.12/baseline-receipt.json",
+    "digest": "sha256:b9f4dc156f69f59410811763b30e0f3041615b0c7d6b9de4ce98e1d36adb2f8a"
+  },
+  "reason": "The evaluator collapsed every rejected native verifier verdict into candidate_invalid when it built the Bench attestation.",
+  "conditions": [
+    {
+      "condition": "T0",
+      "nativeTrialId": "24f34a0b-4780-43f0-83ea-af81b5542669",
+      "nativeTrialName": "harbor__CibWG5W",
+      "verifierVerdictDigest": "sha256:ed5a9dc262df3043234de736829051fb130948a8b8e4c26c2c37b4e384a27353",
+      "state": "candidate_failure",
+      "accepted": false,
+      "criticalFailure": false,
+      "reasons": ["selected region is not accepted"]
+    },
+    {
+      "condition": "T1-A",
+      "nativeTrialId": "01f46636-c0ff-4d42-9d7c-b16f045939ef",
+      "nativeTrialName": "harbor__nLkSF9a",
+      "verifierVerdictDigest": "sha256:ed5a9dc262df3043234de736829051fb130948a8b8e4c26c2c37b4e384a27353",
+      "state": "candidate_failure",
+      "accepted": false,
+      "criticalFailure": false,
+      "reasons": ["selected region is not accepted"]
+    },
+    {
+      "condition": "T1-B",
+      "nativeTrialId": "569df92a-6384-4de2-a74b-1627a0baa23d",
+      "nativeTrialName": "harbor__Vv2RMQq",
+      "verifierVerdictDigest": "sha256:750c0e9480111dcb92f640f6265511fcbf2003260b3f2b69038d597ef34c32f9",
+      "state": "candidate_failure",
+      "accepted": false,
+      "criticalFailure": false,
+      "reasons": ["evidence references are incomplete"]
+    }
+  ]
+}
