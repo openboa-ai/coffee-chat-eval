@@ -7,4 +7,21 @@ if ! command -v "$scanner" >/dev/null 2>&1; then
   exit 1
 fi
 
-exec "$scanner" git --pre-commit --staged --redact --no-banner .
+if [ -e .gitleaks.toml ]; then
+  printf '%s\n' 'Repository-local Gitleaks configuration is not permitted.' >&2
+  exit 1
+fi
+expected_ignore=5b78ddc165d282a346988abf15a48875a24020aa340a0984dd3cee9d27da9a50
+ignore_path=/dev/null
+if [ -e .gitleaksignore ]; then
+  actual_ignore=$(shasum -a 256 .gitleaksignore | awk '{print $1}')
+  if [ "$actual_ignore" != "$expected_ignore" ]; then
+    printf '%s\n' 'The historical synthetic-finding allowlist changed.' >&2
+    exit 1
+  fi
+  ignore_path=.gitleaksignore
+fi
+unset GITLEAKS_CONFIG GITLEAKS_CONFIG_TOML
+exec "$scanner" git --pre-commit --staged \
+  --gitleaks-ignore-path "$ignore_path" --ignore-gitleaks-allow \
+  --redact --no-banner .

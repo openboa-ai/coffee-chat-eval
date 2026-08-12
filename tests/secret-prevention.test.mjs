@@ -19,7 +19,7 @@ test("local credential files are ignored without hiding the example", () => {
     ".env",
     ".env.local",
     "credentials.json",
-    "private.pem",
+    "private-key.pem",
     "private.key",
     "identity.p12",
     "identity.pfx",
@@ -31,6 +31,15 @@ test("local credential files are ignored without hiding the example", () => {
 
   const example = git(["check-ignore", "--no-index", "--quiet", ".env.example"], root);
   assert.notEqual(example.status, 0, ".env.example must remain publishable");
+  const publicCertificate = git(
+    ["check-ignore", "--no-index", "--quiet", "public-certificate.pem"],
+    root,
+  );
+  assert.notEqual(
+    publicCertificate.status,
+    0,
+    "public certificates must remain publishable",
+  );
 });
 
 test("the repository hook rejects a generated staged secret and redacts output", () => {
@@ -91,13 +100,19 @@ test("required CI installs an immutable scanner and scans complete history", () 
   const source = readFileSync(workflow, "utf8");
   assert.match(source, /fetch-depth:\s*0/u);
   assert.match(source, /\.github\/scripts\/install-gitleaks\.sh/u);
-  assert.match(source, /gitleaks git --redact --no-banner \./u);
+  assert.match(source, /GITLEAKS_TRUSTED_CONFIG/u);
+  assert.match(source, /--ignore-gitleaks-allow/u);
+  assert.match(source, /test ! -e \.gitleaks\.toml/u);
 
   const installSource = readFileSync(installer, "utf8");
   assert.match(installSource, /GITLEAKS_VERSION=8\.30\.1/u);
   assert.match(
     installSource,
     /551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb/u,
+  );
+  assert.match(
+    installSource,
+    /e163e53b9e7e8a8511e77271e2b323ed057759542a6d988258afe3a1fa329caf/u,
   );
   assert.match(installSource, /sha256sum --check/u);
 });
