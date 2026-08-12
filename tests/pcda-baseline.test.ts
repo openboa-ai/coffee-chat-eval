@@ -47,6 +47,7 @@ import {
   debitJudgeCost,
   inspectPcdaTrial,
   locatePcdaTrialResult,
+  settleJudgeCost,
 } from "../src/pcda-runner.ts";
 
 const DIGEST_PATTERN = /^sha256:[0-9a-f]{64}$/u;
@@ -1335,6 +1336,25 @@ test("every invoked judge requires settled cost before another call", () => {
   assert.equal(debitJudgeCost(10_000, 4_000), 6_000);
   assert.throws(() => debitJudgeCost(10_000, undefined), /cost evidence/u);
   assert.throws(() => debitJudgeCost(10_000, 10_001), /exceeded USD 50/u);
+  for (const judgeState of [
+    "candidate_invalid",
+    "candidate_failure",
+    "verifier_failure",
+  ] as const) {
+    assert.equal(settleJudgeCost({ judgeState }), 0);
+  }
+  assert.equal(
+    settleJudgeCost({ judgeState: "measured", settledNanoUsd: 4_000 }),
+    4_000,
+  );
+  for (const judgeState of [
+    "measured",
+    "judge_disagreement",
+    "judge_unavailable",
+    "unmeasured",
+  ] as const) {
+    assert.throws(() => settleJudgeCost({ judgeState }), /cost evidence/u);
+  }
 });
 
 test("candidate cost uses the conservative pinned Terra estimate and never invents zero", () => {

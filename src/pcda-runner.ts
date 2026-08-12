@@ -53,6 +53,28 @@ export function debitJudgeCost(
   return remainingNanoUsd - settledNanoUsd;
 }
 
+export function settleJudgeCost(input: {
+  readonly judgeState:
+    | "measured"
+    | "judge_disagreement"
+    | "judge_unavailable"
+    | "candidate_invalid"
+    | "candidate_failure"
+    | "verifier_failure"
+    | "unmeasured";
+  readonly settledNanoUsd?: number;
+}): number {
+  if (input.settledNanoUsd !== undefined) return input.settledNanoUsd;
+  if (
+    input.judgeState === "candidate_invalid" ||
+    input.judgeState === "candidate_failure" ||
+    input.judgeState === "verifier_failure"
+  ) {
+    return 0;
+  }
+  throw new Error("judge cost evidence is unavailable");
+}
+
 export interface PcdaManualRequest {
   readonly benchRepo: string;
   readonly benchCommit: string;
@@ -525,7 +547,7 @@ export async function runPcdaManualCampaign(
       workspace: join(campaignRoot, `judge-${item.projection.condition.toLowerCase()}`),
       invoke: benchInvoke,
     });
-    remaining = debitJudgeCost(remaining, judged.settledNanoUsd);
+    remaining = debitJudgeCost(remaining, settleJudgeCost(judged));
     conditions.push({
       condition: item.projection.condition,
       native: item.trial.native,
