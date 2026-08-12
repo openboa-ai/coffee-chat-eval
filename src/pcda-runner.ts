@@ -186,6 +186,19 @@ function dockerContainers(): Set<string> {
   return new Set(output.split(/\s+/u).filter(Boolean));
 }
 
+function currentDockerHost(): string {
+  const value = execFileSync(
+    "docker",
+    ["context", "inspect", "--format", "{{.Endpoints.docker.Host}}"],
+    {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+    },
+  ).trim();
+  if (value === "") throw new Error("current Docker context has no endpoint");
+  return value;
+}
+
 function loadNamedCredential(name: string): string {
   const value = process.env[name];
   if (value === undefined) throw new Error(`credential ${name} is not available`);
@@ -287,6 +300,7 @@ export async function runPcdaManualCampaign(
     trial: ReturnType<typeof inspectTrial>;
     cleanup: { state: "completed"; matchingContainers: 0 };
   }> = [];
+  const dockerHost = currentDockerHost();
   for (const projection of projections) {
     const observedBeforeCall = evidence.reduce((total, current) => {
       if (current.trial.settledNanoUsd === null) {
@@ -312,6 +326,7 @@ export async function runPcdaManualCampaign(
       uvxTool: uvx,
       candidateProviderHost: "api.openai.com",
       candidateModel: request.candidateModel,
+      dockerHost,
       jobsRoot: join(campaignRoot, "jobs"),
       candidateCredential: {
         available: true,

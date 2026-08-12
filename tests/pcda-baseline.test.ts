@@ -587,6 +587,7 @@ function readyInput(fixture: ReturnType<typeof projectedFixture>): PcdaHarborInp
     uvxTool: resolveUvxTool(fixture.uvxPath, uvxTrustPolicy(fixture.uvxPath)),
     candidateProviderHost: "api.openai.com",
     candidateModel: "gpt-5.6-terra",
+    dockerHost: "unix:///tmp/coffee-chat-docker.sock",
     jobsRoot: join(fixture.root, "jobs"),
     candidateCredential: {
       available: true,
@@ -658,6 +659,29 @@ test("buildPcdaHarborArgs maps only the explicit candidate key into a phase-boun
   assert.equal(
     launch.environmentTemplate.XDG_CONFIG_HOME,
     join(launch.jobDirectory, "config"),
+  );
+  assert.equal(
+    launch.environmentTemplate.PATH,
+    "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin",
+  );
+  assert.equal(
+    launch.environmentTemplate.DOCKER_HOST,
+    "unix:///tmp/coffee-chat-docker.sock",
+  );
+  assert.equal(
+    launch.environmentTemplate.DOCKER_CONFIG,
+    join(launch.jobDirectory, "docker-config"),
+  );
+  assert.deepEqual(
+    JSON.parse(
+      readFileSync(
+        join(launch.environmentTemplate.DOCKER_CONFIG, "config.json"),
+        "utf8",
+      ),
+    ),
+    {
+      cliPluginsExtraDirs: ["/opt/homebrew/lib/docker/cli-plugins"],
+    },
   );
   assert.deepEqual(launch.credentialBinding, {
     childVariable: "OPENAI_API_KEY",
@@ -1156,6 +1180,8 @@ test("spawn-local credential boundary maps only an explicit dedicated key", () =
   });
   assert.equal(captured?.OPENAI_API_KEY, secret);
   assert.deepEqual(Object.keys(captured!).sort(), [
+    "DOCKER_CONFIG",
+    "DOCKER_HOST",
     "HOME",
     "LANG",
     "OPENAI_API_KEY",
