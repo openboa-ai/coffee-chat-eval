@@ -22,7 +22,7 @@ the real Codex/model benchmark smoke remains manual.
 
 PCDA is the first performance-capable path. Eval may use only staged Bench
 public CLIs and must not import or reproduce Bench MAC, verifier, judgment, or
-metric logic. Bench commit `1a743f17a88a1e5b50b4b7e19c2cbeaef76922fa`
+metric logic. Bench commit `b8b7328c0df402b0935b1bb390109164d689bb8f`
 owns public `attest <unsigned> <signed>` and `judge` boundaries. Eval passes
 the candidate-settled remainder through
 `COFFEE_CHAT_EVAL_JUDGE_CAP_NANO_USD` and stops unmeasured when cost evidence

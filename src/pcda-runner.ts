@@ -112,6 +112,7 @@ function inspectTrial(
   const raw = JSON.parse(readFileSync(resultPath, "utf8")) as unknown;
   const native = parsePcdaNativeResult(raw, {
     agentName: "codex",
+    agentVersion: "0.147.0",
     modelName: candidateModel,
   });
   if (native.state === "invalid") throw new Error(native.reason);

@@ -636,7 +636,7 @@ test("buildPcdaHarborArgs maps only the explicit candidate key into a phase-boun
     policyVersion: "uvx 0.8.3",
   });
   assert.match(launch.uvx.observedDigest, DIGEST_PATTERN);
-  assert.deepEqual(launch.args.slice(0, 12), [
+  assert.deepEqual(launch.args.slice(0, 14), [
     "--from",
     "harbor==0.21.0",
     "harbor",
@@ -647,10 +647,17 @@ test("buildPcdaHarborArgs maps only the explicit candidate key into a phase-boun
     "codex",
     "--model",
     "gpt-5.6-terra",
+    "--agent-kwarg",
+    "version=0.147.0",
     "--env",
     "docker",
   ]);
   assert.equal(launch.args.includes("--n-concurrent"), true);
+  assert.equal(launch.args.includes("--agent-kwarg"), true);
+  assert.equal(
+    launch.args[launch.args.indexOf("--agent-kwarg") + 1],
+    "version=0.147.0",
+  );
   assert.equal(launch.args[launch.args.indexOf("--n-concurrent") + 1], "1");
   assert.equal(launch.args.includes("--yes"), true);
   assert.equal(launch.args.includes("--quiet"), true);
@@ -1135,12 +1142,20 @@ test("PCDA live evidence requires the exact Codex Terra candidate identity", () 
   assert.equal(
     parsePcdaNativeResult(pcdaNativeResult(), {
       agentName: "codex",
+      agentVersion: "0.147.0",
       modelName: "gpt-5.6-terra",
     }).state,
     "accepted",
   );
   for (const evidence of [
     pcdaNativeResult({ agent_info: { name: "other", version: "1" } }),
+    pcdaNativeResult({
+      agent_info: {
+        name: "codex",
+        version: "0.148.0",
+        model_info: { name: "gpt-5.6-terra" },
+      },
+    }),
     pcdaNativeResult({
       agent_info: {
         name: "codex",
@@ -1151,6 +1166,7 @@ test("PCDA live evidence requires the exact Codex Terra candidate identity", () 
   ]) {
     const parsed = parsePcdaNativeResult(evidence, {
       agentName: "codex",
+      agentVersion: "0.147.0",
       modelName: "gpt-5.6-terra",
     });
     assert.equal(parsed.state, "invalid");
@@ -1540,7 +1556,7 @@ test("PCDA CLI keeps calibration deterministic and live Codex manual-only", asyn
       "--bench-repo",
       "/tmp/coffee-chat-bench",
       "--bench-commit",
-      "1a743f17a88a1e5b50b4b7e19c2cbeaef76922fa",
+      "b8b7328c0df402b0935b1bb390109164d689bb8f",
       "--case",
       "bank/campaign/development/000.json",
       "--candidate-model",
@@ -1559,7 +1575,7 @@ test("PCDA CLI keeps calibration deterministic and live Codex manual-only", asyn
     {
       runManual: async (request) => {
         dispatched = true;
-        assert.equal(request.benchCommit, "1a743f17a88a1e5b50b4b7e19c2cbeaef76922fa");
+        assert.equal(request.benchCommit, "b8b7328c0df402b0935b1bb390109164d689bb8f");
         assert.equal(request.credentialName, "COFFEE_CHAT_CANDIDATE_API_KEY");
         return { exitCode: 0, report: { state: "completed" } };
       },
@@ -1577,7 +1593,7 @@ test("PCDA CLI keeps calibration deterministic and live Codex manual-only", asyn
         "--bench-repo",
         "/tmp/coffee-chat-bench",
         "--bench-commit",
-        "1a743f17a88a1e5b50b4b7e19c2cbeaef76922fa",
+        "b8b7328c0df402b0935b1bb390109164d689bb8f",
         "--case",
         "bank/campaign/development/000.json",
         "--candidate-model",

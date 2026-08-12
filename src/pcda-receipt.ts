@@ -69,6 +69,7 @@ export function parsePcdaNativeResult(
   value: unknown,
   expected?: {
     readonly agentName: "codex";
+    readonly agentVersion: "0.147.0";
     readonly modelName: "gpt-5.6-terra";
   },
 ): ParsedPcdaNativeResult {
@@ -118,7 +119,9 @@ export function parsePcdaNativeResult(
   }
   if (
     expected !== undefined &&
-    (agent.name !== expected.agentName || model?.name !== expected.modelName)
+    (agent.name !== expected.agentName ||
+      agent.version !== expected.agentVersion ||
+      model?.name !== expected.modelName)
   ) {
     return invalid("candidate", "Harbor candidate identity does not match the launch");
   }
