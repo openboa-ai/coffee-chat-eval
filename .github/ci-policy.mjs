@@ -33,12 +33,25 @@ const calibrationCommands = [
   "npm run benchmark:calibrate",
   "npm run pcda:calibrate",
 ];
-const calibrationPackageScripts = {
+const expectedPackageScripts = {
   "benchmark:calibrate":
     "node --experimental-strip-types src/canary-cli.ts benchmark-calibrate",
+  build: "tsc --noEmit",
   "canary:calibrate": "node --experimental-strip-types src/canary-cli.ts calibrate",
+  "canary:check":
+    "python3 -m py_compile evals/protocol-canary/tests/verify.py evals/ifeval-smoke/tests/verify.py && sh -n evals/protocol-canary/solution/solve.sh evals/protocol-canary/tests/test.sh evals/ifeval-smoke/solution/solve.sh evals/ifeval-smoke/tests/test.sh",
+  "ci:policy":
+    "node --test tests/workflow-policy.test.mjs && node .github/ci-policy.mjs",
+  "dry-run": "node --experimental-strip-types src/cli.ts dry-run",
+  format: "prettier --write .",
+  "format:check": "prettier --check .",
+  "hooks:install": "git config core.hooksPath .githooks",
   "pcda:calibrate":
     "node --experimental-strip-types src/pcda-cli.ts calibrate --oracle-result $PWD/tests/fixtures/pcda-calibration/oracle-result.json --noop-result $PWD/tests/fixtures/pcda-calibration/noop-result.json",
+  "security:scan": "gitleaks git --redact --no-banner .",
+  smoke: "node --experimental-strip-types --test tests/smoke.test.ts",
+  test: "node --experimental-strip-types --test tests/*.test.*",
+  typecheck: "tsc --noEmit",
 };
 const authorEligibilityGate = `case "$EVENT_NAME" in
   pull_request)
@@ -760,10 +773,17 @@ if (
 ) {
   fail("package command must run fixtures before the checker");
 }
-for (const [name, command] of Object.entries(calibrationPackageScripts)) {
-  if (packageJson.scripts?.[name] !== command) {
-    fail(`calibration package scripts must remain exact: ${name}`);
-  }
+if (
+  !equal(
+    Object.entries(packageJson.scripts ?? {}).sort(([left], [right]) =>
+      left.localeCompare(right),
+    ),
+    Object.entries(expectedPackageScripts).sort(([left], [right]) =>
+      left.localeCompare(right),
+    ),
+  )
+) {
+  fail("package scripts must remain exact");
 }
 if (Object.hasOwn(packageJson.scripts ?? {}, "pcda:codex")) {
   fail("credential-bearing live PCDA command must remain absent");

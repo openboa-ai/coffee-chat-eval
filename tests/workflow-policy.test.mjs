@@ -526,7 +526,24 @@ for (const [script, replacement] of [
       const packageJson = JSON.parse(await readFile(target, "utf8"));
       packageJson.scripts[script] = replacement;
       await writeFile(target, `${JSON.stringify(packageJson, null, 2)}\n`);
-    }, /calibration package scripts/u);
+    }, /package scripts must remain exact/u);
+  });
+}
+
+for (const hook of [
+  "precanary:calibrate",
+  "postcanary:calibrate",
+  "prebenchmark:calibrate",
+  "prepcda:calibrate",
+]) {
+  test(`rejects the implicit npm lifecycle hook ${hook}`, async () => {
+    await expectRejected(async (fixture) => {
+      const target = join(fixture, "package.json");
+      const packageJson = JSON.parse(await readFile(target, "utf8"));
+      packageJson.scripts[hook] =
+        "node --experimental-strip-types src/unreviewed-hook.ts";
+      await writeFile(target, `${JSON.stringify(packageJson, null, 2)}\n`);
+    }, /package scripts must remain exact/u);
   });
 }
 
