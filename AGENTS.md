@@ -30,10 +30,11 @@ Use the single unpadded `YYYY.M.D` CalVer in `package.json`, `PLAN.md`, dry-run
 reports, and receipts. Run `npm run format:check`, `npm run typecheck`,
 `npm run build`, `npm run canary:check`, `npm test`, `npm run smoke`, `npm run ci:policy`, and
 `npm run dry-run`, and `npm run pcda:calibrate` before committing.
-The organization-required workflow in `openboa-ai/.github` is the authorization
-boundary. It executes this base commit's checker and parser against the pull
-request as inert data. Candidate and local package scripts are post-trust
-quality checks only. On an author-controlled checkout, explicitly run `node
+The pinned target wrapper delegates to the reusable workflow in
+`openboa-ai/.github`, which is the authorization boundary. It executes this
+base commit's checker and parser against the pull request as inert data.
+Candidate and local package scripts are post-trust quality checks only. On an
+author-controlled checkout, explicitly run `node
 .github/policy-bootstrap.mjs && npm ci --ignore-scripts --prefix
 .github/policy-parser` before `npm test` or `npm run ci:policy`; never use that
 candidate command to decide whether an untrusted branch is safe. Root `.npmrc`,
@@ -43,21 +44,20 @@ authorities and must be absent. Harbor calibration likewise uses only the comple
 absolute `HARBOR_COMMAND` path and never restore online `uvx` resolution.
 
 Agents develop through pull requests and must state exact fixture, manual, and
-unavailable evidence. Candidate workflows admit `OWNER`, `MEMBER`, and exactly
-the in-repository `dependabot[bot]` actor and pull-request author; never broaden
-this to contributors or another head repository. Merge queue is disabled. After
-required checks pass, enable GitHub-native squash auto-merge. Organization rules
-apply one human-only team approval only when a configured sensitive governance
-or external-execution path changes; ordinary code and dependency maintenance
-remain zero-review. Do not add custom write-token merge automation or let a
-candidate workflow decide that review boundary.
+unavailable evidence. The target repository exposes one inert
+`pull_request_target` wrapper pinned to the central reusable gate. That trusted
+gate admits `OWNER`, `MEMBER`, and exactly in-repository `dependabot[bot]`,
+with matching actor, pull-request author, and head repository. Never add another
+target workflow or broaden this set. Merge queue is disabled. Routine changes
+use native squash auto-merge; sensitive governance or external-execution
+changes wait for the protected `coffee-security` Environment.
 
-Required CI authenticates the exact parser manifest and lock with built-in
-Node.js code, installs that integrity-pinned parser under
-`.github/policy-parser`, audits that dependency tree independently, and only
-then loads it to enforce structural policy before installing root dependencies
-in every candidate-executing job. Treat the bootstrap, manifest, lockfile,
-checker, and workflow ordering as one sensitive boundary. Root
+The central gate authenticates the exact base parser manifest and lock, audits
+that parser independently, and treats the pull request as inert data before any
+candidate dependency or script runs. Candidate-local checks are deterministic
+quality evidence only, never authorization. Treat the bootstrap, manifest,
+lockfile, checker, wrapper, and central gate revision as one sensitive boundary.
+Root
 dependency updates stay on the GitHub-native path only when package names,
 exact versions, npm registry tarball identities, and sha512 lockfile
 integrities pass that protected policy.

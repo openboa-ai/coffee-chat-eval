@@ -7,8 +7,7 @@ import test from "node:test";
 
 const root = resolve(import.meta.dirname, "..");
 const hook = join(root, ".githooks", "pre-commit");
-const workflow = join(root, ".github", "workflows", "quality.yml");
-const installer = join(root, ".github", "scripts", "install-gitleaks.sh");
+const trustedWrapper = join(root, ".github", "workflows", "trusted.yml");
 
 function git(args, cwd) {
   return spawnSync("git", args, { cwd, encoding: "utf8" });
@@ -49,17 +48,16 @@ test("local credential files are ignored without hiding the example", () => {
   assert.notEqual(publicKey.status, 0, "public keys must remain publishable");
 });
 
-test("trusted boundary fetches the fork base and scans raw introduced blobs", () => {
-  const source = readFileSync(
-    join(root, ".github", "workflows", "secret-boundary.yml"),
-    "utf8",
-  );
-  assert.doesNotMatch(source, /merge_group:/u);
-  assert.match(source, /set -o pipefail/u);
-  assert.match(source, /git -C candidate fetch --no-tags --depth=1/u);
-  assert.match(source, /BASE_REPOSITORY/u);
-  assert.match(source, /git -C candidate rev-list --objects/u);
-  assert.match(source, /git -C candidate cat-file blob/u);
+test("automatic CI delegates to the pinned central gate without local execution", () => {
+  const source = readFileSync(trustedWrapper, "utf8");
+  const controlSha = source.match(
+    /uses: openboa-ai\/\.github\/\.github\/workflows\/coffee-trusted-gate\.yml@([0-9a-f]{40})/u,
+  )?.[1];
+  assert.ok(controlSha, "central gate must use a full immutable revision");
+  assert.match(source, /pull_request_target:/u);
+  assert.match(source, new RegExp(`control_sha: ${controlSha}`, "u"));
+  assert.doesNotMatch(source, /^\s*run:/mu);
+  assert.doesNotMatch(source, /secrets\./u);
 });
 
 test("the repository hook rejects a generated staged secret and redacts output", () => {
@@ -114,25 +112,4 @@ test("the repository hook rejects a generated staged secret and redacts output",
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }
-});
-
-test("required CI installs an immutable scanner and scans complete history", () => {
-  const source = readFileSync(workflow, "utf8");
-  assert.match(source, /fetch-depth:\s*0/u);
-  assert.match(source, /\.github\/scripts\/install-gitleaks\.sh/u);
-  assert.match(source, /GITLEAKS_TRUSTED_CONFIG/u);
-  assert.match(source, /--ignore-gitleaks-allow/u);
-  assert.match(source, /test ! -e \.gitleaks\.toml/u);
-
-  const installSource = readFileSync(installer, "utf8");
-  assert.match(installSource, /GITLEAKS_VERSION=8\.30\.1/u);
-  assert.match(
-    installSource,
-    /551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb/u,
-  );
-  assert.match(
-    installSource,
-    /e163e53b9e7e8a8511e77271e2b323ed057759542a6d988258afe3a1fa329caf/u,
-  );
-  assert.match(installSource, /sha256sum --check/u);
 });
