@@ -46,10 +46,10 @@ candidate workflow decide that review boundary.
 
 Required CI authenticates the exact parser manifest and lock with built-in
 Node.js code, installs that integrity-pinned parser under
-`.github/policy-parser`, and only then loads it to enforce structural policy
-before installing root dependencies in every candidate-executing job. Treat
-the bootstrap, manifest, lockfile, checker, and workflow ordering as one
-sensitive boundary. Root
+`.github/policy-parser`, audits that dependency tree independently, and only
+then loads it to enforce structural policy before installing root dependencies
+in every candidate-executing job. Treat the bootstrap, manifest, lockfile,
+checker, and workflow ordering as one sensitive boundary. Root
 dependency updates stay on the GitHub-native path only when package names,
 exact versions, npm registry tarball identities, and sha512 lockfile
 integrities pass that protected policy.
