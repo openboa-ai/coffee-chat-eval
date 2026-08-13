@@ -808,8 +808,8 @@ const uvRequirement = readFileSync(
   "utf8",
 );
 const approvedUvRequirement = [
-  "uv==0.8.3 \\",
-  "    --hash=sha256:f1eb7c896fc0d80ed534748aaf46697b6ebc8ce401f1c51666ce0b9923c3db9a",
+  "uv==0.12.3 \\",
+  "    --hash=sha256:1482d1462b1aecd18ee33627363fe1c63d6a194f12d40d37efc446d9e0d800a1",
   "",
 ].join("\n");
 if (uvRequirement !== approvedUvRequirement) {

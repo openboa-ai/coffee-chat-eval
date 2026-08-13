@@ -145,6 +145,7 @@ test("calibration rejects credentials and passes only an allowlisted child envir
   assert.deepEqual(
     createCalibrationEnvironment({
       ACTIONS_RUNTIME_TOKEN: "must-not-enter-harbor",
+      AZURE_EXTENSION_DIR: "/opt/az",
       CODEX_CI: "1",
       HOME: "/tmp/home",
       LANG: "C.UTF-8",

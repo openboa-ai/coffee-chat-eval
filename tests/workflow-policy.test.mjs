@@ -63,6 +63,21 @@ test("accepts the checked-in workflow policy", async () => {
   assert.equal(result.status, 0, result.output);
 });
 
+test("pins a patched hash-verified uv release", async () => {
+  const requirement = await readFile(
+    join(repositoryRoot, ".github/uv-requirements.txt"),
+    "utf8",
+  );
+  assert.equal(
+    requirement,
+    [
+      "uv==0.12.3 \\",
+      "    --hash=sha256:1482d1462b1aecd18ee33627363fe1c63d6a194f12d40d37efc446d9e0d800a1",
+      "",
+    ].join("\n"),
+  );
+});
+
 test("checked-in author gates admit only maintainers and Dependabot", async () => {
   const quality = await readFile(
     join(repositoryRoot, ".github/workflows/quality.yml"),
