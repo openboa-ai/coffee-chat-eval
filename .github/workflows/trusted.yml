@@ -1,0 +1,18 @@
+name: OpenBoa Coffee trusted gate
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions: {}
+
+jobs:
+  trusted:
+    name: OpenBoa Coffee trusted required
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+    uses: openboa-ai/.github/.github/workflows/coffee-trusted-gate.yml@154b5c4d563bcc42271d8aabf853db3e48292d68
+    with:
+      control_sha: 154b5c4d563bcc42271d8aabf853db3e48292d68

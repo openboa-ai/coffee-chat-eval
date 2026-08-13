@@ -881,7 +881,40 @@ function validateMergePolicy() {
 const discovered = readdirSync(workflowRoot)
   .filter((name) => /\.ya?ml$/u.test(name))
   .sort();
-if (!equal(discovered, workflowNames)) fail("workflow set must be exact");
+if (!equal(discovered, [...workflowNames, "trusted.yml"].sort()))
+  fail("workflow set must contain legacy gates plus the trusted wrapper");
+
+const trustedWorkflowSource = readFileSync(
+  resolve(workflowRoot, "trusted.yml"),
+  "utf8",
+);
+const trustedControlSha = trustedWorkflowSource.match(
+  /uses: openboa-ai\/\.github\/\.github\/workflows\/coffee-trusted-gate\.yml@([0-9a-f]{40})/u,
+)?.[1];
+const expectedTrustedWorkflow =
+  trustedControlSha &&
+  `name: OpenBoa Coffee trusted gate
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions: {}
+
+jobs:
+  trusted:
+    name: OpenBoa Coffee trusted required
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+    uses: openboa-ai/.github/.github/workflows/coffee-trusted-gate.yml@${trustedControlSha}
+    with:
+      control_sha: ${trustedControlSha}
+`;
+if (!trustedControlSha || trustedWorkflowSource !== expectedTrustedWorkflow) {
+  fail("trusted wrapper must remain exact");
+}
 
 const workflows = {};
 for (const name of workflowNames) {
