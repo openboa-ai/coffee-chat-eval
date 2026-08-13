@@ -2,9 +2,11 @@
 /LICENSE @openboa
 /PLAN.md @openboa
 /SECURITY.md @openboa
+/.npmrc @openboa-ai/security-maintainers
 /.github/ @openboa
 /package.json @openboa
 /package-lock.json @openboa
+/npm-shrinkwrap.json @openboa-ai/security-maintainers
 /prettier.config.mjs @openboa
 /src/identity.ts @openboa
 /src/matrix.ts @openboa

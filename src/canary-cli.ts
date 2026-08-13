@@ -1,9 +1,9 @@
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { dirname, isAbsolute, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-import { HARBOR_VERSION, parseHarborTrialResult } from "./harbor.ts";
+import { parseHarborTrialResult } from "./harbor.ts";
 
 const repository = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const credentialVariable =
@@ -58,6 +58,20 @@ export function parseCanaryCliArgs(args: readonly string[]): CanaryCliOptions {
   throw new Error("usage: canary-cli (calibrate|benchmark-calibrate)");
 }
 
+export function resolveHarborCommand(environment: NodeJS.ProcessEnv): string {
+  const command = environment.HARBOR_COMMAND;
+  if (command === undefined || command.length === 0) {
+    throw new Error("harbor_command_missing:HARBOR_COMMAND");
+  }
+  if (!isAbsolute(command)) {
+    throw new Error("harbor_command_must_be_absolute:HARBOR_COMMAND");
+  }
+  if (!existsSync(command)) {
+    throw new Error("harbor_command_not_found:HARBOR_COMMAND");
+  }
+  return command;
+}
+
 function readJson(path: string): unknown {
   return JSON.parse(readFileSync(path, "utf8")) as unknown;
 }
@@ -86,6 +100,7 @@ function runCalibrationPair(options: {
   readonly taskName: string;
   readonly jobPrefix: string;
 }): void {
+  const harborCommand = resolveHarborCommand(process.env);
   const environment = createCalibrationEnvironment(process.env);
   for (const [agent, expectedReward] of [
     ["oracle", 1],
@@ -95,11 +110,8 @@ function runCalibrationPair(options: {
     const directory = join(repository, "artifacts", "harbor", jobName);
     requireFreshJobDirectory(directory);
     execFileSync(
-      process.env.UVX_BIN ?? "uvx",
+      harborCommand,
       [
-        "--from",
-        `harbor==${HARBOR_VERSION}`,
-        "harbor",
         "run",
         "--path",
         options.taskPath,

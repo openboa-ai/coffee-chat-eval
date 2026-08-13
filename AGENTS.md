@@ -30,9 +30,17 @@ Use the single unpadded `YYYY.M.D` CalVer in `package.json`, `PLAN.md`, dry-run
 reports, and receipts. Run `npm run format:check`, `npm run typecheck`,
 `npm run build`, `npm run canary:check`, `npm test`, `npm run smoke`, `npm run ci:policy`, and
 `npm run dry-run`, and `npm run pcda:calibrate` before committing.
-After a clean checkout, run `npm ci --ignore-scripts` for root dependencies;
-`npm test` and `npm run ci:policy` install the isolated parser through the exact
-`policy:install` command before loading the checker or its fixtures.
+The organization-required workflow in `openboa-ai/.github` is the authorization
+boundary. It executes this base commit's checker and parser against the pull
+request as inert data. Candidate and local package scripts are post-trust
+quality checks only. On an author-controlled checkout, explicitly run `node
+.github/policy-bootstrap.mjs && npm ci --ignore-scripts --prefix
+.github/policy-parser` before `npm test` or `npm run ci:policy`; never use that
+candidate command to decide whether an untrusted branch is safe. Root `.npmrc`,
+parser `.npmrc`, and `npm-shrinkwrap.json` are unsupported competing install
+authorities and must be absent. Harbor calibration likewise uses only the complete hash-locked graph in
+`.github/harbor-requirements.txt`; invoke the resulting executable through the
+absolute `HARBOR_COMMAND` path and never restore online `uvx` resolution.
 
 Agents develop through pull requests and must state exact fixture, manual, and
 unavailable evidence. Candidate workflows admit `OWNER`, `MEMBER`, and exactly

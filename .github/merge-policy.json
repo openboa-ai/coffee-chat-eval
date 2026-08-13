@@ -23,6 +23,8 @@
     "AGENTS.md",
     "CODEOWNERS",
     "SECURITY.md",
+    ".npmrc",
+    "npm-shrinkwrap.json",
     "integrations/harbor/**",
     "evals/**",
     "src/benchmark-smoke.ts",
