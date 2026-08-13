@@ -264,7 +264,7 @@ test("rejects moving the policy gate outside candidate execution", async () => {
       "jobs:\n",
       "jobs:\n  auxiliary:\n    runs-on: ubuntu-24.04\n    steps:\n      - run: npm run ci:policy\n\n",
     );
-  }, /quality job runs the policy command/u);
+  }, /exact fail-closed candidate quality steps/u);
 });
 
 test("rejects live model execution in required CI", async () => {
@@ -319,7 +319,7 @@ test("rejects a base-ref checkout in candidate quality or Harbor calibration", a
         "          fetch-depth: 0\n",
         "          fetch-depth: 0\n          ref: ${{ github.event.pull_request.base.sha }}\n",
       ),
-    /exact candidate checkout/u,
+    /exact fail-closed candidate quality steps/u,
   );
   await expectRejected(
     (fixture) =>
@@ -329,7 +329,7 @@ test("rejects a base-ref checkout in candidate quality or Harbor calibration", a
         "          persist-credentials: false\n      - name: Set up Node.js\n",
         "          persist-credentials: false\n          ref: ${{ github.event.pull_request.base.sha }}\n      - name: Set up Node.js\n",
       ),
-    /Harbor checkout/u,
+    /exact hash-pinned Harbor calibration steps/u,
   );
 });
 
@@ -342,7 +342,7 @@ test("rejects conditional required commands and a manufactured aggregate", async
         "      - run: npm test\n",
         "      - run: npm test\n        continue-on-error: true\n",
       ),
-    /required commands/u,
+    /exact fail-closed candidate quality steps/u,
   );
   await expectRejected(
     (fixture) =>
@@ -355,6 +355,27 @@ test("rejects conditional required commands and a manufactured aggregate", async
     /aggregate contract/u,
   );
 });
+
+for (const [name, workflow, step] of [
+  [
+    "candidate quality",
+    ".github/workflows/quality.yml",
+    "      - name: Scan complete Git history and worktree\n",
+  ],
+  [
+    "trusted boundary",
+    ".github/workflows/secret-boundary.yml",
+    "      - name: Scan candidate without executing it\n",
+  ],
+]) {
+  test(`rejects a failure-tolerant ${name} secret scan`, async () => {
+    await expectRejected(
+      (fixture) =>
+        replace(fixture, workflow, step, `${step}        continue-on-error: true\n`),
+      /secret scan|trusted boundary/u,
+    );
+  });
+}
 
 test("rejects removal of the raw Git blob scan", async () => {
   await expectRejected(
@@ -375,8 +396,21 @@ test("rejects routine Dependabot major updates", async () => {
       replace(
         fixture,
         ".github/dependabot.yml",
-        '    ignore:\n      - dependency-name: "*"\n        update-types: [version-update:semver-major]\n',
-        "",
+        "          - version-update:semver-patch\n    groups:\n",
+        "          - version-update:semver-patch\n          - version-update:semver-major\n    groups:\n",
+      ),
+    /major policy/u,
+  );
+});
+
+test("rejects a Dependabot policy that can suppress major security updates", async () => {
+  await expectRejected(
+    (fixture) =>
+      replace(
+        fixture,
+        ".github/dependabot.yml",
+        "    groups:\n",
+        '    ignore:\n      - dependency-name: "*"\n        update-types: [version-update:semver-major]\n    groups:\n',
       ),
     /major policy/u,
   );
@@ -398,7 +432,14 @@ test("rejects removal of the exact CodeQL required check identity", async () => 
 test("rejects removing an exact protected execution path", async () => {
   await expectRejected(
     (fixture) =>
-      replace(fixture, ".github/merge-policy.json", '    "src/registry.ts",\n', ""),
+      replace(fixture, ".github/merge-policy.json", '    "src/canary-cli.ts",\n', ""),
+    /exact protected paths/u,
+  );
+});
+
+test("rejects removing the Harbor task and verifier boundary", async () => {
+  await expectRejected(
+    (fixture) => replace(fixture, ".github/merge-policy.json", '    "evals/**",\n', ""),
     /exact protected paths/u,
   );
 });
@@ -426,4 +467,11 @@ test("documents GitHub-native selective-review auto-merge", async () => {
   assert.match(agentContract, /custom\s+write-token merge automation/u);
   assert.match(pullRequestTemplate, /Sensitive path/u);
   assert.match(pullRequestTemplate, /GitHub-native squash auto-merge/u);
+});
+
+test("documents only the credential-free calibration boundary", async () => {
+  const plan = await readFile(join(repositoryRoot, "PLAN.md"), "utf8");
+  assert.match(plan, /credential-free Oracle\/no-op Harbor\s+calibration/u);
+  assert.doesNotMatch(plan, /exact Coffee Chat commit installed/u);
+  assert.doesNotMatch(plan, /public coffee-chat Skill invocation/u);
 });

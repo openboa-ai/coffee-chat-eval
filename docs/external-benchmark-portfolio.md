@@ -5,25 +5,23 @@
   receipts, and performance reporting
 - **Canonical rationale:** workspace
   `docs/engineering/external-benchmark-portfolio.md`
-- **Runtime state:** one IFEval case has an execution-only adapter smoke; no
-  measured Coffee Chat result exists
+- **Runtime state:** one IFEval case has credential-free Oracle/no-op
+  calibration; no Coffee Chat candidate is executed or measured
 
-## Current execution smoke
+## Current calibration smoke
 
 `evals/ifeval-smoke/` pins official IFEval case `1001`, its source commit,
 source-file digest, exact-line digest, Apache-2.0 attribution, and excluded
-historical response assets. The candidate sees only the prompt and source
-identity; the deterministic `punctuation:no_comma` constraint remains in the
-separate verifier.
+historical response assets. The calibration task exposes only the prompt and
+source identity; the deterministic `punctuation:no_comma` constraint remains
+in the separate verifier.
 
-This smoke proves only that benchmark input is staged and read in the same task
-that invokes an exact installed Coffee Chat Plugin boundary, and that Harbor
-artifact collection, verifier execution, Codex trace evidence, cleanup, and
-receipt generation work. The current entrypoint cannot accept that input, so
-`candidateInputDelivery=not_supported` remains separate from
-`executionStatus=executed`, `resultState=not_implemented`, and
-`measurement=not_performed`. Native reward is raw pipeline evidence and is not
-a Coffee Chat score.
+This smoke proves only that Harbor can stage the task, run the bundled Oracle
+and no-op solutions, collect their artifacts, execute the sealed verifier, and
+parse the native results. It does not install or invoke Coffee Chat, a Plugin,
+a Codex session, or a model provider. Candidate input delivery and performance
+measurement remain `not_implemented` and `not_performed`; native reward is
+evaluator calibration evidence, never a Coffee Chat score.
 
 ## Shared evaluation target
 
