@@ -63,6 +63,24 @@ test("accepts the checked-in workflow policy", async () => {
   assert.equal(result.status, 0, result.output);
 });
 
+test("runs structural policy directly before every delegated package script", async () => {
+  const workflow = parse(
+    await readFile(join(repositoryRoot, ".github/workflows/quality.yml"), "utf8"),
+  );
+
+  for (const jobName of ["quality", "harbor-contract"]) {
+    const runs = workflow.jobs[jobName].steps
+      .map((step) => step.run)
+      .filter((run) => typeof run === "string");
+    const installIndex = runs.indexOf("npm ci --ignore-scripts");
+    const policyIndex = runs.indexOf("node .github/ci-policy.mjs");
+    const delegatedIndex = runs.findIndex((run) => run.startsWith("npm run "));
+
+    assert.equal(policyIndex, installIndex + 1, jobName);
+    assert.ok(policyIndex < delegatedIndex, jobName);
+  }
+});
+
 test("pins a patched hash-verified uv release", async () => {
   const requirement = await readFile(
     join(repositoryRoot, ".github/uv-requirements.txt"),
@@ -518,6 +536,32 @@ test("rejects weakening the package policy command", async () => {
         '"ci:policy": "node -e \\"process.exit(0)\\""',
       ),
     /package command/u,
+  );
+});
+
+test("rejects removing the direct quality policy gate", async () => {
+  await expectRejected(
+    (fixture) =>
+      replace(
+        fixture,
+        ".github/workflows/quality.yml",
+        "      - name: Enforce repository policy before delegated scripts\n        run: node .github/ci-policy.mjs\n",
+        "",
+      ),
+    /exact fail-closed candidate quality steps/u,
+  );
+});
+
+test("rejects removing the direct Harbor policy gate", async () => {
+  await expectRejected(
+    (fixture) =>
+      replace(
+        fixture,
+        ".github/workflows/quality.yml",
+        "      - name: Enforce repository policy before delegated scripts\n        run: node .github/ci-policy.mjs\n      - run: npm audit --audit-level=moderate\n      - name: Install hash-verified uv\n",
+        "      - run: npm audit --audit-level=moderate\n      - name: Install hash-verified uv\n",
+      ),
+    /exact hash-pinned Harbor calibration steps/u,
   );
 });
 
