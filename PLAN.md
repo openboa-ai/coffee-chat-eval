@@ -19,8 +19,10 @@ Harbor task
 Oracle=1 and no-op=0 calibrate the same task/verifier package. Both rewards are
 pipeline evidence, never Coffee Chat execution or performance. No Coffee Chat
 commit, Plugin, Skill, Codex session, model call, or provider credential enters
-this path. Malformed verifier output, host failure, calibration failure, and
-invalid artifacts remain distinct.
+this path. The launcher rejects credential-shaped ambient variables and passes
+only an allowlisted process environment to pinned Harbor. Malformed verifier
+output, host failure, calibration failure, and invalid artifacts remain
+distinct.
 
 Required CI validates deterministic job projection, result parsing, receipt and
 report contracts, task/verifier separation, Plugin evidence parsing, and status

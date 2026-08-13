@@ -29,10 +29,17 @@ jobs:
         run: |
           case "$EVENT_NAME" in
             pull_request)
-              case "$AUTHOR_ASSOCIATION" in OWNER|MEMBER) exit 0 ;; esac
-              test "$ACTOR" = "dependabot[bot]"
-              test "$PR_AUTHOR" = "dependabot[bot]"
-              test "$HEAD_REPOSITORY" = "$BASE_REPOSITORY"
+              case "$AUTHOR_ASSOCIATION" in
+                OWNER|MEMBER)
+                  test "$ACTOR" = "$PR_AUTHOR"
+                  test "$HEAD_REPOSITORY" = "$BASE_REPOSITORY"
+                  ;;
+                *)
+                  test "$ACTOR" = "dependabot[bot]"
+                  test "$PR_AUTHOR" = "dependabot[bot]"
+                  test "$HEAD_REPOSITORY" = "$BASE_REPOSITORY"
+                  ;;
+              esac
               ;;
             *) exit 1 ;;
           esac

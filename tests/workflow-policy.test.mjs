@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 import { promisify } from "node:util";
+import { parse } from "yaml";
 
 const execFileAsync = promisify(execFile);
 const repositoryRoot = fileURLToPath(new URL("../", import.meta.url));
@@ -83,6 +84,28 @@ test("checked-in author gates admit only maintainers and Dependabot", async () =
   assert.deepEqual(policy.eligible_bot_logins, ["dependabot[bot]"]);
   assert.equal(policy.merge_queue, false);
   assert.doesNotMatch(quality, /COLLABORATOR|CONTRIBUTOR/u);
+});
+
+test("maintainer gates bind actor, author, and same-repository head", async () => {
+  const quality = parse(
+    await readFile(join(repositoryRoot, ".github/workflows/quality.yml"), "utf8"),
+  );
+  const gate = quality.jobs.eligibility.steps[0].run;
+  await assert.rejects(
+    () =>
+      execFileAsync("bash", ["-euo", "pipefail", "-c", gate], {
+        env: {
+          ...process.env,
+          ACTOR: "different-maintainer",
+          AUTHOR_ASSOCIATION: "OWNER",
+          BASE_REPOSITORY: "openboa-ai/coffee-chat-eval",
+          EVENT_NAME: "pull_request",
+          HEAD_REPOSITORY: "attacker/coffee-chat-eval",
+          PR_AUTHOR: "pull-request-author",
+        },
+      }),
+    /Command failed/u,
+  );
 });
 
 test("rejects duplicate YAML mapping keys", async () => {
@@ -190,6 +213,32 @@ test("rejects a weakened candidate author gate", async () => {
     (fixture) =>
       replace(fixture, ".github/workflows/quality.yml", "OWNER|MEMBER", "CONTRIBUTOR"),
     /author eligibility job contract/u,
+  );
+});
+
+test("rejects removing maintainer actor and author identity binding", async () => {
+  await expectRejected(
+    (fixture) =>
+      replace(
+        fixture,
+        ".github/workflows/quality.yml",
+        '                  test "$ACTOR" = "$PR_AUTHOR"\n',
+        "                  true\n",
+      ),
+    /author eligibility job contract/u,
+  );
+});
+
+test("rejects removing trusted-boundary maintainer identity binding", async () => {
+  await expectRejected(
+    (fixture) =>
+      replace(
+        fixture,
+        ".github/workflows/secret-boundary.yml",
+        "      github.actor == github.event.pull_request.user.login &&\n",
+        "      github.actor != github.event.pull_request.user.login &&\n",
+      ),
+    /trusted author boundary/u,
   );
 });
 
@@ -456,6 +505,30 @@ test("rejects weakening the package policy command", async () => {
     /package command/u,
   );
 });
+
+for (const [script, replacement] of [
+  [
+    "canary:calibrate",
+    "node --experimental-strip-types src/unreviewed-harbor.ts calibrate",
+  ],
+  [
+    "benchmark:calibrate",
+    "node --experimental-strip-types src/unreviewed-harbor.ts benchmark-calibrate",
+  ],
+  [
+    "pcda:calibrate",
+    "node --experimental-strip-types src/unreviewed-pcda.ts calibrate",
+  ],
+]) {
+  test(`rejects redirecting the ${script} execution entrypoint`, async () => {
+    await expectRejected(async (fixture) => {
+      const target = join(fixture, "package.json");
+      const packageJson = JSON.parse(await readFile(target, "utf8"));
+      packageJson.scripts[script] = replacement;
+      await writeFile(target, `${JSON.stringify(packageJson, null, 2)}\n`);
+    }, /calibration package scripts/u);
+  });
+}
 
 test("documents GitHub-native selective-review auto-merge", async () => {
   const [agentContract, pullRequestTemplate] = await Promise.all([

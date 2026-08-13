@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import { createHarborJobConfig, parseHarborTrialResult } from "../src/harbor.ts";
-import { parseCanaryCliArgs } from "../src/canary-cli.ts";
+import { createCalibrationEnvironment, parseCanaryCliArgs } from "../src/canary-cli.ts";
 import {
   createProtocolCanaryReceipt,
   formatProtocolCanaryReport,
@@ -131,6 +131,34 @@ test("calibration is an explicit non-model command", () => {
   assert.deepEqual(parseCanaryCliArgs(["benchmark-calibrate"]), {
     command: "benchmark-calibrate",
   });
+});
+
+test("calibration rejects credentials and passes only an allowlisted child environment", () => {
+  assert.throws(
+    () =>
+      createCalibrationEnvironment({
+        OPENAI_API_KEY: "must-not-enter-harbor",
+        PATH: "/usr/bin",
+      }),
+    /credential_environment_not_allowed:OPENAI_API_KEY/u,
+  );
+  assert.deepEqual(
+    createCalibrationEnvironment({
+      ACTIONS_RUNTIME_TOKEN: "must-not-enter-harbor",
+      CODEX_CI: "1",
+      HOME: "/tmp/home",
+      LANG: "C.UTF-8",
+      PATH: "/usr/bin",
+      SSH_AUTH_SOCK: "/tmp/agent.sock",
+      TMPDIR: "/tmp",
+    }),
+    {
+      HOME: "/tmp/home",
+      LANG: "C.UTF-8",
+      PATH: "/usr/bin",
+      TMPDIR: "/tmp",
+    },
+  );
 });
 
 test("keeps IFEval constraints sealed from the candidate task image", () => {

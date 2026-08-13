@@ -6,6 +6,20 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { HARBOR_VERSION, parseHarborTrialResult } from "./harbor.ts";
 
 const repository = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const credentialVariable =
+  /^(?:(?:ANTHROPIC|AWS|AZURE|GCP|OPENAI)_|CODEX_(?:FORCE_AUTH_JSON|HOME)$|GH_TOKEN$|GITHUB_TOKEN$|GOOGLE_(?:API_KEY|APPLICATION_CREDENTIALS)$|NPM_TOKEN$)/iu;
+const calibrationEnvironmentKeys = [
+  "CURL_CA_BUNDLE",
+  "DOCKER_HOST",
+  "HOME",
+  "LANG",
+  "LC_ALL",
+  "PATH",
+  "REQUESTS_CA_BUNDLE",
+  "SSL_CERT_DIR",
+  "SSL_CERT_FILE",
+  "TMPDIR",
+] as const;
 
 export interface ProtocolCalibrationOptions {
   readonly command: "calibrate";
@@ -16,6 +30,23 @@ export interface BenchmarkCalibrationOptions {
 }
 
 export type CanaryCliOptions = ProtocolCalibrationOptions | BenchmarkCalibrationOptions;
+
+export function createCalibrationEnvironment(
+  environment: NodeJS.ProcessEnv,
+): Readonly<Record<string, string>> {
+  for (const name of Object.keys(environment)) {
+    if (credentialVariable.test(name)) {
+      throw new Error(`credential_environment_not_allowed:${name}`);
+    }
+  }
+  const child: Record<string, string> = {};
+  for (const name of calibrationEnvironmentKeys) {
+    const value = environment[name];
+    if (value !== undefined) child[name] = value;
+  }
+  if (!child.PATH) throw new Error("calibration_environment_missing:PATH");
+  return Object.freeze(child);
+}
 
 export function parseCanaryCliArgs(args: readonly string[]): CanaryCliOptions {
   if (
@@ -55,6 +86,7 @@ function runCalibrationPair(options: {
   readonly taskName: string;
   readonly jobPrefix: string;
 }): void {
+  const environment = createCalibrationEnvironment(process.env);
   for (const [agent, expectedReward] of [
     ["oracle", 1],
     ["nop", 0],
@@ -84,7 +116,7 @@ function runCalibrationPair(options: {
         "--yes",
         "--quiet",
       ],
-      { cwd: repository, env: process.env, stdio: "inherit" },
+      { cwd: repository, env: environment, stdio: "inherit" },
     );
     const result = parseHarborTrialResult(
       readJson(join(singleTrialDirectory(directory), "result.json")),

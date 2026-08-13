@@ -33,12 +33,26 @@ const calibrationCommands = [
   "npm run benchmark:calibrate",
   "npm run pcda:calibrate",
 ];
+const calibrationPackageScripts = {
+  "benchmark:calibrate":
+    "node --experimental-strip-types src/canary-cli.ts benchmark-calibrate",
+  "canary:calibrate": "node --experimental-strip-types src/canary-cli.ts calibrate",
+  "pcda:calibrate":
+    "node --experimental-strip-types src/pcda-cli.ts calibrate --oracle-result $PWD/tests/fixtures/pcda-calibration/oracle-result.json --noop-result $PWD/tests/fixtures/pcda-calibration/noop-result.json",
+};
 const authorEligibilityGate = `case "$EVENT_NAME" in
   pull_request)
-    case "$AUTHOR_ASSOCIATION" in OWNER|MEMBER) exit 0 ;; esac
-    test "$ACTOR" = "dependabot[bot]"
-    test "$PR_AUTHOR" = "dependabot[bot]"
-    test "$HEAD_REPOSITORY" = "$BASE_REPOSITORY"
+    case "$AUTHOR_ASSOCIATION" in
+      OWNER|MEMBER)
+        test "$ACTOR" = "$PR_AUTHOR"
+        test "$HEAD_REPOSITORY" = "$BASE_REPOSITORY"
+        ;;
+      *)
+        test "$ACTOR" = "dependabot[bot]"
+        test "$PR_AUTHOR" = "dependabot[bot]"
+        test "$HEAD_REPOSITORY" = "$BASE_REPOSITORY"
+        ;;
+    esac
     ;;
   *) exit 1 ;;
 esac
@@ -545,7 +559,7 @@ function validateSecretBoundary(workflow) {
     boundary["runs-on"] !== "ubuntu-24.04" ||
     boundary["timeout-minutes"] !== 10 ||
     boundary.if !==
-      "github.event_name == 'workflow_dispatch' || github.event.pull_request.author_association == 'OWNER' || github.event.pull_request.author_association == 'MEMBER' || (github.actor == 'dependabot[bot]' && github.event.pull_request.user.login == 'dependabot[bot]' && github.event.pull_request.head.repo.full_name == github.repository)" ||
+      "github.event_name == 'workflow_dispatch' || ((github.event.pull_request.author_association == 'OWNER' || github.event.pull_request.author_association == 'MEMBER') && github.actor == github.event.pull_request.user.login && github.event.pull_request.head.repo.full_name == github.repository) || (github.actor == 'dependabot[bot]' && github.event.pull_request.user.login == 'dependabot[bot]' && github.event.pull_request.head.repo.full_name == github.repository)" ||
     !equal(boundary.permissions, { contents: "read" })
   ) {
     fail("secret-boundary.yml: trusted author boundary");
@@ -745,6 +759,11 @@ if (
   "node --test tests/workflow-policy.test.mjs && node .github/ci-policy.mjs"
 ) {
   fail("package command must run fixtures before the checker");
+}
+for (const [name, command] of Object.entries(calibrationPackageScripts)) {
+  if (packageJson.scripts?.[name] !== command) {
+    fail(`calibration package scripts must remain exact: ${name}`);
+  }
 }
 if (Object.hasOwn(packageJson.scripts ?? {}, "pcda:codex")) {
   fail("credential-bearing live PCDA command must remain absent");
