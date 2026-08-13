@@ -71,6 +71,6 @@ rights-cleared portfolio tracks remain inactive; no measured Coffee Chat result 
 `coffee-chat-bench` remains inactive.
 
 GitHub-native squash merge is the only merge method. Candidate-executing
-workflows admit only `OWNER` and `MEMBER` authors, require zero human
-approvals, and retain dependency review and CodeQL. CalVer is the only release
-identity and no compatibility layer is supported.
+workflows admit `OWNER`, `MEMBER`, and exactly `dependabot[bot]`, require zero
+human approvals, and retain dependency review and CodeQL. CalVer is the only
+release identity and no compatibility layer is supported.

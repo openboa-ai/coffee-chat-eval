@@ -18,10 +18,11 @@ test("policy check accepts the lean protected workflow shape", () => {
   );
 });
 
-test("candidate workflows admit only owners or members before checkout", () => {
+test("candidate workflows admit maintainers and exact Dependabot before checkout", () => {
   const workflow = read(".github/workflows/quality.yml");
   assert.match(workflow, /OWNER\|MEMBER/u);
-  assert.doesNotMatch(workflow, /COLLABORATOR|pull_request\.user\.login/u);
+  assert.match(workflow, /dependabot\[bot\]/u);
+  assert.doesNotMatch(workflow, /COLLABORATOR|CONTRIBUTOR/u);
   assert.match(workflow, /quality:\n    name: required\n    needs: eligibility/u);
   assert.match(
     workflow,

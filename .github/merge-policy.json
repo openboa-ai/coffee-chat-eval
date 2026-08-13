@@ -12,6 +12,7 @@
     "sensitive_paths_use_human_team_reviewer": true
   },
   "eligible_author_associations": ["OWNER", "MEMBER"],
+  "eligible_bot_logins": ["dependabot[bot]"],
   "protected_paths": [
     ".github/**",
     ".githooks/**",

@@ -36,7 +36,8 @@ const calibrationCommands = [
 const authorEligibilityGate = `case "$EVENT_NAME" in
   merge_group) exit 0 ;;
   pull_request)
-    case "$AUTHOR_ASSOCIATION" in OWNER|MEMBER) exit 0 ;; *) exit 1 ;; esac
+    case "$AUTHOR_ASSOCIATION" in OWNER|MEMBER) exit 0 ;; esac
+    test "$PR_AUTHOR" = "dependabot[bot]"
     ;;
   *) exit 1 ;;
 esac
@@ -284,11 +285,26 @@ function validateQuality(workflow) {
   }
   if (
     !isRecord(eligibility) ||
+    !hasExactKeys(eligibility, [
+      "name",
+      "runs-on",
+      "timeout-minutes",
+      "permissions",
+      "steps",
+    ]) ||
     eligibility.name !== "author eligibility" ||
+    eligibility["runs-on"] !== "ubuntu-24.04" ||
     !equal(eligibility.permissions, { contents: "read" }) ||
+    getSteps(eligibility).length !== 1 ||
+    getSteps(eligibility)[0]?.name !== "Decide author eligibility" ||
+    !equal(getSteps(eligibility)[0]?.env, {
+      AUTHOR_ASSOCIATION: "${{ github.event.pull_request.author_association }}",
+      EVENT_NAME: "${{ github.event_name }}",
+      PR_AUTHOR: "${{ github.event.pull_request.user.login }}",
+    }) ||
     getSteps(eligibility)[0]?.run !== authorEligibilityGate
   ) {
-    fail("quality.yml: OWNER|MEMBER author gate");
+    fail("quality.yml: author eligibility job contract");
   }
   if (
     !isRecord(quality) ||
@@ -408,7 +424,7 @@ function validateSecretBoundary(workflow) {
     boundary.name !== "Secret boundary" ||
     boundary["runs-on"] !== "ubuntu-latest" ||
     boundary.if !==
-      "github.event_name == 'workflow_dispatch' || github.event.pull_request.author_association == 'OWNER' || github.event.pull_request.author_association == 'MEMBER'" ||
+      "github.event_name == 'workflow_dispatch' || github.event.pull_request.author_association == 'OWNER' || github.event.pull_request.author_association == 'MEMBER' || github.event.pull_request.user.login == 'dependabot[bot]'" ||
     !equal(boundary.permissions, { contents: "read" })
   ) {
     fail("secret-boundary.yml: trusted author boundary");
@@ -502,6 +518,7 @@ function validateMergePolicy() {
     policy.auto_merge.required_checks !== true ||
     policy.required_approvals !== 0 ||
     !equal(policy.eligible_author_associations, ["OWNER", "MEMBER"]) ||
+    !equal(policy.eligible_bot_logins, ["dependabot[bot]"]) ||
     policy.review_policy?.default_required_approvals !== 0 ||
     policy.review_policy?.sensitive_paths_use_human_team_reviewer !== true
   ) {

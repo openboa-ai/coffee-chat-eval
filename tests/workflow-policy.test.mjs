@@ -62,6 +62,24 @@ test("accepts the checked-in workflow policy", async () => {
   assert.equal(result.status, 0, result.output);
 });
 
+test("checked-in author gates admit only maintainers and Dependabot", async () => {
+  const quality = await readFile(
+    join(repositoryRoot, ".github/workflows/quality.yml"),
+    "utf8",
+  );
+  const boundary = await readFile(
+    join(repositoryRoot, ".github/workflows/secret-boundary.yml"),
+    "utf8",
+  );
+  const policy = JSON.parse(
+    await readFile(join(repositoryRoot, ".github/merge-policy.json"), "utf8"),
+  );
+  assert.match(quality, /dependabot\[bot\]/u);
+  assert.match(boundary, /dependabot\[bot\]/u);
+  assert.deepEqual(policy.eligible_bot_logins, ["dependabot[bot]"]);
+  assert.doesNotMatch(quality, /COLLABORATOR|CONTRIBUTOR/u);
+});
+
 test("rejects duplicate YAML mapping keys", async () => {
   await expectRejected(
     (fixture) =>
@@ -155,7 +173,33 @@ test("rejects a weakened candidate author gate", async () => {
   await expectRejected(
     (fixture) =>
       replace(fixture, ".github/workflows/quality.yml", "OWNER|MEMBER", "CONTRIBUTOR"),
-    /OWNER\|MEMBER author gate/u,
+    /author eligibility job contract/u,
+  );
+});
+
+test("rejects removing the exact Dependabot identity", async () => {
+  await expectRejected(
+    (fixture) =>
+      replace(
+        fixture,
+        ".github/workflows/quality.yml",
+        '              test "$PR_AUTHOR" = "dependabot[bot]"\n',
+        "              exit 0\n",
+      ),
+    /author eligibility job contract/u,
+  );
+});
+
+test("rejects disabling the author eligibility job", async () => {
+  await expectRejected(
+    (fixture) =>
+      replace(
+        fixture,
+        ".github/workflows/quality.yml",
+        "    name: author eligibility\n",
+        "    name: author eligibility\n    if: ${{ false }}\n",
+      ),
+    /author eligibility job contract/u,
   );
 });
 
