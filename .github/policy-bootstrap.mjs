@@ -1,4 +1,4 @@
-import { lstatSync, readFileSync, realpathSync } from "node:fs";
+import { existsSync, lstatSync, readFileSync, realpathSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -47,6 +47,11 @@ function readJson(path, label) {
 
 export function authenticatePolicyParser(repositoryRoot) {
   const parserRoot = resolve(repositoryRoot, ".github/policy-parser");
+  if (existsSync(resolve(parserRoot, "npm-shrinkwrap.json"))) {
+    throw new TypeError(
+      "isolated policy parser npm-shrinkwrap.json must be absent before loading",
+    );
+  }
   const packageJson = readJson(
     resolve(parserRoot, "package.json"),
     "isolated policy parser package",
