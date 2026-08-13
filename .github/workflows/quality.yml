@@ -76,6 +76,8 @@ jobs:
         with:
           node-version: 24
           cache: npm
+      - name: Authenticate the isolated policy parser lock
+        run: node .github/policy-bootstrap.mjs
       - run: npm ci --ignore-scripts --prefix .github/policy-parser
       - name: Enforce repository policy before candidate dependencies
         run: node .github/ci-policy.mjs
@@ -122,6 +124,8 @@ jobs:
         with:
           node-version: 24
           cache: npm
+      - name: Authenticate the isolated policy parser lock
+        run: node .github/policy-bootstrap.mjs
       - run: npm ci --ignore-scripts --prefix .github/policy-parser
       - name: Enforce repository policy before candidate dependencies
         run: node .github/ci-policy.mjs
