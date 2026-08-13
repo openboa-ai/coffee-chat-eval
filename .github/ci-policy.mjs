@@ -508,8 +508,8 @@ function validateMergePolicy() {
     fail("merge policy must be GitHub-native selective-review squash");
   }
   for (const context of [
-    "Eval / aggregate",
-    "Eval / dependency review",
+    "aggregate",
+    "dependency review",
     "Secret boundary",
     "JavaScript-TypeScript",
   ]) {

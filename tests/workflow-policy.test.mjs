@@ -254,6 +254,19 @@ test("rejects removal of the CodeQL required context", async () => {
   );
 });
 
+test("rejects workflow-prefixed required contexts that GitHub does not emit", async () => {
+  await expectRejected(
+    (fixture) =>
+      replace(
+        fixture,
+        ".github/merge-policy.json",
+        '"aggregate"',
+        '"Eval / aggregate"',
+      ),
+    /require aggregate/u,
+  );
+});
+
 test("rejects weakening the package policy command", async () => {
   await expectRejected(
     (fixture) =>

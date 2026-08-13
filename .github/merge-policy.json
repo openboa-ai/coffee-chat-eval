@@ -28,8 +28,8 @@
     "src/runner.ts"
   ],
   "required_contexts": [
-    "Eval / aggregate",
-    "Eval / dependency review",
+    "aggregate",
+    "dependency review",
     "Secret boundary",
     "JavaScript-TypeScript"
   ]
