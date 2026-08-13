@@ -143,10 +143,6 @@ function getSteps(job) {
   return Array.isArray(job?.steps) ? job.steps : [];
 }
 
-function indexOfRun(steps, command) {
-  return steps.findIndex((step) => isRecord(step) && step.run === command);
-}
-
 function collectUses(value, result = [], seen = new WeakSet()) {
   if (!value || typeof value !== "object" || seen.has(value)) return result;
   seen.add(value);
