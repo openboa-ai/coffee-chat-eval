@@ -30,6 +30,9 @@ Use the single unpadded `YYYY.M.D` CalVer in `package.json`, `PLAN.md`, dry-run
 reports, and receipts. Run `npm run format:check`, `npm run typecheck`,
 `npm run build`, `npm run canary:check`, `npm test`, `npm run smoke`, `npm run ci:policy`, and
 `npm run dry-run`, and `npm run pcda:calibrate` before committing.
+After a clean checkout, run `npm ci --ignore-scripts` for root dependencies;
+`npm test` and `npm run ci:policy` install the isolated parser through the exact
+`policy:install` command before loading the checker or its fixtures.
 
 Agents develop through pull requests and must state exact fixture, manual, and
 unavailable evidence. Candidate workflows admit `OWNER`, `MEMBER`, and exactly

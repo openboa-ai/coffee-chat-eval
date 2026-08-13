@@ -45,16 +45,17 @@ const expectedPackageScripts = {
   "canary:check":
     "python3 -m py_compile evals/protocol-canary/tests/verify.py evals/protocol-canary/tests/resources.py evals/ifeval-smoke/tests/verify.py evals/ifeval-smoke/tests/resources.py && sh -n evals/protocol-canary/solution/solve.sh evals/protocol-canary/tests/test.sh evals/ifeval-smoke/solution/solve.sh evals/ifeval-smoke/tests/test.sh",
   "ci:policy":
-    "node --test tests/workflow-policy.test.mjs && node .github/ci-policy.mjs",
+    "npm run policy:install && node --test tests/workflow-policy.test.mjs && node .github/ci-policy.mjs",
   "dry-run": "node --experimental-strip-types src/cli.ts dry-run",
   format: "prettier --write .",
   "format:check": "prettier --check .",
   "hooks:install": "git config core.hooksPath .githooks",
   "pcda:calibrate":
     "node --experimental-strip-types src/pcda-cli.ts calibrate --oracle-result $PWD/tests/fixtures/pcda-calibration/oracle-result.json --noop-result $PWD/tests/fixtures/pcda-calibration/noop-result.json",
+  "policy:install": "npm ci --ignore-scripts --prefix .github/policy-parser",
   "security:scan": "gitleaks git --redact --no-banner .",
   smoke: "node --experimental-strip-types --test tests/smoke.test.ts",
-  test: "node --experimental-strip-types --test tests/*.test.*",
+  test: "npm run policy:install && node --experimental-strip-types --test tests/*.test.*",
   typecheck: "tsc --noEmit",
 };
 const authorEligibilityGate = `case "$EVENT_NAME" in
@@ -888,7 +889,7 @@ if (workflows["secret-boundary.yml"]) {
 const packageJson = JSON.parse(readFileSync(resolve(root, "package.json"), "utf8"));
 if (
   packageJson.scripts?.["ci:policy"] !==
-  "node --test tests/workflow-policy.test.mjs && node .github/ci-policy.mjs"
+  "npm run policy:install && node --test tests/workflow-policy.test.mjs && node .github/ci-policy.mjs"
 ) {
   fail("package command must run fixtures before the checker");
 }

@@ -23,6 +23,7 @@ try:
     ):
         reward = 1
 except (OSError, UnicodeError, json.JSONDecodeError, TypeError, ValueError):
+    # Invalid or unsafe candidate artifacts deterministically receive zero reward.
     pass
 
 Path("/logs/verifier/reward.json").write_text(json.dumps({"reward": reward}))
