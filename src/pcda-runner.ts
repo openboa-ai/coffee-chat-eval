@@ -1,13 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import {
-  existsSync,
-  lstatSync,
-  mkdirSync,
-  mkdtempSync,
-  readFileSync,
-  readdirSync,
-} from "node:fs";
+import { existsSync, lstatSync, mkdirSync, mkdtempSync, opendirSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -30,6 +23,8 @@ import {
   type Digest,
   type PcdaConditionEvidence,
 } from "./pcda-receipt.ts";
+import { stableDigest } from "./identity.ts";
+import { PCDA_RESOURCE_LIMITS, readBoundedJson } from "./pcda-resources.ts";
 
 const CAMPAIGN_CAP_NANO_USD = 50_000_000_000;
 const CANDIDATE_RESERVATION_NANO_USD = 20_000_000_000;
@@ -87,12 +82,35 @@ export interface PcdaManualRequest {
   readonly jobsRoot: string;
 }
 
+function boundedDirectoryEntries(path: string, label: string) {
+  const directory = opendirSync(path);
+  const entries = [];
+  try {
+    for (;;) {
+      const entry = directory.readSync();
+      if (entry === null) break;
+      if (entries.length === PCDA_RESOURCE_LIMITS.directoryEntries) {
+        throw new Error(`${label} exceeds its resource limit`);
+      }
+      entries.push(entry);
+    }
+  } finally {
+    directory.closeSync();
+  }
+  return entries;
+}
+
 function artifactManifestDigest(path: string): Digest {
-  const artifact = JSON.parse(readFileSync(path, "utf8")) as unknown;
-  const manifest =
+  const artifact = readBoundedJson(
+    path,
+    PCDA_RESOURCE_LIMITS.artifactBytes,
+    "candidate artifact",
+  );
+  const artifactRecord =
     artifact !== null && typeof artifact === "object" && !Array.isArray(artifact)
-      ? (artifact as Record<string, unknown>).manifest
+      ? (artifact as Record<string, unknown>)
       : undefined;
+  const manifest = artifactRecord?.manifest;
   const value =
     manifest !== null && typeof manifest === "object" && !Array.isArray(manifest)
       ? (manifest as Record<string, unknown>).artifactDigest
@@ -100,7 +118,19 @@ function artifactManifestDigest(path: string): Digest {
   if (typeof value !== "string" || !/^sha256:[0-9a-f]{64}$/u.test(value)) {
     throw new Error("candidate artifact manifest must contain artifactDigest");
   }
-  return value as Digest;
+  const digestInput = {
+    ...artifactRecord,
+    manifest: Object.fromEntries(
+      Object.entries(manifest as Record<string, unknown>).filter(
+        ([key]) => key !== "artifactDigest",
+      ),
+    ),
+  };
+  const computed = stableDigest(digestInput);
+  if (computed !== value) {
+    throw new Error("candidate artifact digest mismatch");
+  }
+  return computed;
 }
 
 export function locatePcdaTrialResult(jobDirectory: string): string {
@@ -109,15 +139,15 @@ export function locatePcdaTrialResult(jobDirectory: string): string {
   if (rootStat.isSymbolicLink() || !rootStat.isDirectory()) {
     throw new Error("Harbor jobs root must be a real directory");
   }
-  const jobs = readdirSync(root, { withFileTypes: true }).filter((entry) =>
+  const jobs = boundedDirectoryEntries(root, "Harbor jobs directory").filter((entry) =>
     /^coffee-chat-pcda-(?:t0|t1-a|t1-b)$/u.test(entry.name),
   );
   if (jobs.length !== 1 || jobs[0]!.isSymbolicLink() || !jobs[0]!.isDirectory()) {
     throw new Error("Harbor jobs root must contain exactly one native job");
   }
   const job = join(root, jobs[0]!.name);
-  const trials = readdirSync(job, { withFileTypes: true }).filter((entry) =>
-    /^harbor__[A-Za-z0-9_-]+$/u.test(entry.name),
+  const trials = boundedDirectoryEntries(job, "Harbor trial directory").filter(
+    (entry) => /^harbor__[A-Za-z0-9_-]+$/u.test(entry.name),
   );
   if (trials.length !== 1 || trials[0]!.isSymbolicLink() || !trials[0]!.isDirectory()) {
     throw new Error("Harbor job must contain exactly one native trial");
@@ -140,12 +170,11 @@ function requireHarborOutputArtifact(trial: string): string {
   if (manifestStat.isSymbolicLink() || !manifestStat.isFile()) {
     throw new Error("Harbor artifact manifest must be a real file");
   }
-  let manifest: unknown;
-  try {
-    manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as unknown;
-  } catch {
-    throw new Error("Harbor artifact manifest must be valid JSON");
-  }
+  const manifest = readBoundedJson(
+    manifestPath,
+    PCDA_RESOURCE_LIMITS.artifactManifestBytes,
+    "Harbor artifact manifest",
+  );
   if (!Array.isArray(manifest)) {
     throw new Error("Harbor artifact manifest must be an array");
   }
@@ -195,7 +224,11 @@ function requireHarborVerifierVerdict(
   if (stat.isSymbolicLink() || !stat.isFile()) {
     throw new Error("Harbor verifier verdict must be a real file");
   }
-  const value = JSON.parse(readFileSync(path, "utf8")) as unknown;
+  const value = readBoundedJson(
+    path,
+    PCDA_RESOURCE_LIMITS.verifierVerdictBytes,
+    "Harbor verifier verdict",
+  );
   if (value === null || typeof value !== "object" || Array.isArray(value)) {
     throw new Error("Harbor verifier verdict must be an object");
   }
@@ -247,7 +280,11 @@ export function inspectPcdaTrial(
   settledNanoUsd: number | null;
 } {
   const resultPath = locatePcdaTrialResult(jobDirectory);
-  const raw = JSON.parse(readFileSync(resultPath, "utf8")) as unknown;
+  const raw = readBoundedJson(
+    resultPath,
+    PCDA_RESOURCE_LIMITS.nativeResultBytes,
+    "Harbor native result",
+  );
   const native = parsePcdaNativeResult(raw, {
     agentName: "codex",
     agentVersion: "0.147.0",

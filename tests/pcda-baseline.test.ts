@@ -42,6 +42,7 @@ import {
   parsePcdaNativeResult,
 } from "../src/pcda-receipt.ts";
 import { runPcdaCli } from "../src/pcda-cli.ts";
+import { stableDigest } from "../src/identity.ts";
 import {
   candidateSettledNanoUsd,
   debitJudgeCost,
@@ -49,6 +50,7 @@ import {
   locatePcdaTrialResult,
   settleJudgeCost,
 } from "../src/pcda-runner.ts";
+import { PCDA_RESOURCE_LIMITS } from "../src/pcda-resources.ts";
 
 const DIGEST_PATTERN = /^sha256:[0-9a-f]{64}$/u;
 const canonicalTemporaryRoot = realpathSync(tmpdir());
@@ -1138,7 +1140,7 @@ test("PCDA native evidence preserves malformed and verifier failures", () => {
   }
 });
 
-test("PCDA trial inspection trusts Harbor artifact manifest evidence", () => {
+test("PCDA trial inspection recomputes the collected artifact digest", () => {
   const root = temporaryDirectory("pcda-harbor-artifact-");
   const trial = join(root, "coffee-chat-pcda-t0", "harbor__trial123");
   const artifacts = join(trial, "artifacts");
@@ -1153,7 +1155,7 @@ test("PCDA trial inspection trusts Harbor artifact manifest evidence", () => {
     state: "unmeasured",
   });
   writeJson(output, {
-    manifest: { artifactDigest: `sha256:${"a".repeat(64)}` },
+    manifest: { artifactDigest: stableDigest({ manifest: {} }) },
   });
   writeJson(join(artifacts, "manifest.json"), [
     {
@@ -1175,7 +1177,15 @@ test("PCDA trial inspection trusts Harbor artifact manifest evidence", () => {
   const inspected = inspectPcdaTrial(root, "gpt-5.6-terra");
   assert.equal(inspected.native.state, "accepted");
   assert.equal(inspected.artifactPath, output);
-  assert.equal(inspected.artifactDigest, `sha256:${"a".repeat(64)}`);
+  assert.equal(inspected.artifactDigest, stableDigest({ manifest: {} }));
+
+  writeJson(output, {
+    manifest: { artifactDigest: `sha256:${"b".repeat(64)}` },
+  });
+  assert.throws(() => inspectPcdaTrial(root, "gpt-5.6-terra"), /digest mismatch/u);
+  writeJson(output, {
+    manifest: { artifactDigest: stableDigest({ manifest: {} }) },
+  });
 
   writeJson(join(artifacts, "manifest.json"), [
     {
@@ -1187,6 +1197,76 @@ test("PCDA trial inspection trusts Harbor artifact manifest evidence", () => {
     },
   ]);
   assert.throws(() => inspectPcdaTrial(root, "gpt-5.6-terra"), /artifact manifest/u);
+});
+
+test("PCDA trial inspection rejects oversized untrusted evidence before parsing", () => {
+  const root = temporaryDirectory("pcda-resource-limits-");
+  const trial = join(root, "coffee-chat-pcda-t0", "harbor__trial123");
+  const artifacts = join(trial, "artifacts");
+  const output = join(artifacts, "app", "output.json");
+  mkdirSync(join(artifacts, "app"), { recursive: true });
+  mkdirSync(join(trial, "verifier"), { recursive: true });
+  writeJson(join(trial, "result.json"), pcdaNativeResult());
+  writeJson(join(trial, "verifier", "verdict.json"), {
+    accepted: true,
+    criticalFailure: false,
+    reasons: [],
+    state: "unmeasured",
+  });
+  writeJson(join(artifacts, "manifest.json"), [
+    {
+      source: "/app/output.json",
+      destination: "artifacts/app/output.json",
+      type: "file",
+      status: "ok",
+      service: null,
+    },
+  ]);
+  writeJson(output, {
+    manifest: { artifactDigest: stableDigest({ manifest: {} }) },
+  });
+
+  writeFileSync(
+    join(trial, "result.json"),
+    Buffer.alloc(PCDA_RESOURCE_LIMITS.nativeResultBytes + 1, 0x20),
+  );
+  assert.throws(() => inspectPcdaTrial(root, "gpt-5.6-terra"), /resource limit/u);
+  writeJson(join(trial, "result.json"), pcdaNativeResult());
+
+  writeFileSync(
+    join(artifacts, "manifest.json"),
+    Buffer.alloc(PCDA_RESOURCE_LIMITS.artifactManifestBytes + 1, 0x20),
+  );
+  assert.throws(() => inspectPcdaTrial(root, "gpt-5.6-terra"), /resource limit/u);
+  writeJson(join(artifacts, "manifest.json"), [
+    {
+      source: "/app/output.json",
+      destination: "artifacts/app/output.json",
+      type: "file",
+      status: "ok",
+      service: null,
+    },
+  ]);
+
+  writeFileSync(output, Buffer.alloc(PCDA_RESOURCE_LIMITS.artifactBytes + 1, 0x20));
+  assert.throws(() => inspectPcdaTrial(root, "gpt-5.6-terra"), /resource limit/u);
+
+  writeJson(output, {
+    manifest: { artifactDigest: stableDigest({ manifest: {} }) },
+  });
+  writeFileSync(
+    join(trial, "verifier", "verdict.json"),
+    Buffer.alloc(PCDA_RESOURCE_LIMITS.verifierVerdictBytes + 1, 0x20),
+  );
+  assert.throws(() => inspectPcdaTrial(root, "gpt-5.6-terra"), /resource limit/u);
+});
+
+test("PCDA trial discovery stops at its directory-entry budget", () => {
+  const root = temporaryDirectory("pcda-directory-budget-");
+  for (let index = 0; index <= PCDA_RESOURCE_LIMITS.directoryEntries; index += 1) {
+    mkdirSync(join(root, `untrusted-${index}`));
+  }
+  assert.throws(() => locatePcdaTrialResult(root), /resource limit/u);
 });
 
 test("PCDA trial inspection binds the structured verifier state to native reward", () => {
@@ -1201,7 +1281,7 @@ test("PCDA trial inspection binds the structured verifier state to native reward
     pcdaNativeResult({ verifier_result: { rewards: { reward: 0 } } }),
   );
   writeJson(output, {
-    manifest: { artifactDigest: `sha256:${"a".repeat(64)}` },
+    manifest: { artifactDigest: stableDigest({ manifest: {} }) },
   });
   writeJson(join(artifacts, "manifest.json"), [
     {
@@ -1597,10 +1677,15 @@ test("candidate failure receipt preserves cleanup and unknown failed-call cost",
 test("Eval calls staged Bench attest then judge with explicit remaining cap and key", async () => {
   const fixture = projectedFixture("T1-A");
   const artifactPath = join(fixture.root, "output.json");
-  writeJson(artifactPath, { artifact: "candidate" });
+  const artifactWithoutDigest = { artifact: "candidate", manifest: {} };
+  const artifactDigest = stableDigest(artifactWithoutDigest);
+  writeJson(artifactPath, {
+    artifact: "candidate",
+    manifest: { artifactDigest },
+  });
   const unsigned = buildUnsignedPcdaAttestation({
     projection: fixture.projection,
-    artifactDigest: `sha256:${"6".repeat(64)}`,
+    artifactDigest,
     benchCommit: fixture.snapshot.commit,
     bankDigest: fixture.snapshot.bankDigest,
     deterministic: {
@@ -1614,6 +1699,49 @@ test("Eval calls staged Bench attest then judge with explicit remaining cap and 
   const calls: string[] = [];
   const judgeCredential = "test-judge-credential";
   const credentialLoads: string[] = [];
+  await assert.rejects(
+    () =>
+      attestAndJudgeWithStagedBench({
+        snapshot: fixture.snapshot,
+        projection: fixture.projection,
+        artifactPath,
+        unsignedAttestation: {
+          ...unsigned,
+          artifactDigest: `sha256:${"6".repeat(64)}`,
+        },
+        capabilityKey: capability,
+        remainingJudgeCapNanoUsd: 38_000_000_000,
+        credentialName: "COFFEE_CHAT_CANDIDATE_API_KEY",
+        loadCredential: () => judgeCredential,
+        workspace: join(fixture.root, "rejected-judgment"),
+        invoke: async () => {
+          throw new Error("mismatched artifact reached the signer");
+        },
+      }),
+    /artifact digest mismatch/u,
+  );
+  await assert.rejects(
+    () =>
+      attestAndJudgeWithStagedBench({
+        snapshot: fixture.snapshot,
+        projection: fixture.projection,
+        artifactPath,
+        unsignedAttestation: unsigned,
+        capabilityKey: capability,
+        remainingJudgeCapNanoUsd: 38_000_000_000,
+        credentialName: "COFFEE_CHAT_CANDIDATE_API_KEY",
+        loadCredential: () => judgeCredential,
+        workspace: join(fixture.root, "oversized-signed-judgment"),
+        invoke: async ({ args }) => {
+          writeFileSync(
+            args[4]!,
+            Buffer.alloc(PCDA_RESOURCE_LIMITS.signedAttestationBytes + 1, 0x20),
+          );
+          return { exitCode: 0, stdout: '{"state":"signed"}\n' };
+        },
+      }),
+    /resource limit/u,
+  );
   const result = await attestAndJudgeWithStagedBench({
     snapshot: fixture.snapshot,
     projection: fixture.projection,

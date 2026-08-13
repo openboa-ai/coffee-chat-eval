@@ -17,6 +17,30 @@ Actions, GitHub Rulesets, Gitleaks, CodeQL, npm.
 
 ---
 
+## Task 0: Close repository-scan findings before lifecycle automation
+
+The Standard Codex Security scan at the exact pre-change revision found five
+candidate-controlled trust paths. Close them before enabling broader automatic
+merge:
+
+- remove the live Harbor Plugin adapter and commands that shared readable Codex
+  authentication with unsandboxed candidate code; keep only credential-free,
+  no-network Oracle/no-op calibration until a broker or split execution process
+  exists;
+- independently recompute the collected PCDA artifact digest before attestation
+  or judgment;
+- replace substring-only trajectory claims with exact structured command and
+  observation validation;
+- bound untrusted PCDA files, directory enumeration, signed attestations, and
+  structured evidence before traversal or model invocation.
+
+Add focused regressions for every boundary and run the complete evaluator suite
+before continuing with workflow-policy changes.
+
+Commit: `fix: isolate evaluator candidate evidence`
+
+---
+
 ## Task 1: Consolidate and structurally test workflow policy
 
 **Files:**

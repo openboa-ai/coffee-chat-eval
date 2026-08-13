@@ -25,7 +25,7 @@ collect = []
 timeout_sec = 120.0
 
 [environment]
-network_mode = "public"
+network_mode = "no-network"
 build_timeout_sec = 300.0
 os = "linux"
 mcp_servers = []

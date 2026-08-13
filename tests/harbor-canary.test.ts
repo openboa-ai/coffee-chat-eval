@@ -3,11 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import { createHarborJobConfig, parseHarborTrialResult } from "../src/harbor.ts";
-import {
-  buildBenchmarkHarborArgs,
-  buildCodexHarborArgs,
-  parseCanaryCliArgs,
-} from "../src/canary-cli.ts";
+import { parseCanaryCliArgs } from "../src/canary-cli.ts";
 import {
   createProtocolCanaryReceipt,
   formatProtocolCanaryReport,
@@ -128,48 +124,6 @@ test("projects one pinned Harbor job without inventing other harnesses", () => {
   );
 });
 
-test("projects one real Codex command with an exact candidate and no other harness", () => {
-  const options = parseCanaryCliArgs([
-    "codex",
-    "--candidate-repo",
-    "/tmp/coffee-chat",
-    "--candidate-commit",
-    candidateCommit,
-    "--model",
-    "gpt-5.6-sol",
-  ]);
-  assert.ok(options.command === "codex");
-
-  assert.deepEqual(buildCodexHarborArgs(options, "/tmp/staged-candidate"), [
-    "--from",
-    "harbor==0.21.0",
-    "harbor",
-    "run",
-    "--path",
-    "evals/protocol-canary",
-    "--agent",
-    "integrations.harbor.coffee_chat_codex:CoffeeChatCodex",
-    "--agent-kwarg",
-    "candidate_path=/tmp/staged-candidate",
-    "--agent-kwarg",
-    `candidate_commit=${candidateCommit}`,
-    "--agent-kwarg",
-    "version=0.147.0",
-    "--model",
-    "gpt-5.6-sol",
-    "--env",
-    "docker",
-    "--job-name",
-    "coffee-chat-protocol-canary-codex",
-    "--jobs-dir",
-    "artifacts/harbor",
-    "--n-concurrent",
-    "1",
-    "--yes",
-    "--quiet",
-  ]);
-});
-
 test("calibration is an explicit non-model command", () => {
   assert.deepEqual(parseCanaryCliArgs(["calibrate"]), {
     command: "calibrate",
@@ -177,48 +131,6 @@ test("calibration is an explicit non-model command", () => {
   assert.deepEqual(parseCanaryCliArgs(["benchmark-calibrate"]), {
     command: "benchmark-calibrate",
   });
-});
-
-test("projects one real Codex IFEval smoke command from an exact candidate", () => {
-  const options = parseCanaryCliArgs([
-    "benchmark",
-    "--candidate-repo",
-    "/tmp/coffee-chat",
-    "--candidate-commit",
-    candidateCommit,
-    "--model",
-    "gpt-5.6-sol",
-  ]);
-  assert.ok(options.command === "benchmark");
-
-  assert.deepEqual(buildBenchmarkHarborArgs(options, "/tmp/staged-candidate"), [
-    "--from",
-    "harbor==0.21.0",
-    "harbor",
-    "run",
-    "--path",
-    "evals/ifeval-smoke",
-    "--agent",
-    "integrations.harbor.coffee_chat_codex:CoffeeChatCodex",
-    "--agent-kwarg",
-    "candidate_path=/tmp/staged-candidate",
-    "--agent-kwarg",
-    `candidate_commit=${candidateCommit}`,
-    "--agent-kwarg",
-    "version=0.147.0",
-    "--model",
-    "gpt-5.6-sol",
-    "--env",
-    "docker",
-    "--job-name",
-    "coffee-chat-ifeval-smoke-codex",
-    "--jobs-dir",
-    "artifacts/harbor",
-    "--n-concurrent",
-    "1",
-    "--yes",
-    "--quiet",
-  ]);
 });
 
 test("keeps IFEval constraints sealed from the candidate task image", () => {
@@ -252,7 +164,7 @@ test("records benchmark execution without converting it into a performance score
       results: [
         {
           content:
-            '{"benchmark":"IFEval","key":1001,"source_digest":"sha256:d5ef5259a025140861c13b78b2be73479893b29d3cd1ed12cfda9446427d0396"}',
+            '{"benchmark":"IFEval","key":1001,"prompt":"I am planning a trip to Japan, and I would like thee to write an itinerary for my journey in a Shakespearean style. You are not allowed to use any commas in your response.","source_digest":"sha256:d5ef5259a025140861c13b78b2be73479893b29d3cd1ed12cfda9446427d0396"}',
         },
       ],
     }),
@@ -503,6 +415,47 @@ test("requires trace evidence for fresh discovery and public entrypoint executio
     () => validateCodexTraceEvidence({ steps: trace.steps.slice(0, 1) }),
     /entrypoint invocation/u,
   );
+  const falseInvocation = structuredClone(trace);
+  falseInvocation.steps[1]!.tool_calls![0]!.arguments.input =
+    'const r = await tools.exec_command({"cmd":"printf node scripts/run.mjs","workdir":"/tmp/codex-home/plugins/cache/openboa-ai/coffee-chat/2026.8.10/skills/coffee-chat"});';
+  falseInvocation.steps[1]!.observation = {
+    results: [
+      {
+        content: "prefix coffee-chat-capability-result suffix not_implemented",
+      },
+    ],
+  };
+  assert.throws(
+    () => validateCodexTraceEvidence(falseInvocation),
+    /entrypoint invocation/u,
+  );
+});
+
+test("rejects oversized trajectory evidence before traversal", () => {
+  assert.throws(
+    () =>
+      validateCodexTraceEvidence({
+        steps: [{ source: "system", message: "x".repeat(2 * 1024 * 1024 + 1) }],
+      }),
+    /resource limit/u,
+  );
+});
+
+test("rejects substring-only IFEval read evidence", () => {
+  const trace = ifevalTrace({
+    results: [
+      {
+        content: `prefix {"benchmark":"IFEval","key":1001,"source_digest":"sha256:d5ef5259a025140861c13b78b2be73479893b29d3cd1ed12cfda9446427d0396"} suffix`,
+      },
+    ],
+  }) as {
+    steps: Array<{
+      tool_calls?: Array<{ arguments: { input: string } }>;
+    }>;
+  };
+  trace.steps[1]!.tool_calls![0]!.arguments.input =
+    'const r = await tools.exec_command({"cmd":"printf cat /app/ifeval-case.json","workdir":"/app"});';
+  assert.throws(() => validateIFEvalTraceEvidence(trace), /IFEval input evidence/u);
 });
 
 test("accepts only a discovered, installed, enabled Plugin with matching cache digest", () => {

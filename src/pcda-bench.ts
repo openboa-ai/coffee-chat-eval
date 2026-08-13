@@ -16,6 +16,9 @@ import {
 import { tmpdir } from "node:os";
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 
+import { stableDigest } from "./identity.ts";
+import { PCDA_RESOURCE_LIMITS, readBoundedJson } from "./pcda-resources.ts";
+
 const COMMIT_PATTERN = /^[0-9a-f]{40}$/u;
 const DIGEST_PATTERN = /^sha256:[0-9a-f]{64}$/u;
 const CONDITION_SPECS = [
@@ -203,6 +206,34 @@ export async function attestAndJudgeWithStagedBench(
   if (!lstatSync(artifactPath).isFile()) {
     throw new Error("candidate artifact must be a regular file");
   }
+  const artifact = readBoundedJson(
+    artifactPath,
+    PCDA_RESOURCE_LIMITS.artifactBytes,
+    "candidate artifact",
+  );
+  if (artifact === null || typeof artifact !== "object" || Array.isArray(artifact)) {
+    throw new Error("candidate artifact must be a JSON object");
+  }
+  const rawArtifact = artifact as Record<string, unknown>;
+  const manifest = rawArtifact.manifest;
+  if (manifest === null || typeof manifest !== "object" || Array.isArray(manifest)) {
+    throw new Error("candidate artifact manifest must be an object");
+  }
+  const declaredDigest = (manifest as Record<string, unknown>).artifactDigest;
+  const computedDigest = stableDigest({
+    ...rawArtifact,
+    manifest: Object.fromEntries(
+      Object.entries(manifest as Record<string, unknown>).filter(
+        ([key]) => key !== "artifactDigest",
+      ),
+    ),
+  });
+  if (
+    declaredDigest !== computedDigest ||
+    input.unsignedAttestation.artifactDigest !== computedDigest
+  ) {
+    throw new Error("candidate artifact digest mismatch");
+  }
   if (existsSync(input.workspace)) {
     throw new Error("judgment workspace must be fresh");
   }
@@ -234,7 +265,11 @@ export async function attestAndJudgeWithStagedBench(
       throw new Error("staged Bench attest rejected execution evidence");
     }
     verifyBenchSnapshot(input.snapshot);
-    const signed = JSON.parse(readFileSync(signedPath, "utf8")) as unknown;
+    const signed = readBoundedJson(
+      signedPath,
+      PCDA_RESOURCE_LIMITS.signedAttestationBytes,
+      "staged Bench signed attestation",
+    );
     if (
       signed === null ||
       typeof signed !== "object" ||

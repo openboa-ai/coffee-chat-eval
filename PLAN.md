@@ -23,15 +23,9 @@ host failure, candidate failure, and invalid artifacts remain distinct.
 
 Required CI validates deterministic job projection, result parsing, receipt and
 report contracts, task/verifier separation, Plugin evidence parsing, and status
-crosswalks. It performs no model call or performance evaluation. The real Codex
-trial is manual:
-
-```sh
-npm run canary:codex -- \
-  --candidate-repo /absolute/path/to/coffee-chat \
-  --candidate-commit <40-character-commit> \
-  --model <codex-model>
-```
+crosswalks. It performs no model call or performance evaluation. Credential-bearing
+candidate execution is fail-closed until a broker or split-process boundary
+keeps provider credentials unreadable to candidate code.
 
 One official IFEval case is also projected into a separate Harbor task to
 prove the external-benchmark execution boundary:
@@ -48,14 +42,12 @@ pinned source manifest + candidate-visible case without judgment labels
      candidateInputDelivery=not_supported
 ```
 
-Run it manually with `npm run benchmark:smoke -- --candidate-repo ...
---candidate-commit ... --model ...`. This real Codex/model run is excluded from
-required CI; required CI executes only the deterministic Oracle/no-op Harbor
-calibration.
+Required CI executes only deterministic, credential-free Oracle/no-op Harbor
+calibration. The former live Codex/model smoke is disabled for the same
+credential-isolation reason.
 
-Harbor is pinned at `0.21.0` and Codex at `0.147.0`. The candidate remains
-external: Eval stages only `git archive <exact-commit>`, installs it through
-the public Plugin interface, and never imports Product internals.
+Harbor is pinned at `0.21.0`. Eval retains the public evidence parsers without
+staging or executing candidate Plugin bytes in the calibration path.
 
 ## Performance boundary
 

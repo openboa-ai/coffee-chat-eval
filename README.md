@@ -4,12 +4,11 @@
 receipts, and reports. Product implementation remains in `coffee-chat`;
 candidate-independent benchmark constructs remain in `coffee-chat-bench`.
 
-The first executable evaluator paths are a Harbor-first, Codex-only
-`protocol-canary` and a one-case IFEval execution smoke. They run real
-Harbor tasks through an exact Coffee Chat
-Plugin commit, a clean Codex profile, a fresh session, and a separate verifier.
-The result is always reported as `unmeasured`: it proves the evaluation plumbing
-works but says nothing about Coffee Chat quality or value.
+The first executable evaluator paths are credential-free Harbor Oracle/no-op
+calibrations for `protocol-canary` and a one-case IFEval execution contract.
+They prove the task/verifier plumbing without loading untrusted Plugin bytes
+into a credential-bearing Codex process. Results remain `unmeasured` and say
+nothing about Coffee Chat quality or value.
 
 The IFEval smoke uses one pinned official Apache-2.0 case, keeps its constraint
 metadata in the separate
@@ -66,36 +65,12 @@ npm run security:scan
 Gitleaks must be installed before enabling the hook. The local hook checks
 staged changes and required CI independently scans the complete Git history.
 
-Run the manual real Codex canary:
-
-```sh
-npm run canary:codex -- \
-  --candidate-repo /absolute/path/to/coffee-chat \
-  --candidate-commit <40-character-commit> \
-  --model <codex-model>
-```
-
-The command stages only the requested Git commit, installs it using Codex's
-local marketplace flow, verifies discovery/enabled state and source-cache
-digest equality, executes the public `coffee-chat` entrypoint, retains native
-Harbor/Codex artifacts, verifies cleanup, and emits an `unmeasured` receipt and
-report under `artifacts/harbor/`.
-
-Run the same exact candidate through the IFEval execution smoke:
-
-```sh
-npm run benchmark:smoke -- \
-  --candidate-repo /absolute/path/to/coffee-chat \
-  --candidate-commit <40-character-commit> \
-  --model <codex-model>
-```
-
-This proves that pinned benchmark input is staged and read in the same task
-that invokes the installed Plugin boundary, and that native Harbor, collected
-artifact, Codex trace, separate verifier, cleanup, and an execution receipt are
-produced. Because the current entrypoint accepts no benchmark input, the
-receipt explicitly records `candidateInputDelivery: not_supported`. It is not
-a performance evaluation.
+The former live candidate canary and IFEval smoke commands are disabled. Harbor
+0.21.0 places Codex authentication in the same filesystem as candidate-controlled
+execution, so network filtering alone cannot make that boundary safe. Re-enable
+live candidate execution only behind a credential broker or split process that
+keeps provider credentials unreadable to candidate code and scans all retained
+outputs before publication.
 
 IFEval has only this bounded execution smoke. Its full track and the other
 rights-cleared portfolio tracks remain inactive; no measured Coffee Chat result exists.

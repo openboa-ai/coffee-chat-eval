@@ -7,18 +7,18 @@ or validity claim. An execution smoke may package a pinned imported case and a
 separate conformance verifier, but it is not a benchmark score or a new
 benchmark. Product internals remain out of scope.
 
-The repository has one Harbor-first, Codex-only `protocol-canary` integration.
-It proves Plugin installation, discovery, public entrypoint invocation,
-artifact verification, receipt generation, and cleanup without producing a
-performance score. Required CI runs deterministic implementation checks only;
-real Codex/model execution remains manual. Keep result states explicit and do
-not reinterpret the canary's native reward as Coffee Chat performance.
+The repository has credential-free Harbor Oracle/no-op calibration for the
+`protocol-canary` task package and separate verifier. Candidate-controlled
+Plugin code must not share a process or filesystem with provider credentials;
+the former live Codex/model path remains disabled until a broker or split
+execution boundary enforces that property. Keep result states explicit and do
+not reinterpret native rewards as Coffee Chat performance.
 
-The one-case IFEval smoke verifies only benchmark execution. Keep its
-source manifest immutable, judgment labels sealed, native evidence preserved,
-and receipt split into execution status, candidate status, and measurement
-status. Required CI runs only its deterministic Harbor Oracle/no-op calibration;
-the real Codex/model benchmark smoke remains manual.
+The one-case IFEval contract verifies only benchmark execution structure. Keep
+its source manifest immutable, judgment labels sealed, native evidence
+preserved, and receipt split into execution status, candidate status, and
+measurement status. Required CI runs only credential-free Harbor Oracle/no-op
+calibration.
 
 PCDA is the first performance-capable path. Eval may use only staged Bench
 public CLIs and must not import or reproduce Bench MAC, verifier, judgment, or
