@@ -42,3 +42,6 @@ or marketplace submission readiness.
 | Representative suites | `tests/pcda-baseline.test.ts` and `npm run pcda:calibrate`.                                                                                                                                       |
 | Gate/cost             | Required CI is provider-free. Live execution remains unavailable until a reviewed credential broker or split service exists.                                                                      |
 | Owner                 | Eval owns the credential-free calibration boundary.                                                                                                                                               |
+
+Routine documentation-only pull requests use the approval-free lane;
+`coffee-security` remains reserved for policy evolution and protected paths.
