@@ -6,6 +6,8 @@
     "verified_members_only": true
   },
   "merge_method": "squash",
+  "merge_queue": false,
+  "required_events": ["pull_request"],
   "required_approvals": 0,
   "review_policy": {
     "default_required_approvals": 0,
@@ -23,15 +25,16 @@
     "SECURITY.md",
     "integrations/harbor/**",
     "src/harbor.ts",
+    "src/pcda-bench.ts",
     "src/pcda-harbor.ts",
     "src/pcda-runner.ts",
     "src/registry.ts",
     "src/runner.ts"
   ],
-  "required_contexts": [
-    "aggregate",
-    "dependency review",
-    "Secret boundary",
-    "JavaScript-TypeScript"
+  "required_checks": [
+    { "context": "aggregate", "integration_id": 15368 },
+    { "context": "dependency review", "integration_id": 15368 },
+    { "context": "Secret boundary", "integration_id": 15368 },
+    { "context": "JavaScript-TypeScript", "integration_id": 15368 }
   ]
 }

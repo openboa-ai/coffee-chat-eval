@@ -33,9 +33,10 @@ reports, and receipts. Run `npm run format:check`, `npm run typecheck`,
 
 Agents develop through pull requests and must state exact fixture, manual, and
 unavailable evidence. Candidate workflows admit `OWNER`, `MEMBER`, and exactly
-`dependabot[bot]`; never broaden this to contributors. After required checks
-pass, enable GitHub-native squash auto-merge. Organization rules apply one
-human-only team approval only when a configured sensitive governance or
-external-execution path changes; ordinary code and dependency maintenance
+the in-repository `dependabot[bot]` actor and pull-request author; never broaden
+this to contributors or another head repository. Merge queue is disabled. After
+required checks pass, enable GitHub-native squash auto-merge. Organization rules
+apply one human-only team approval only when a configured sensitive governance
+or external-execution path changes; ordinary code and dependency maintenance
 remain zero-review. Do not add custom write-token merge automation or let a
 candidate workflow decide that review boundary.

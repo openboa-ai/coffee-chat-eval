@@ -2,14 +2,12 @@ name: Eval
 
 on:
   pull_request:
-  merge_group:
 
 permissions: {}
 
 concurrency:
   group: >-
-    ${{ github.workflow }}-${{ github.event.pull_request.number ||
-    github.event.merge_group.head_sha || github.ref }}
+    ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -22,15 +20,19 @@ jobs:
     steps:
       - name: Decide author eligibility
         env:
+          ACTOR: ${{ github.actor }}
           AUTHOR_ASSOCIATION: ${{ github.event.pull_request.author_association }}
+          BASE_REPOSITORY: ${{ github.repository }}
           EVENT_NAME: ${{ github.event_name }}
+          HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
           PR_AUTHOR: ${{ github.event.pull_request.user.login }}
         run: |
           case "$EVENT_NAME" in
-            merge_group) exit 0 ;;
             pull_request)
               case "$AUTHOR_ASSOCIATION" in OWNER|MEMBER) exit 0 ;; esac
+              test "$ACTOR" = "dependabot[bot]"
               test "$PR_AUTHOR" = "dependabot[bot]"
+              test "$HEAD_REPOSITORY" = "$BASE_REPOSITORY"
               ;;
             *) exit 1 ;;
           esac
@@ -86,23 +88,12 @@ jobs:
       contents: read
     steps:
       - name: Review pull-request dependencies
-        if: github.event_name == 'pull_request'
         uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294
         with:
           fail-on-severity: moderate
           fail-on-scopes: runtime,development,unknown
           show-patched-versions: true
           comment-summary-in-pr: never
-      - name: Review merge-group dependencies
-        if: github.event_name == 'merge_group'
-        uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294
-        with:
-          fail-on-severity: moderate
-          fail-on-scopes: runtime,development,unknown
-          show-patched-versions: true
-          comment-summary-in-pr: never
-          base-ref: ${{ github.event.merge_group.base_sha }}
-          head-ref: ${{ github.event.merge_group.head_sha }}
 
   harbor-contract:
     name: harbor contract

@@ -34,14 +34,23 @@ const calibrationCommands = [
   "npm run pcda:calibrate",
 ];
 const authorEligibilityGate = `case "$EVENT_NAME" in
-  merge_group) exit 0 ;;
   pull_request)
     case "$AUTHOR_ASSOCIATION" in OWNER|MEMBER) exit 0 ;; esac
+    test "$ACTOR" = "dependabot[bot]"
     test "$PR_AUTHOR" = "dependabot[bot]"
+    test "$HEAD_REPOSITORY" = "$BASE_REPOSITORY"
     ;;
   *) exit 1 ;;
 esac
 `;
+const authorEligibilityEnv = {
+  ACTOR: "${{ github.actor }}",
+  AUTHOR_ASSOCIATION: "${{ github.event.pull_request.author_association }}",
+  BASE_REPOSITORY: "${{ github.repository }}",
+  EVENT_NAME: "${{ github.event_name }}",
+  HEAD_REPOSITORY: "${{ github.event.pull_request.head.repo.full_name }}",
+  PR_AUTHOR: "${{ github.event.pull_request.user.login }}",
+};
 
 function fail(message) {
   failures.push(message);
@@ -200,7 +209,7 @@ function validateCandidateWorkflow(name, workflow) {
 
 function validateCodeql(workflow) {
   if (
-    !hasExactKeys(workflow.on, ["pull_request", "merge_group", "push"]) ||
+    !hasExactKeys(workflow.on, ["pull_request", "push"]) ||
     !equal(workflow.on.push, { branches: ["main"] })
   ) {
     fail("codeql.yml: approved triggers");
@@ -209,21 +218,38 @@ function validateCodeql(workflow) {
   if (
     !hasExactKeys(workflow.jobs, ["analyze"]) ||
     !isRecord(analyze) ||
+    !hasExactKeys(analyze, [
+      "name",
+      "runs-on",
+      "timeout-minutes",
+      "permissions",
+      "steps",
+    ]) ||
     analyze.name !== "JavaScript-TypeScript" ||
-    analyze["runs-on"] !== "ubuntu-24.04"
+    analyze["runs-on"] !== "ubuntu-24.04" ||
+    analyze["timeout-minutes"] !== 20
   ) {
     fail("codeql.yml: exact CodeQL job");
     return;
   }
   const steps = getSteps(analyze);
   if (
-    steps[0]?.uses !== "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1" ||
-    steps[1]?.uses !==
-      "github/codeql-action/init@5595ccaf912efad79be6eef63a5619ff05969be3" ||
-    steps[1]?.with?.languages !== "javascript-typescript" ||
-    steps[1]?.with?.["build-mode"] !== "none" ||
-    steps[2]?.uses !==
-      "github/codeql-action/analyze@5595ccaf912efad79be6eef63a5619ff05969be3"
+    !equal(steps, [
+      {
+        name: "Check out repository without persisted credentials",
+        uses: "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+        with: { "persist-credentials": false },
+      },
+      {
+        name: "Initialize CodeQL",
+        uses: "github/codeql-action/init@5595ccaf912efad79be6eef63a5619ff05969be3",
+        with: { languages: "javascript-typescript", "build-mode": "none" },
+      },
+      {
+        name: "Analyze with CodeQL",
+        uses: "github/codeql-action/analyze@5595ccaf912efad79be6eef63a5619ff05969be3",
+      },
+    ])
   ) {
     fail("codeql.yml: exact pinned CodeQL actions");
   }
@@ -232,46 +258,47 @@ function validateCodeql(workflow) {
 function validateDependencyReview(job) {
   if (
     !isRecord(job) ||
+    !hasExactKeys(job, [
+      "name",
+      "runs-on",
+      "timeout-minutes",
+      "permissions",
+      "steps",
+    ]) ||
     job.name !== "dependency review" ||
     job["runs-on"] !== "ubuntu-24.04" ||
+    job["timeout-minutes"] !== 10 ||
     !equal(job.permissions, { contents: "read" })
   ) {
     fail("quality.yml: dependency-review permissions");
     return;
   }
-  const [pullRequest, mergeGroup] = getSteps(job);
-  const expectedAction =
-    "actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294";
-  for (const step of [pullRequest, mergeGroup]) {
-    if (
-      !isRecord(step) ||
-      step.uses !== expectedAction ||
-      step.with?.["fail-on-severity"] !== "moderate" ||
-      step.with?.["fail-on-scopes"] !== "runtime,development,unknown" ||
-      step.with?.["show-patched-versions"] !== true ||
-      step.with?.["comment-summary-in-pr"] !== "never"
-    ) {
-      fail("quality.yml: dependency-review inputs");
-      return;
-    }
-  }
   if (
-    pullRequest?.if !== "github.event_name == 'pull_request'" ||
-    mergeGroup?.if !== "github.event_name == 'merge_group'" ||
-    mergeGroup?.with?.["base-ref"] !== "${{ github.event.merge_group.base_sha }}" ||
-    mergeGroup?.with?.["head-ref"] !== "${{ github.event.merge_group.head_sha }}"
+    !equal(getSteps(job), [
+      {
+        name: "Review pull-request dependencies",
+        uses: "actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294",
+        with: {
+          "fail-on-severity": "moderate",
+          "fail-on-scopes": "runtime,development,unknown",
+          "show-patched-versions": true,
+          "comment-summary-in-pr": "never",
+        },
+      },
+    ])
   ) {
-    fail("quality.yml: exact merge-group refs");
+    fail("quality.yml: dependency-review inputs");
   }
 }
 
 function validateQuality(workflow) {
-  if (!hasExactKeys(workflow.on, ["pull_request", "merge_group"])) {
+  if (!hasExactKeys(workflow.on, ["pull_request"])) {
     fail("quality.yml: approved triggers");
   }
   const { eligibility, quality, aggregate } = workflow.jobs ?? {};
   const dependencyReview = workflow.jobs?.["dependency-review"];
   const harborContract = workflow.jobs?.["harbor-contract"];
+  const eligibilitySteps = getSteps(eligibility);
   if (
     !hasExactKeys(workflow.jobs, [
       "eligibility",
@@ -295,21 +322,29 @@ function validateQuality(workflow) {
     eligibility.name !== "author eligibility" ||
     eligibility["runs-on"] !== "ubuntu-24.04" ||
     !equal(eligibility.permissions, { contents: "read" }) ||
-    getSteps(eligibility).length !== 1 ||
-    getSteps(eligibility)[0]?.name !== "Decide author eligibility" ||
-    !equal(getSteps(eligibility)[0]?.env, {
-      AUTHOR_ASSOCIATION: "${{ github.event.pull_request.author_association }}",
-      EVENT_NAME: "${{ github.event_name }}",
-      PR_AUTHOR: "${{ github.event.pull_request.user.login }}",
-    }) ||
-    getSteps(eligibility)[0]?.run !== authorEligibilityGate
+    eligibilitySteps.length !== 1 ||
+    !equal(eligibilitySteps[0], {
+      name: "Decide author eligibility",
+      env: authorEligibilityEnv,
+      run: authorEligibilityGate,
+    })
   ) {
     fail("quality.yml: author eligibility job contract");
   }
   if (
     !isRecord(quality) ||
+    !hasExactKeys(quality, [
+      "name",
+      "needs",
+      "runs-on",
+      "timeout-minutes",
+      "permissions",
+      "steps",
+    ]) ||
     quality.name !== "required" ||
     quality.needs !== "eligibility" ||
+    quality["runs-on"] !== "ubuntu-24.04" ||
+    quality["timeout-minutes"] !== 20 ||
     !equal(quality.permissions, { contents: "read" })
   ) {
     fail("quality.yml: candidate checkout requires eligibility");
@@ -319,7 +354,15 @@ function validateQuality(workflow) {
     const audit = indexOfRun(steps, "npm audit --audit-level=moderate");
     const commands = qualityCommands.map((command) => indexOfRun(steps, command));
     if (
-      steps[0]?.uses !== "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1" ||
+      !equal(steps[0], {
+        name: "Check out repository without persisted credentials",
+        uses: "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+        with: { "fetch-depth": 0, "persist-credentials": false },
+      })
+    ) {
+      fail("quality.yml: exact candidate checkout");
+    }
+    if (
       install < 0 ||
       audit <= install ||
       commands.some((index) => index <= audit) ||
@@ -331,6 +374,12 @@ function validateQuality(workflow) {
       fail(
         "quality.yml: immutable install and moderate audit precede exact repository scripts",
       );
+    }
+    for (const index of [install, audit, ...commands]) {
+      if (index < 0 || !hasExactKeys(steps[index], ["run"])) {
+        fail("quality.yml: required commands cannot be conditional or tolerant");
+        break;
+      }
     }
     const scan = steps.find(
       (step) => step?.name === "Scan complete Git history and worktree",
@@ -349,8 +398,18 @@ function validateQuality(workflow) {
   validateDependencyReview(dependencyReview);
   if (
     !isRecord(harborContract) ||
+    !hasExactKeys(harborContract, [
+      "name",
+      "needs",
+      "runs-on",
+      "timeout-minutes",
+      "permissions",
+      "steps",
+    ]) ||
     harborContract.name !== "harbor contract" ||
     harborContract.needs !== "eligibility" ||
+    harborContract["runs-on"] !== "ubuntu-24.04" ||
+    harborContract["timeout-minutes"] !== 30 ||
     !equal(harborContract.permissions, { contents: "read" })
   ) {
     fail("quality.yml: Harbor execution requires eligibility");
@@ -366,6 +425,15 @@ function validateQuality(workflow) {
       indexOfRun(steps, command),
     );
     if (
+      !equal(steps[0], {
+        name: "Check out repository without persisted credentials",
+        uses: "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+        with: { "persist-credentials": false },
+      })
+    ) {
+      fail("quality.yml: exact Harbor checkout");
+    }
+    if (
       install < 0 ||
       audit <= install ||
       uv <= audit ||
@@ -375,6 +443,15 @@ function validateQuality(workflow) {
       )
     ) {
       fail("quality.yml: hash-pinned Harbor calibration contract");
+    }
+    for (const index of [install, audit, ...calibrations]) {
+      if (index < 0 || !hasExactKeys(steps[index], ["run"])) {
+        fail("quality.yml: Harbor commands cannot be conditional or tolerant");
+        break;
+      }
+    }
+    if (uv < 0 || !hasExactKeys(steps[uv], ["name", "run"])) {
+      fail("quality.yml: hash-pinned uv step contract");
     }
   }
   if (
@@ -389,6 +466,15 @@ function validateQuality(workflow) {
   }
   if (
     !isRecord(aggregate) ||
+    !hasExactKeys(aggregate, [
+      "name",
+      "if",
+      "needs",
+      "runs-on",
+      "timeout-minutes",
+      "permissions",
+      "steps",
+    ]) ||
     aggregate.name !== "aggregate" ||
     aggregate.if !== "always()" ||
     !equal(aggregate.needs, [
@@ -397,7 +483,21 @@ function validateQuality(workflow) {
       "dependency-review",
       "harbor-contract",
     ]) ||
-    !equal(aggregate.permissions, { contents: "read" })
+    aggregate["runs-on"] !== "ubuntu-24.04" ||
+    aggregate["timeout-minutes"] !== 5 ||
+    !equal(aggregate.permissions, { contents: "read" }) ||
+    !equal(getSteps(aggregate), [
+      {
+        name: "Require every applicable lane",
+        env: {
+          DEPENDENCY_REVIEW_RESULT: "${{ needs.dependency-review.result }}",
+          ELIGIBILITY_RESULT: "${{ needs.eligibility.result }}",
+          HARBOR_CONTRACT_RESULT: "${{ needs.harbor-contract.result }}",
+          QUALITY_RESULT: "${{ needs.quality.result }}",
+        },
+        run: 'test "$ELIGIBILITY_RESULT" = success\ntest "$QUALITY_RESULT" = success\ntest "$DEPENDENCY_REVIEW_RESULT" = success\ntest "$HARBOR_CONTRACT_RESULT" = success\n',
+      },
+    ])
   ) {
     fail("quality.yml: aggregate contract");
   }
@@ -424,7 +524,7 @@ function validateSecretBoundary(workflow) {
     boundary.name !== "Secret boundary" ||
     boundary["runs-on"] !== "ubuntu-latest" ||
     boundary.if !==
-      "github.event_name == 'workflow_dispatch' || github.event.pull_request.author_association == 'OWNER' || github.event.pull_request.author_association == 'MEMBER' || github.event.pull_request.user.login == 'dependabot[bot]'" ||
+      "github.event_name == 'workflow_dispatch' || github.event.pull_request.author_association == 'OWNER' || github.event.pull_request.author_association == 'MEMBER' || (github.actor == 'dependabot[bot]' && github.event.pull_request.user.login == 'dependabot[bot]' && github.event.pull_request.head.repo.full_name == github.repository)" ||
     !equal(boundary.permissions, { contents: "read" })
   ) {
     fail("secret-boundary.yml: trusted author boundary");
@@ -516,6 +616,8 @@ function validateMergePolicy() {
     policy.merge_method !== "squash" ||
     policy.auto_merge?.provider !== "github-native" ||
     policy.auto_merge.required_checks !== true ||
+    policy.merge_queue !== false ||
+    !equal(policy.required_events, ["pull_request"]) ||
     policy.required_approvals !== 0 ||
     !equal(policy.eligible_author_associations, ["OWNER", "MEMBER"]) ||
     !equal(policy.eligible_bot_logins, ["dependabot[bot]"]) ||
@@ -524,29 +626,35 @@ function validateMergePolicy() {
   ) {
     fail("merge policy must be GitHub-native selective-review squash");
   }
-  for (const context of [
-    "aggregate",
-    "dependency review",
-    "Secret boundary",
-    "JavaScript-TypeScript",
-  ]) {
-    if (!policy.required_contexts?.includes(context)) {
-      fail(`merge policy must require ${context}`);
-    }
+  if (
+    !equal(policy.required_checks, [
+      { context: "aggregate", integration_id: 15368 },
+      { context: "dependency review", integration_id: 15368 },
+      { context: "Secret boundary", integration_id: 15368 },
+      { context: "JavaScript-TypeScript", integration_id: 15368 },
+    ])
+  ) {
+    fail("merge policy must retain exact required checks");
   }
-  for (const path of [
-    ".github/**",
-    ".githooks/**",
-    "AGENTS.md",
-    "SECURITY.md",
-    "integrations/harbor/**",
-    "src/pcda-harbor.ts",
-    "src/pcda-runner.ts",
-    "src/runner.ts",
-  ]) {
-    if (!policy.protected_paths?.includes(path)) {
-      fail(`merge policy must protect ${path}`);
-    }
+  if (
+    !equal(policy.protected_paths, [
+      ".github/**",
+      ".githooks/**",
+      ".gitleaksignore",
+      ".gitleaks.toml",
+      "AGENTS.md",
+      "CODEOWNERS",
+      "SECURITY.md",
+      "integrations/harbor/**",
+      "src/harbor.ts",
+      "src/pcda-bench.ts",
+      "src/pcda-harbor.ts",
+      "src/pcda-runner.ts",
+      "src/registry.ts",
+      "src/runner.ts",
+    ])
+  ) {
+    fail("merge policy must retain exact protected paths");
   }
 }
 

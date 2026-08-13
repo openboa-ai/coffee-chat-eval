@@ -76,7 +76,12 @@ test("checked-in author gates admit only maintainers and Dependabot", async () =
   );
   assert.match(quality, /dependabot\[bot\]/u);
   assert.match(boundary, /dependabot\[bot\]/u);
+  assert.match(quality, /github\.actor/u);
+  assert.match(quality, /head\.repo\.full_name/u);
+  assert.match(boundary, /github\.actor/u);
+  assert.match(boundary, /head\.repo\.full_name/u);
   assert.deepEqual(policy.eligible_bot_logins, ["dependabot[bot]"]);
+  assert.equal(policy.merge_queue, false);
   assert.doesNotMatch(quality, /COLLABORATOR|CONTRIBUTOR/u);
 });
 
@@ -125,6 +130,17 @@ test("rejects a future workflow", async () => {
       writeFile(
         join(fixture, ".github/workflows/future.yml"),
         "name: Future\non:\n  workflow_dispatch:\npermissions:\n  contents: write\njobs:\n  future:\n    runs-on: ubuntu-24.04\n    steps:\n      - run: 'true'\n",
+      ),
+    /workflow set/u,
+  );
+});
+
+test("rejects a future workflow using the alternate YAML extension", async () => {
+  await expectRejected(
+    (fixture) =>
+      writeFile(
+        join(fixture, ".github/workflows/future.yaml"),
+        "name: Future\non:\n  workflow_dispatch:\npermissions: {}\njobs:\n  future:\n    runs-on: ubuntu-24.04\n    timeout-minutes: 5\n    permissions:\n      contents: read\n    steps:\n      - run: 'true'\n",
       ),
     /workflow set/u,
   );
@@ -203,6 +219,24 @@ test("rejects disabling the author eligibility job", async () => {
   );
 });
 
+for (const [name, field] of [
+  ["conditional", "        if: ${{ false }}\n"],
+  ["failure-tolerant", "        continue-on-error: true\n"],
+]) {
+  test(`rejects a ${name} author eligibility step`, async () => {
+    await expectRejected(
+      (fixture) =>
+        replace(
+          fixture,
+          ".github/workflows/quality.yml",
+          "      - name: Decide author eligibility\n",
+          `      - name: Decide author eligibility\n${field}`,
+        ),
+      /author eligibility job contract/u,
+    );
+  });
+}
+
 test("rejects a weakened dependency-review threshold", async () => {
   await expectRejected(
     (fixture) =>
@@ -263,16 +297,62 @@ test("rejects restoring a retired live candidate execution module", async () => 
   }, /credential-bearing live PCDA module/u);
 });
 
-test("rejects an inexact merge-group head reference", async () => {
+test("rejects re-enabling a merge-group workflow", async () => {
   await expectRejected(
     (fixture) =>
       replace(
         fixture,
         ".github/workflows/quality.yml",
-        "${{ github.event.merge_group.head_sha }}",
-        "${{ github.event.merge_group.head_ref }}",
+        "  pull_request:\n",
+        "  pull_request:\n  merge_group:\n",
       ),
-    /exact merge-group refs/u,
+    /approved triggers/u,
+  );
+});
+
+test("rejects a base-ref checkout in candidate quality or Harbor calibration", async () => {
+  await expectRejected(
+    (fixture) =>
+      replace(
+        fixture,
+        ".github/workflows/quality.yml",
+        "          fetch-depth: 0\n",
+        "          fetch-depth: 0\n          ref: ${{ github.event.pull_request.base.sha }}\n",
+      ),
+    /exact candidate checkout/u,
+  );
+  await expectRejected(
+    (fixture) =>
+      replace(
+        fixture,
+        ".github/workflows/quality.yml",
+        "          persist-credentials: false\n      - name: Set up Node.js\n",
+        "          persist-credentials: false\n          ref: ${{ github.event.pull_request.base.sha }}\n      - name: Set up Node.js\n",
+      ),
+    /Harbor checkout/u,
+  );
+});
+
+test("rejects conditional required commands and a manufactured aggregate", async () => {
+  await expectRejected(
+    (fixture) =>
+      replace(
+        fixture,
+        ".github/workflows/quality.yml",
+        "      - run: npm test\n",
+        "      - run: npm test\n        continue-on-error: true\n",
+      ),
+    /required commands/u,
+  );
+  await expectRejected(
+    (fixture) =>
+      replace(
+        fixture,
+        ".github/workflows/quality.yml",
+        '          test "$ELIGIBILITY_RESULT" = success\n          test "$QUALITY_RESULT" = success\n          test "$DEPENDENCY_REVIEW_RESULT" = success\n          test "$HARBOR_CONTRACT_RESULT" = success\n',
+        "          true\n",
+      ),
+    /aggregate contract/u,
   );
 });
 
@@ -302,29 +382,24 @@ test("rejects routine Dependabot major updates", async () => {
   );
 });
 
-test("rejects removal of the CodeQL required context", async () => {
+test("rejects removal of the exact CodeQL required check identity", async () => {
   await expectRejected(
     (fixture) =>
       replace(
         fixture,
         ".github/merge-policy.json",
-        ',\n    "JavaScript-TypeScript"',
-        "",
+        '"integration_id": 15368',
+        '"integration_id": 0',
       ),
-    /require JavaScript-TypeScript/u,
+    /exact required checks/u,
   );
 });
 
-test("rejects workflow-prefixed required contexts that GitHub does not emit", async () => {
+test("rejects removing an exact protected execution path", async () => {
   await expectRejected(
     (fixture) =>
-      replace(
-        fixture,
-        ".github/merge-policy.json",
-        '"aggregate"',
-        '"Eval / aggregate"',
-      ),
-    /require aggregate/u,
+      replace(fixture, ".github/merge-policy.json", '    "src/registry.ts",\n', ""),
+    /exact protected paths/u,
   );
 });
 
