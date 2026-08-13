@@ -70,10 +70,10 @@ IFEval has only this bounded execution smoke. Its full track and the other
 rights-cleared portfolio tracks remain inactive; no measured Coffee Chat result exists.
 `coffee-chat-bench` remains inactive.
 
-GitHub-native squash merge is the only merge method. Candidate-executing
-workflows admit same-repository `OWNER`/`MEMBER` pull requests and exactly
-`dependabot[bot]`, and retain dependency review and CodeQL. Ordinary changes
-remain eligible for zero-approval auto-merge; sensitive automation, security,
-external-execution, and verifier paths require the GitHub-native maintainer-team
-review. CalVer is the only release identity and no compatibility layer is
-supported.
+GitHub-native squash merge is the only merge method. One immutable target
+wrapper delegates author admission, dependency review, raw-blob secret scanning,
+CodeQL, deterministic quality, and isolated Harbor calibration to the central
+trusted gate. Ordinary changes remain eligible for zero-review auto-merge;
+sensitive automation, security, external-execution, and verifier paths require
+the protected `coffee-security` Environment. CalVer is the only release
+identity and no compatibility layer is supported.
