@@ -66,6 +66,24 @@ async function mutateJson(root, relativePath, mutate) {
   await writeFile(path, `${JSON.stringify(value, null, 2)}\n`);
 }
 
+test("merge policy binds the trusted aggregate and protected Environment", async () => {
+  const mergePolicy = JSON.parse(
+    await readFile(join(repositoryRoot, ".github/merge-policy.json"), "utf8"),
+  );
+  assert.deepEqual(mergePolicy.required_checks, [
+    {
+      context: "OpenBoa Coffee trusted required / OpenBoa Coffee trusted required",
+      integration_id: 15368,
+    },
+  ]);
+  assert.deepEqual(mergePolicy.sensitive_review, {
+    enforcement: "github_environment",
+    environment: "coffee-security",
+    required_approvals: 1,
+    prevent_self_review: false,
+  });
+});
+
 test("target repository exposes only the exact trusted wrapper", async () => {
   assert.deepEqual(
     (await readdir(join(repositoryRoot, ".github/workflows")))

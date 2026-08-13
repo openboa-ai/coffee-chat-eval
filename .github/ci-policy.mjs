@@ -279,19 +279,29 @@ function validateMergePolicy() {
     !equal(policy.eligible_author_associations, ["OWNER", "MEMBER"]) ||
     !equal(policy.eligible_bot_logins, ["dependabot[bot]"]) ||
     policy.review_policy?.default_required_approvals !== 0 ||
-    policy.review_policy?.sensitive_paths_use_human_team_reviewer !== true
+    policy.review_policy?.sensitive_paths_use_protected_environment !== true
   ) {
     fail("merge policy must be GitHub-native selective-review squash");
   }
   if (
     !equal(policy.required_checks, [
-      { context: "aggregate", integration_id: 15368 },
-      { context: "dependency review", integration_id: 15368 },
-      { context: "Secret boundary", integration_id: 15368 },
-      { context: "JavaScript-TypeScript", integration_id: 15368 },
+      {
+        context: "OpenBoa Coffee trusted required / OpenBoa Coffee trusted required",
+        integration_id: 15368,
+      },
     ])
   ) {
     fail("merge policy must retain exact required checks");
+  }
+  if (
+    !equal(policy.sensitive_review, {
+      enforcement: "github_environment",
+      environment: "coffee-security",
+      required_approvals: 1,
+      prevent_self_review: false,
+    })
+  ) {
+    fail("merge policy must retain the protected Environment review");
   }
   if (
     !equal(policy.protected_paths, [
