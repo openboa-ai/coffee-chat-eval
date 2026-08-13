@@ -30,6 +30,9 @@ Use the single unpadded `YYYY.M.D` CalVer in `package.json`, `PLAN.md`, dry-run
 reports, and receipts. Run `npm run format:check`, `npm run typecheck`,
 `npm run build`, `npm run canary:check`, `npm test`, `npm run smoke`, `npm run ci:policy`, and
 `npm run dry-run`, and `npm run pcda:calibrate` before committing.
+After a clean checkout, run `npm ci --ignore-scripts` for root dependencies;
+`npm test` and `npm run ci:policy` install the isolated parser through the exact
+`policy:install` command before loading the checker or its fixtures.
 
 Agents develop through pull requests and must state exact fixture, manual, and
 unavailable evidence. Candidate workflows admit `OWNER`, `MEMBER`, and exactly
@@ -40,3 +43,11 @@ apply one human-only team approval only when a configured sensitive governance
 or external-execution path changes; ordinary code and dependency maintenance
 remain zero-review. Do not add custom write-token merge automation or let a
 candidate workflow decide that review boundary.
+
+Required CI installs the integrity-pinned parser under
+`.github/policy-parser` and runs structural policy before installing root
+dependencies in every candidate-executing job. Treat its manifest, lockfile,
+checker, and workflow ordering as one sensitive bootstrap boundary. Root
+dependency updates stay on the GitHub-native path only when package names,
+exact versions, npm registry tarball identities, and sha512 lockfile
+integrities pass that protected policy.
