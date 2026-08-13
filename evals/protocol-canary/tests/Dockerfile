@@ -4,4 +4,5 @@ WORKDIR /app
 
 COPY test.sh /tests/test.sh
 COPY verify.py /tests/verify.py
+COPY resources.py /tests/resources.py
 RUN chmod +x /tests/test.sh

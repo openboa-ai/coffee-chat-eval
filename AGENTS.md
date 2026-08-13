@@ -40,3 +40,11 @@ apply one human-only team approval only when a configured sensitive governance
 or external-execution path changes; ordinary code and dependency maintenance
 remain zero-review. Do not add custom write-token merge automation or let a
 candidate workflow decide that review boundary.
+
+Required CI installs the integrity-pinned parser under
+`.github/policy-parser` and runs structural policy before installing root
+dependencies in every candidate-executing job. Treat its manifest, lockfile,
+checker, and workflow ordering as one sensitive bootstrap boundary. Root
+dependency updates stay on the GitHub-native path only when package names,
+exact versions, npm registry tarball identities, and sha512 lockfile
+integrities pass that protected policy.

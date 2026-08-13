@@ -1,11 +1,15 @@
 import json
 from pathlib import Path
 
+from resources import read_bounded_json
+
 artifact = Path("/app/ifeval-result.json")
-reference = json.loads(Path("/tests/reference.json").read_text())
 reward = 0
 try:
-    value = json.loads(artifact.read_text())
+    reference = read_bounded_json(
+        Path("/tests/reference.json"), "IFEval reference", 16 * 1024
+    )
+    value = read_bounded_json(artifact, "IFEval result artifact")
     response = value.get("response")
     if (
         value.get("benchmark") == "IFEval"
@@ -18,7 +22,7 @@ try:
         and "," not in response
     ):
         reward = 1
-except (OSError, json.JSONDecodeError):
+except (OSError, UnicodeError, json.JSONDecodeError, TypeError, ValueError):
     pass
 
 Path("/logs/verifier/reward.json").write_text(json.dumps({"reward": reward}))

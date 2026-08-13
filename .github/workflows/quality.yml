@@ -76,9 +76,10 @@ jobs:
         with:
           node-version: 24
           cache: npm
-      - run: npm ci --ignore-scripts
-      - name: Enforce repository policy before delegated scripts
+      - run: npm ci --ignore-scripts --prefix .github/policy-parser
+      - name: Enforce repository policy before candidate dependencies
         run: node .github/ci-policy.mjs
+      - run: npm ci --ignore-scripts
       - run: npm audit --audit-level=moderate
       - run: npm run format:check
       - run: npm run typecheck
@@ -121,9 +122,10 @@ jobs:
         with:
           node-version: 24
           cache: npm
-      - run: npm ci --ignore-scripts
-      - name: Enforce repository policy before delegated scripts
+      - run: npm ci --ignore-scripts --prefix .github/policy-parser
+      - name: Enforce repository policy before candidate dependencies
         run: node .github/ci-policy.mjs
+      - run: npm ci --ignore-scripts
       - run: npm audit --audit-level=moderate
       - name: Install hash-verified uv
         run: >-
