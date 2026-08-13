@@ -8,4 +8,5 @@ redaction, and report validation. It is not the Coffee Chat product or a storage
 location for personal Roastery content.
 
 The baseline has no live provider or host integration. A future live adapter
-must add a reviewed isolation, credential, and provenance boundary before use.
+must use a reviewed brokered credential, isolation, and provenance boundary
+before use; a manually supplied shared key is not an acceptable substitute.

@@ -33,18 +33,12 @@ Run deterministic PCDA contract calibration:
 npm run pcda:calibrate
 ```
 
-Task 2 stages Bench commit
-`347ce5187c697a316aafe47409f428f59babbdc4`, sends unsigned execution evidence
-to its public `attest` CLI through `COFFEE_CHAT_EVAL_ATTESTATION_KEY`, and never
-implements MAC canonicalization locally. Candidate credentials are accepted
-only through a dedicated parent binding and mapped to child `OPENAI_API_KEY`
-immediately before spawn; ambient Codex/provider auth is not inherited.
-
-`pcda:codex` is manual-only. It projects and runs T0/T1-A/T1-B sequentially,
-validates native evidence and cleanup, then invokes staged Bench `attest` and
-`judge`. Judge receives the remaining combined cap through
-`COFFEE_CHAT_EVAL_JUDGE_CAP_NANO_USD`; missing candidate cost evidence remains
-unmeasured and stops before judgment.
+PCDA currently exposes only deterministic Oracle/no-op calibration. The former
+`pcda:codex` candidate runner and staged Bench signer/judge adapter were
+removed because a manually supplied shared key remained readable to
+candidate-controlled execution. Live PCDA stays unavailable until a credential
+broker or split service keeps provider secrets outside the candidate process
+and filesystem.
 
 Run deterministic verification:
 
@@ -65,7 +59,7 @@ npm run security:scan
 Gitleaks must be installed before enabling the hook. The local hook checks
 staged changes and required CI independently scans the complete Git history.
 
-The former live candidate canary and IFEval smoke commands are disabled. Harbor
+All former live candidate commands are removed. Harbor
 0.21.0 places Codex authentication in the same filesystem as candidate-controlled
 execution, so network filtering alone cannot make that boundary safe. Re-enable
 live candidate execution only behind a credential broker or split process that

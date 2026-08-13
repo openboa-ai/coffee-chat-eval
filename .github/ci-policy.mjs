@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -565,6 +565,18 @@ if (
   "node --test tests/workflow-policy.test.mjs && node .github/ci-policy.mjs"
 ) {
   fail("package command must run fixtures before the checker");
+}
+if (Object.hasOwn(packageJson.scripts ?? {}, "pcda:codex")) {
+  fail("credential-bearing live PCDA command must remain absent");
+}
+for (const relativePath of [
+  "src/pcda-bench.ts",
+  "src/pcda-harbor.ts",
+  "src/pcda-runner.ts",
+]) {
+  if (existsSync(resolve(root, relativePath))) {
+    fail(`credential-bearing live PCDA module must remain absent: ${relativePath}`);
+  }
 }
 if (packageJson.devDependencies?.yaml !== "2.9.0") {
   fail("package policy requires exact yaml 2.9.0");

@@ -20,19 +20,16 @@ preserved, and receipt split into execution status, candidate status, and
 measurement status. Required CI runs only credential-free Harbor Oracle/no-op
 calibration.
 
-PCDA is the first performance-capable path. Eval may use only staged Bench
-public CLIs and must not import or reproduce Bench MAC, verifier, judgment, or
-metric logic. Bench commit `347ce5187c697a316aafe47409f428f59babbdc4`
-owns public `attest <unsigned> <signed>` and `judge` boundaries. Eval passes
-the candidate-settled remainder through
-`COFFEE_CHAT_EVAL_JUDGE_CAP_NANO_USD` and stops unmeasured when cost evidence
-is unavailable.
+PCDA remains a credential-free Oracle/no-op calibration path. The former
+candidate runner, staged Bench signer/judge adapter, and `pcda:codex` command
+are removed. Do not restore provider-bearing candidate execution until a
+reviewed credential broker or split execution service keeps provider secrets
+outside the candidate process and filesystem.
 
 Use the single unpadded `YYYY.M.D` CalVer in `package.json`, `PLAN.md`, dry-run
 reports, and receipts. Run `npm run format:check`, `npm run typecheck`,
 `npm run build`, `npm run canary:check`, `npm test`, `npm run smoke`, `npm run ci:policy`, and
-`npm run dry-run`, and `npm run pcda:calibrate` before committing. Real
-`npm run pcda:codex` remains manual-only and fail-closed.
+`npm run dry-run`, and `npm run pcda:calibrate` before committing.
 
 Agents develop through pull requests and must state exact fixture, manual, and
 unavailable evidence. After required checks pass, enable GitHub-native squash

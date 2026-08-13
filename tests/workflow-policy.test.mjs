@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { cp, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -200,6 +200,23 @@ test("rejects live model execution in required CI", async () => {
       ),
     /live model execution/u,
   );
+});
+
+test("rejects restoring a credential-bearing manual execution command", async () => {
+  await expectRejected(async (fixture) => {
+    const target = join(fixture, "package.json");
+    const packageJson = JSON.parse(await readFile(target, "utf8"));
+    packageJson.scripts["pcda:codex"] =
+      "node --experimental-strip-types src/pcda-cli.ts codex";
+    await writeFile(target, `${JSON.stringify(packageJson, null, 2)}\n`);
+  }, /credential-bearing live PCDA command/u);
+});
+
+test("rejects restoring a retired live candidate execution module", async () => {
+  await expectRejected(async (fixture) => {
+    await mkdir(join(fixture, "src"), { recursive: true });
+    await writeFile(join(fixture, "src/pcda-runner.ts"), "export {};\n");
+  }, /credential-bearing live PCDA module/u);
 });
 
 test("rejects an inexact merge-group head reference", async () => {

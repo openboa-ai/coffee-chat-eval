@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import test from "node:test";
 
 const repository = new URL("..", import.meta.url);
@@ -44,6 +44,23 @@ test("required CI calibrates Harbor tasks without running model evaluation", () 
     workflow,
     /canary:codex|benchmark:smoke|pcda:codex|OPENAI_API_KEY/u,
   );
+});
+
+test("credential-bearing candidate execution remains absent until a broker exists", () => {
+  const packageJson = JSON.parse(read("package.json")) as {
+    scripts?: Record<string, string>;
+  };
+  assert.equal(Object.hasOwn(packageJson.scripts ?? {}, "pcda:codex"), false);
+  for (const source of [
+    "src/pcda-bench.ts",
+    "src/pcda-harbor.ts",
+    "src/pcda-runner.ts",
+  ]) {
+    assert.equal(existsSync(new URL(source, repository)), false, source);
+  }
+  for (const document of ["AGENTS.md", "README.md", "SECURITY.md"]) {
+    assert.match(read(document), /credential broker|brokered credential/u);
+  }
 });
 
 test("secret scanning uses trusted base controls and never executes candidate code", () => {

@@ -62,19 +62,13 @@ inactive pending native metric reproduction, bounded cost, and a justified
 Coffee Chat projection.
 Coffee Blend is excluded from this initial evaluation scope.
 
-## PCDA Task 2
+## PCDA calibration boundary
 
-PCDA now has deterministic Oracle/no-op calibration, spawn-local candidate
-credential injection, exact native-result/state parsing, cleanup-gated
-receipts, phase-network execution evidence, and a combined candidate-plus-judge
-budget ledger. The current manual execution profile authorizes up to USD 50;
-that amount reflects available API funds and is not a benchmark sample-size,
-validity, or activation criterion. Eval stages exact Bench commit
-`347ce5187c697a316aafe47409f428f59babbdc4` and invokes only its public
-`attest <unsigned> <signed>` and `judge` commands. Eval contains no MAC,
-verifier, or judgment implementation. The manual path passes the
-candidate-settled remainder through `COFFEE_CHAT_EVAL_JUDGE_CAP_NANO_USD` and
-stops as unmeasured when candidate cost evidence is unavailable.
+PCDA retains deterministic Oracle/no-op calibration and exact native-result
+state parsing only. The credential-bearing candidate runner, staged Bench
+signer/judge adapter, and manual live command are removed. A future measured
+path requires a credential broker or split service that keeps provider secrets
+outside candidate-controlled execution; manually sharing a key is prohibited.
 
 `coffee-chat-bench` remains `not_active`. A later candidate-independent Taste
 benchmark requires separate construct-validity evidence and must not be

@@ -1,15 +1,7 @@
 import { closeSync, constants, fstatSync, openSync, readSync } from "node:fs";
 import { TextDecoder } from "node:util";
 
-export const PCDA_RESOURCE_LIMITS = Object.freeze({
-  directoryEntries: 128,
-  nativeResultBytes: 2 * 1024 * 1024,
-  artifactManifestBytes: 256 * 1024,
-  artifactBytes: 2 * 1024 * 1024,
-  verifierVerdictBytes: 64 * 1024,
-  benchReportCharacters: 256 * 1024,
-  signedAttestationBytes: 256 * 1024,
-});
+export const PCDA_CALIBRATION_RESULT_BYTES = 2 * 1024 * 1024;
 
 const utf8 = new TextDecoder("utf-8", { fatal: true });
 
