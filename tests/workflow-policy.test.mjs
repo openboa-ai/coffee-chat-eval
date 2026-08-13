@@ -1,20 +1,18 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
+import { existsSync } from "node:fs";
 import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
-import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 import { promisify } from "node:util";
 
-const policyRequire = createRequire(
-  new URL("../.github/policy-parser/package.json", import.meta.url),
-);
-const { parse } = policyRequire("yaml");
+import { loadPolicyParser } from "../.github/policy-bootstrap.mjs";
 
 const execFileAsync = promisify(execFile);
 const repositoryRoot = fileURLToPath(new URL("../", import.meta.url));
+const { parse } = loadPolicyParser(repositoryRoot);
 const checker = join(repositoryRoot, ".github/ci-policy.mjs");
 
 async function withFixture(mutate, check) {
@@ -42,10 +40,13 @@ async function replace(fixture, relativePath, from, to) {
   await writeFile(target, source.replace(from, to));
 }
 
-async function runChecker(fixture) {
+async function runChecker(fixture, { candidateChecker = false, env = {} } = {}) {
   try {
-    const result = await execFileAsync(process.execPath, [checker], {
-      env: { ...process.env, EVAL_CI_POLICY_ROOT: fixture },
+    const checkerPath = candidateChecker
+      ? join(fixture, ".github/ci-policy.mjs")
+      : checker;
+    const result = await execFileAsync(process.execPath, [checkerPath], {
+      env: { ...process.env, ...env, EVAL_CI_POLICY_ROOT: fixture },
     });
     return { output: `${result.stdout}${result.stderr}`, status: 0 };
   } catch (error) {
@@ -72,6 +73,48 @@ test("accepts the checked-in workflow policy", async () => {
   assert.equal(result.status, 0, result.output);
 });
 
+test("authenticates the isolated parser lock before loading its code", async () => {
+  await withFixture(
+    async (fixture) => {
+      const parserRoot = join(fixture, ".github/policy-parser");
+      const lockPath = join(parserRoot, "package-lock.json");
+      const lock = await readFile(lockPath, "utf8");
+      await writeFile(
+        lockPath,
+        lock.replace(
+          "sha512-2AvhNX3m",
+          "sha512-candidateSelectedParserMustNeverExecuteBeforeAuthentication",
+        ),
+      );
+      const packageRoot = join(parserRoot, "node_modules/yaml");
+      await rm(packageRoot, { force: true, recursive: true });
+      await mkdir(packageRoot, { recursive: true });
+      await writeFile(
+        join(packageRoot, "package.json"),
+        `${JSON.stringify({ name: "yaml", version: "0.0.0", main: "index.cjs" })}\n`,
+      );
+      await writeFile(
+        join(packageRoot, "index.cjs"),
+        `require("node:fs").writeFileSync(process.env.EVAL_POLICY_MARKER, "executed\\n"); module.exports = { parseDocument() { throw new Error("candidate parser executed"); } };\n`,
+      );
+    },
+    async (fixture) => {
+      const marker = join(fixture, "candidate-parser-executed");
+      const result = await runChecker(fixture, {
+        candidateChecker: true,
+        env: { EVAL_POLICY_MARKER: marker },
+      });
+      assert.equal(result.status, 1, result.output);
+      assert.equal(
+        existsSync(marker),
+        false,
+        "candidate-selected parser code executed before lock authentication",
+      );
+      assert.match(result.output, /authenticated before loading/u);
+    },
+  );
+});
+
 test("runs isolated structural policy before candidate dependencies in every job", async () => {
   const workflow = parse(
     await readFile(join(repositoryRoot, ".github/workflows/quality.yml"), "utf8"),
@@ -84,17 +127,19 @@ test("runs isolated structural policy before candidate dependencies in every job
     const parserInstallIndex = runs.indexOf(
       "npm ci --ignore-scripts --prefix .github/policy-parser",
     );
+    const parserAuthenticationIndex = runs.indexOf("node .github/policy-bootstrap.mjs");
     const installIndex = runs.indexOf("npm ci --ignore-scripts");
     const policyIndex = runs.indexOf("node .github/ci-policy.mjs");
     const delegatedIndex = runs.findIndex((run) => run.startsWith("npm run "));
 
+    assert.equal(parserInstallIndex, parserAuthenticationIndex + 1, jobName);
     assert.equal(policyIndex, parserInstallIndex + 1, jobName);
     assert.ok(policyIndex < installIndex, jobName);
     assert.ok(policyIndex < delegatedIndex, jobName);
   }
   const checkerSource = await readFile(checker, "utf8");
   assert.doesNotMatch(checkerSource, /from ["']yaml["']/u);
-  assert.match(checkerSource, /policy-parser\/package\.json/u);
+  assert.match(checkerSource, /policy-bootstrap\.mjs/u);
 });
 
 test("standard local policy and test commands install the isolated parser", async () => {
@@ -103,7 +148,7 @@ test("standard local policy and test commands install the isolated parser", asyn
   );
   assert.equal(
     packageJson.scripts["policy:install"],
-    "npm ci --ignore-scripts --prefix .github/policy-parser",
+    "node .github/policy-bootstrap.mjs && npm ci --ignore-scripts --prefix .github/policy-parser",
   );
   assert.match(packageJson.scripts.test, /^npm run policy:install && /u);
   assert.match(packageJson.scripts["ci:policy"], /^npm run policy:install && /u);
@@ -620,6 +665,19 @@ test("rejects removing the direct Harbor policy gate", async () => {
         "      - run: npm audit --audit-level=moderate\n      - name: Install hash-verified uv\n",
       ),
     /exact hash-pinned Harbor calibration steps/u,
+  );
+});
+
+test("rejects loading the isolated parser before lock authentication", async () => {
+  await expectRejected(
+    (fixture) =>
+      replace(
+        fixture,
+        ".github/workflows/quality.yml",
+        "      - name: Authenticate the isolated policy parser lock\n        run: node .github/policy-bootstrap.mjs\n",
+        "",
+      ),
+    /exact fail-closed candidate quality steps/u,
   );
 });
 
