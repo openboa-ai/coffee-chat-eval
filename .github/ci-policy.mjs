@@ -1,16 +1,46 @@
+import { createHash } from "node:crypto";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { loadPolicyParser } from "./policy-bootstrap.mjs";
 
-const root = resolve(
-  process.env.EVAL_CI_POLICY_ROOT ??
-    resolve(dirname(fileURLToPath(import.meta.url)), ".."),
-);
-const { parseDocument } = loadPolicyParser(root);
+const controlRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const root = resolve(process.env.EVAL_CI_POLICY_ROOT ?? controlRoot);
+const { parseDocument } = loadPolicyParser(controlRoot);
 const workflowRoot = resolve(root, ".github/workflows");
 const failures = [];
+if (existsSync(resolve(root, ".npmrc"))) {
+  failures.push("root .npmrc must be absent");
+}
+if (existsSync(resolve(root, ".github/policy-parser/.npmrc"))) {
+  failures.push("isolated policy parser .npmrc must be absent before install");
+}
+const harborRequirementsPath = resolve(root, ".github/harbor-requirements.txt");
+if (
+  !existsSync(harborRequirementsPath) ||
+  createHash("sha256").update(readFileSync(harborRequirementsPath)).digest("hex") !==
+    "d4f01211a1c9013fe0ed3c49f471dac24356859312d7fcd6d0fdc00c51809dd6"
+) {
+  failures.push(
+    "Harbor dependency graph must retain its exact authenticated hash lock",
+  );
+}
+if (
+  !existsSync(resolve(root, ".github/harbor-requirements.in")) ||
+  readFileSync(resolve(root, ".github/harbor-requirements.in"), "utf8") !==
+    "harbor==0.21.0\n"
+) {
+  failures.push("Harbor root requirement must remain exactly pinned");
+}
+if (existsSync(resolve(root, "npm-shrinkwrap.json"))) {
+  failures.push("root npm-shrinkwrap.json must be absent");
+}
+if (existsSync(resolve(root, ".github/policy-parser/npm-shrinkwrap.json"))) {
+  failures.push(
+    "isolated policy parser npm-shrinkwrap.json must be absent before loading",
+  );
+}
 const workflowNames = ["codeql.yml", "quality.yml", "secret-boundary.yml"];
 const pinnedActions = new Set([
   "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
@@ -29,11 +59,9 @@ const qualityCommands = [
   "npm run smoke",
   "npm run ci:policy",
 ];
-const calibrationCommands = [
-  "npm run canary:calibrate",
-  "npm run benchmark:calibrate",
-  "npm run pcda:calibrate",
-];
+const harborCommandEnvironment = {
+  HARBOR_COMMAND: "${{ runner.temp }}/harbor-venv/bin/harbor",
+};
 const expectedPackageScripts = {
   "benchmark:calibrate":
     "node --experimental-strip-types src/canary-cli.ts benchmark-calibrate",
@@ -42,18 +70,16 @@ const expectedPackageScripts = {
   "canary:check":
     "python3 -m py_compile evals/protocol-canary/tests/verify.py evals/protocol-canary/tests/resources.py evals/ifeval-smoke/tests/verify.py evals/ifeval-smoke/tests/resources.py && sh -n evals/protocol-canary/solution/solve.sh evals/protocol-canary/tests/test.sh evals/ifeval-smoke/solution/solve.sh evals/ifeval-smoke/tests/test.sh",
   "ci:policy":
-    "npm run policy:install && node --test tests/workflow-policy.test.mjs && node .github/ci-policy.mjs",
+    "node --test tests/workflow-policy.test.mjs && node .github/ci-policy.mjs",
   "dry-run": "node --experimental-strip-types src/cli.ts dry-run",
   format: "prettier --write .",
   "format:check": "prettier --check .",
   "hooks:install": "git config core.hooksPath .githooks",
   "pcda:calibrate":
     "node --experimental-strip-types src/pcda-cli.ts calibrate --oracle-result $PWD/tests/fixtures/pcda-calibration/oracle-result.json --noop-result $PWD/tests/fixtures/pcda-calibration/noop-result.json",
-  "policy:install":
-    "node .github/policy-bootstrap.mjs && npm ci --ignore-scripts --prefix .github/policy-parser",
   "security:scan": "gitleaks git --redact --no-banner .",
   smoke: "node --experimental-strip-types --test tests/smoke.test.ts",
-  test: "npm run policy:install && node --experimental-strip-types --test tests/*.test.*",
+  test: "node --experimental-strip-types --test tests/*.test.*",
   typecheck: "tsc --noEmit",
 };
 const authorEligibilityGate = `case "$EVENT_NAME" in
@@ -345,11 +371,12 @@ function validateCandidateWorkflow(name, workflow) {
 }
 
 function validateCodeql(workflow) {
+  const triggers = Object.keys(workflow.on ?? {}).sort();
   if (
-    !hasExactKeys(workflow.on, ["pull_request", "push"]) ||
-    !equal(workflow.on.push, { branches: ["main"] })
+    !equal(triggers, ["pull_request", "pull_request_target"]) &&
+    !equal(triggers, ["pull_request_target"])
   ) {
-    fail("codeql.yml: approved triggers");
+    fail("codeql.yml: trusted-base triggers");
   }
   const analyze = workflow.jobs?.analyze;
   if (
@@ -357,12 +384,15 @@ function validateCodeql(workflow) {
     !isRecord(analyze) ||
     !hasExactKeys(analyze, [
       "name",
+      "if",
       "runs-on",
       "timeout-minutes",
       "permissions",
       "steps",
     ]) ||
     analyze.name !== "JavaScript-TypeScript" ||
+    analyze.if !==
+      "((github.event.pull_request.author_association == 'OWNER' || github.event.pull_request.author_association == 'MEMBER') && github.actor == github.event.pull_request.user.login && github.event.pull_request.head.repo.full_name == github.repository) || (github.actor == 'dependabot[bot]' && github.event.pull_request.user.login == 'dependabot[bot]' && github.event.pull_request.head.repo.full_name == github.repository)" ||
     analyze["runs-on"] !== "ubuntu-24.04" ||
     analyze["timeout-minutes"] !== 20
   ) {
@@ -375,7 +405,11 @@ function validateCodeql(workflow) {
       {
         name: "Check out repository without persisted credentials",
         uses: "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
-        with: { "persist-credentials": false },
+        with: {
+          repository: "${{ github.event.pull_request.head.repo.full_name }}",
+          ref: "${{ github.event.pull_request.head.sha }}",
+          "persist-credentials": false,
+        },
       },
       {
         name: "Initialize CodeQL",
@@ -577,7 +611,19 @@ function validateQuality(workflow) {
           name: "Install hash-verified uv",
           run: "python3 -m pip install --disable-pip-version-check --require-hashes -r .github/uv-requirements.txt",
         },
-        ...calibrationCommands.map((run) => ({ run })),
+        {
+          name: "Install hash-locked Harbor environment",
+          run: 'uv venv --python python3 --no-python-downloads "$RUNNER_TEMP/harbor-venv"\nuv pip install --require-hashes --no-deps --only-binary :all: \\\n  --python "$RUNNER_TEMP/harbor-venv/bin/python" \\\n  -r .github/harbor-requirements.txt\n',
+        },
+        {
+          run: "npm run canary:calibrate",
+          env: harborCommandEnvironment,
+        },
+        {
+          run: "npm run benchmark:calibrate",
+          env: harborCommandEnvironment,
+        },
+        { run: "npm run pcda:calibrate" },
       ])
     ) {
       fail("quality.yml: exact hash-pinned Harbor calibration steps");
@@ -813,6 +859,8 @@ function validateMergePolicy() {
       "AGENTS.md",
       "CODEOWNERS",
       "SECURITY.md",
+      ".npmrc",
+      "npm-shrinkwrap.json",
       "integrations/harbor/**",
       "evals/**",
       "src/benchmark-smoke.ts",
@@ -859,7 +907,7 @@ if (workflows["secret-boundary.yml"]) {
 const packageJson = JSON.parse(readFileSync(resolve(root, "package.json"), "utf8"));
 if (
   packageJson.scripts?.["ci:policy"] !==
-  "npm run policy:install && node --test tests/workflow-policy.test.mjs && node .github/ci-policy.mjs"
+  "node --test tests/workflow-policy.test.mjs && node .github/ci-policy.mjs"
 ) {
   fail("package command must run fixtures before the checker");
 }

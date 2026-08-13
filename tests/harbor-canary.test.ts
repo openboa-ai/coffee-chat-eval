@@ -1,9 +1,15 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
 
 import { createHarborJobConfig, parseHarborTrialResult } from "../src/harbor.ts";
-import { createCalibrationEnvironment, parseCanaryCliArgs } from "../src/canary-cli.ts";
+import {
+  createCalibrationEnvironment,
+  parseCanaryCliArgs,
+  resolveHarborCommand,
+} from "../src/canary-cli.ts";
 import {
   createProtocolCanaryReceipt,
   formatProtocolCanaryReport,
@@ -131,6 +137,22 @@ test("calibration is an explicit non-model command", () => {
   assert.deepEqual(parseCanaryCliArgs(["benchmark-calibrate"]), {
     command: "benchmark-calibrate",
   });
+});
+
+test("calibration requires one explicit absolute Harbor executable", () => {
+  assert.throws(() => resolveHarborCommand({}), /harbor_command_missing/u);
+  assert.throws(
+    () => resolveHarborCommand({ HARBOR_COMMAND: "harbor" }),
+    /harbor_command_must_be_absolute/u,
+  );
+  const directory = mkdtempSync(join(tmpdir(), "eval-harbor-command-"));
+  try {
+    const command = join(directory, "harbor");
+    writeFileSync(command, "#!/bin/sh\n");
+    assert.equal(resolveHarborCommand({ HARBOR_COMMAND: command }), command);
+  } finally {
+    rmSync(directory, { force: true, recursive: true });
+  }
 });
 
 test("calibration rejects credentials and passes only an allowlisted child environment", () => {

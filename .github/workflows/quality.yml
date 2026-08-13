@@ -137,8 +137,18 @@ jobs:
         run: >-
           python3 -m pip install --disable-pip-version-check --require-hashes
           -r .github/uv-requirements.txt
+      - name: Install hash-locked Harbor environment
+        run: |
+          uv venv --python python3 --no-python-downloads "$RUNNER_TEMP/harbor-venv"
+          uv pip install --require-hashes --no-deps --only-binary :all: \
+            --python "$RUNNER_TEMP/harbor-venv/bin/python" \
+            -r .github/harbor-requirements.txt
       - run: npm run canary:calibrate
+        env:
+          HARBOR_COMMAND: ${{ runner.temp }}/harbor-venv/bin/harbor
       - run: npm run benchmark:calibrate
+        env:
+          HARBOR_COMMAND: ${{ runner.temp }}/harbor-venv/bin/harbor
       - run: npm run pcda:calibrate
 
   aggregate:
