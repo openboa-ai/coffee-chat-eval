@@ -2,38 +2,64 @@ name: Eval
 
 on:
   pull_request:
-  merge_group:
-  workflow_dispatch:
 
-permissions:
-  contents: read
+permissions: {}
+
+concurrency:
+  group: >-
+    ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
+  eligibility:
+    name: author eligibility
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Decide author eligibility
+        env:
+          ACTOR: ${{ github.actor }}
+          AUTHOR_ASSOCIATION: ${{ github.event.pull_request.author_association }}
+          BASE_REPOSITORY: ${{ github.repository }}
+          EVENT_NAME: ${{ github.event_name }}
+          HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+        run: |
+          case "$EVENT_NAME" in
+            pull_request)
+              case "$AUTHOR_ASSOCIATION" in
+                OWNER|MEMBER)
+                  test "$ACTOR" = "$PR_AUTHOR"
+                  test "$HEAD_REPOSITORY" = "$BASE_REPOSITORY"
+                  ;;
+                *)
+                  test "$ACTOR" = "dependabot[bot]"
+                  test "$PR_AUTHOR" = "dependabot[bot]"
+                  test "$HEAD_REPOSITORY" = "$BASE_REPOSITORY"
+                  ;;
+              esac
+              ;;
+            *) exit 1 ;;
+          esac
+
   quality:
     name: required
+    needs: eligibility
     runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
     steps:
-      - name: Verify trusted pull request author
-        if: github.event_name == 'pull_request'
-        env:
-          AUTHOR_ASSOCIATION: ${{ github.event.pull_request.author_association }}
-        run: |
-          case "$AUTHOR_ASSOCIATION" in
-            OWNER|MEMBER)
-              printf '%s\n' 'author=trusted_member'
-              ;;
-            *)
-              printf '%s\n' 'author=untrusted' >&2
-              exit 1
-              ;;
-          esac
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Check out repository without persisted credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           fetch-depth: 0
           persist-credentials: false
       - name: Install immutable Gitleaks
         run: .github/scripts/install-gitleaks.sh
-      - name: Scan complete Git history
+      - name: Scan complete Git history and worktree
         run: |
           test ! -e .gitleaks.toml
           printf '%s  %s\n' \
@@ -45,11 +71,13 @@ jobs:
           gitleaks dir --config "$GITLEAKS_TRUSTED_CONFIG" \
             --gitleaks-ignore-path .gitleaksignore --ignore-gitleaks-allow \
             --redact --no-banner .
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
         with:
-          node-version: 24.5.0
+          node-version: 24
           cache: npm
-      - run: npm ci
+      - run: npm ci --ignore-scripts
+      - run: npm audit --audit-level=moderate
       - run: npm run format:check
       - run: npm run typecheck
       - run: npm run build
@@ -58,58 +86,70 @@ jobs:
       - run: npm run dry-run
       - run: npm run smoke
       - run: npm run ci:policy
+
   dependency-review:
     name: dependency review
     runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-      - if: github.event_name == 'pull_request'
-        uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294
-      - if: github.event_name == 'merge_group'
+      - name: Review pull-request dependencies
         uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294
         with:
-          base-ref: ${{ github.event.merge_group.base_sha }}
-          head-ref: ${{ github.sha }}
-      - if: github.event_name == 'workflow_dispatch'
-        run: npm audit --audit-level=high
+          fail-on-severity: moderate
+          fail-on-scopes: runtime,development,unknown
+          show-patched-versions: true
+          comment-summary-in-pr: never
+
   harbor-contract:
     name: harbor contract
+    needs: eligibility
     runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
     steps:
-      - name: Verify trusted pull request author
-        if: github.event_name == 'pull_request'
-        env:
-          AUTHOR_ASSOCIATION: ${{ github.event.pull_request.author_association }}
-        run: |
-          case "$AUTHOR_ASSOCIATION" in
-            OWNER|MEMBER)
-              printf '%s\n' 'author=trusted_member'
-              ;;
-            *)
-              printf '%s\n' 'author=untrusted' >&2
-              exit 1
-              ;;
-          esac
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Check out repository without persisted credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
         with:
-          node-version: 24.5.0
-      - run: python -m pip install --disable-pip-version-check uv==0.8.3
+          node-version: 24
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm audit --audit-level=moderate
+      - name: Install hash-verified uv
+        run: >-
+          python3 -m pip install --disable-pip-version-check --require-hashes
+          -r .github/uv-requirements.txt
       - run: npm run canary:calibrate
       - run: npm run benchmark:calibrate
       - run: npm run pcda:calibrate
+
   aggregate:
     name: aggregate
     if: always()
-    needs: [quality, dependency-review, harbor-contract]
+    needs:
+      - eligibility
+      - quality
+      - dependency-review
+      - harbor-contract
     runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
     steps:
-      - run: |
-          test "${{ needs.quality.result }}" = success
-          test "${{ needs.dependency-review.result }}" = success
-          test "${{ needs.harbor-contract.result }}" = success
+      - name: Require every applicable lane
+        env:
+          DEPENDENCY_REVIEW_RESULT: ${{ needs.dependency-review.result }}
+          ELIGIBILITY_RESULT: ${{ needs.eligibility.result }}
+          HARBOR_CONTRACT_RESULT: ${{ needs.harbor-contract.result }}
+          QUALITY_RESULT: ${{ needs.quality.result }}
+        run: |
+          test "$ELIGIBILITY_RESULT" = success
+          test "$QUALITY_RESULT" = success
+          test "$DEPENDENCY_REVIEW_RESULT" = success
+          test "$HARBOR_CONTRACT_RESULT" = success

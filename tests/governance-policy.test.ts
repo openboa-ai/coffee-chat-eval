@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import test from "node:test";
 
 const repository = new URL("..", import.meta.url);
@@ -18,19 +18,20 @@ test("policy check accepts the lean protected workflow shape", () => {
   );
 });
 
-test("candidate workflows admit only owners or members before checkout", () => {
-  for (const workflowPath of [
-    ".github/workflows/quality.yml",
-    ".github/workflows/policy.yml",
-  ]) {
-    const workflow = read(workflowPath);
-    assert.match(workflow, /OWNER\|MEMBER/u);
-    assert.doesNotMatch(workflow, /COLLABORATOR|pull_request\.user\.login/u);
-    assert.ok(
-      workflow.indexOf("Verify trusted pull request author") <
-        workflow.indexOf("uses: actions\/checkout@"),
-    );
-  }
+test("candidate workflows admit maintainers and exact Dependabot before checkout", () => {
+  const workflow = read(".github/workflows/quality.yml");
+  assert.match(workflow, /OWNER\|MEMBER/u);
+  assert.match(workflow, /dependabot\[bot\]/u);
+  assert.doesNotMatch(workflow, /COLLABORATOR|CONTRIBUTOR/u);
+  assert.match(workflow, /quality:\n    name: required\n    needs: eligibility/u);
+  assert.match(
+    workflow,
+    /harbor-contract:\n    name: harbor contract\n    needs: eligibility/u,
+  );
+  assert.ok(
+    workflow.indexOf("name: Decide author eligibility") <
+      workflow.indexOf("uses: actions/checkout@"),
+  );
 });
 
 test("required CI calibrates Harbor tasks without running model evaluation", () => {
@@ -39,7 +40,28 @@ test("required CI calibrates Harbor tasks without running model evaluation", () 
   assert.match(workflow, /npm run canary:check/u);
   assert.match(workflow, /npm run canary:calibrate/u);
   assert.match(workflow, /npm run benchmark:calibrate/u);
-  assert.doesNotMatch(workflow, /canary:codex|benchmark:smoke|OPENAI_API_KEY/u);
+  assert.match(workflow, /npm run pcda:calibrate/u);
+  assert.doesNotMatch(
+    workflow,
+    /canary:codex|benchmark:smoke|pcda:codex|OPENAI_API_KEY/u,
+  );
+});
+
+test("credential-bearing candidate execution remains absent until a broker exists", () => {
+  const packageJson = JSON.parse(read("package.json")) as {
+    scripts?: Record<string, string>;
+  };
+  assert.equal(Object.hasOwn(packageJson.scripts ?? {}, "pcda:codex"), false);
+  for (const source of [
+    "src/pcda-bench.ts",
+    "src/pcda-harbor.ts",
+    "src/pcda-runner.ts",
+  ]) {
+    assert.equal(existsSync(new URL(source, repository)), false, source);
+  }
+  for (const document of ["AGENTS.md", "README.md", "SECURITY.md"]) {
+    assert.match(read(document), /credential broker|brokered credential/u);
+  }
 });
 
 test("secret scanning uses trusted base controls and never executes candidate code", () => {

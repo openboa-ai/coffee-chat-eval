@@ -101,6 +101,79 @@ function asRecord(value: unknown): Record<string, unknown> | undefined {
     : undefined;
 }
 
+function assertEvidenceBudget(value: unknown, label: string): void {
+  const pending: Array<{ value: unknown; depth: number }> = [{ value, depth: 0 }];
+  let nodes = 0;
+  let characters = 0;
+  while (pending.length > 0) {
+    const current = pending.pop()!;
+    nodes += 1;
+    if (nodes > 10_000 || current.depth > 16) {
+      throw new Error(`${label} exceeds its structural resource limit`);
+    }
+    if (typeof current.value === "string") {
+      characters += current.value.length;
+      if (characters > 2 * 1024 * 1024) {
+        throw new Error(`${label} exceeds its text resource limit`);
+      }
+      continue;
+    }
+    if (Array.isArray(current.value)) {
+      if (current.value.length > 512) {
+        throw new Error(`${label} exceeds its array resource limit`);
+      }
+      for (const item of current.value) {
+        pending.push({ value: item, depth: current.depth + 1 });
+      }
+      continue;
+    }
+    const record = asRecord(current.value);
+    if (record === undefined) continue;
+    const entries = Object.entries(record);
+    if (entries.length > 256) {
+      throw new Error(`${label} exceeds its object resource limit`);
+    }
+    for (const [key, item] of entries) {
+      characters += key.length;
+      pending.push({ value: item, depth: current.depth + 1 });
+    }
+  }
+}
+
+export function traceExecCommand(input: unknown): Record<string, unknown> | undefined {
+  if (typeof input !== "string" || input.length > 8_192) return undefined;
+  const match = /^const r = await tools\.exec_command\((\{[^\n]*\})\);$/u.exec(input);
+  if (match?.[1] === undefined) return undefined;
+  try {
+    const command = asRecord(JSON.parse(match[1]) as unknown);
+    if (
+      command === undefined ||
+      Object.keys(command).sort().join(",") !== "cmd,workdir"
+    ) {
+      return undefined;
+    }
+    return command;
+  } catch {
+    return undefined;
+  }
+}
+
+export function traceObservationJson(
+  observation: unknown,
+): Record<string, unknown> | undefined {
+  const root = asRecord(observation);
+  if (!Array.isArray(root?.results) || root.results.length !== 1) return undefined;
+  const result = asRecord(root.results[0]);
+  if (typeof result?.content !== "string" || result.content.length > 1024 * 1024) {
+    return undefined;
+  }
+  try {
+    return asRecord(JSON.parse(result.content) as unknown);
+  } catch {
+    return undefined;
+  }
+}
+
 function pluginEntry(value: unknown): Record<string, unknown> | undefined {
   if (!Array.isArray(value)) {
     return undefined;
@@ -113,6 +186,7 @@ function pluginEntry(value: unknown): Record<string, unknown> | undefined {
 export function validatePluginInstallEvidence(
   evidence: PluginInstallEvidence,
 ): ValidatedPluginInstall {
+  assertEvidenceBudget(evidence, "Plugin installation evidence");
   if (
     !DIGEST_PATTERN.test(evidence.sourceDigest) ||
     evidence.sourceDigest !== evidence.installedDigest
@@ -153,14 +227,17 @@ export function validatePluginInstallEvidence(
 }
 
 export function validateCodexTraceEvidence(trace: unknown): ValidatedCodexTrace {
+  assertEvidenceBudget(trace, "Codex trace");
   const root = asRecord(trace);
-  const steps = Array.isArray(root?.steps) ? root.steps.map(asRecord) : [];
+  const steps =
+    Array.isArray(root?.steps) && root.steps.length <= 256
+      ? root.steps.map(asRecord)
+      : [];
   const discovery = steps.some(
     (step) =>
       step?.source === "system" &&
       typeof step.message === "string" &&
-      step.message.includes("coffee-chat:coffee-chat") &&
-      /plugins\/cache\/openboa-ai\/coffee-chat\/[^/]+\/skills\/coffee-chat\/SKILL\.md/u.test(
+      /^coffee-chat:coffee-chat \(file: \/tmp\/codex-home\/plugins\/cache\/openboa-ai\/coffee-chat\/[^/]+\/skills\/coffee-chat\/SKILL\.md\)$/u.test(
         step.message,
       ),
   );
@@ -169,19 +246,22 @@ export function validateCodexTraceEvidence(trace: unknown): ValidatedCodexTrace 
   }
   const invocation = steps.some((step) => {
     if (step?.source !== "agent" || !Array.isArray(step.tool_calls)) return false;
-    const observation = JSON.stringify(step.observation ?? null);
+    const observation = traceObservationJson(step.observation);
     return step.tool_calls.map(asRecord).some((call) => {
       const args = asRecord(call?.arguments);
+      const command = traceExecCommand(args?.input);
       return (
         call?.function_name === "exec" &&
-        typeof args?.input === "string" &&
-        args.input.includes("tools.exec_command") &&
-        args.input.includes("node scripts/run.mjs") &&
-        /plugins\/cache\/openboa-ai\/coffee-chat\/[^/]+\/skills\/coffee-chat/u.test(
-          args.input,
+        command?.cmd === "node scripts/run.mjs" &&
+        typeof command.workdir === "string" &&
+        /^\/tmp\/codex-home\/plugins\/cache\/openboa-ai\/coffee-chat\/[^/]+\/skills\/coffee-chat$/u.test(
+          command.workdir,
         ) &&
-        observation.includes("coffee-chat-capability-result") &&
-        observation.includes("not_implemented")
+        observation !== undefined &&
+        Object.keys(observation).sort().join(",") === "capability,schema,status" &&
+        observation.schema === "coffee-chat-capability-result" &&
+        observation.capability === "coffee-chat" &&
+        observation.status === "not_implemented"
       );
     });
   });
@@ -199,6 +279,7 @@ export function validateCodexTraceEvidence(trace: unknown): ValidatedCodexTrace 
 export function validateProtocolCanaryArtifact(
   artifact: unknown,
 ): ValidatedProtocolCanaryArtifact {
+  assertEvidenceBudget(artifact, "protocol canary artifact");
   const value = asRecord(artifact);
   if (
     value === undefined ||

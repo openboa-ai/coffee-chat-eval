@@ -1,30 +1,14 @@
-# PCDA remaining-budget contract
+# Retired PCDA live-budget boundary
 
-Bench commit `347ce5187c697a316aafe47409f428f59babbdc4` provides the public
-`attest` and remaining-budget `judge` boundary.
+The former candidate-plus-judge live execution path is not part of the current
+runtime. It was removed because Harbor candidate execution and the trusted
+judge loaded the same provider credential, so candidate-controlled code could
+read a key later trusted by the judge. Manual operation and network allowlists
+did not create credential separation.
 
-Eval invokes `attest <unsigned> <signed>` and then
-`judge <projection-root> <artifact> <signed-attestation>`. The staged process
-receives a 32-byte base64url `COFFEE_CHAT_EVAL_ATTESTATION_KEY` and a canonical
-integer `COFFEE_CHAT_EVAL_JUDGE_CAP_NANO_USD` between 0 and 50000000000.
-
-Eval computes the remaining cap only after bounded candidate cost evidence.
-It uses the larger of Harbor-reported cost and the pinned Terra estimate of $2
-per million input tokens plus $12 per million output tokens, rounded up to
-nano-USD. Missing both cost and token evidence stops judgment as unmeasured.
-Capabilities, provider keys, raw prompts, and raw responses do not enter the
-receipt.
-
-The Eval ledger is an operational stop condition, not a provider-side hard
-limit for an already-started request. It reserves candidate calls and refuses
-later candidate or judge calls when observed cost cannot fit, but Harbor/Codex
-does not expose a per-request dollar cap. A live campaign that must never cross
-USD 50 therefore also requires a verified provider/project hard spend limit;
-without that external precondition the campaign remains unavailable.
-
-USD 50 is the current operator-authorized API funding profile, not a property
-of PCDA or its measurement design. It must not determine the declared cases,
-controls, repetitions, statistical method, validity evidence, or activation
-criteria. If a prespecified campaign cannot fit the available funds, Eval marks
-the campaign unavailable or incomplete and waits for separately authorized
-funding; it does not shrink the design or lower an evidence threshold.
+The repository now retains credential-free Oracle/no-op PCDA calibration only.
+A future live path must use a reviewed credential broker or split execution
+service that keeps provider secrets outside the candidate process and
+filesystem, enforces provider-side spend limits, and scans retained outputs.
+Until all three properties are verified, measured PCDA execution remains
+unavailable.

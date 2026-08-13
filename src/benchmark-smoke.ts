@@ -1,5 +1,9 @@
 import type { ParsedHarborResult } from "./harbor.ts";
-import { validateCodexTraceEvidence } from "./protocol-canary.ts";
+import {
+  traceExecCommand,
+  traceObservationJson,
+  validateCodexTraceEvidence,
+} from "./protocol-canary.ts";
 
 const COMMIT_PATTERN = /^[0-9a-f]{40}$/u;
 const DIGEST_PATTERN = /^sha256:[0-9a-f]{64}$/u;
@@ -83,18 +87,23 @@ export function validateIFEvalTraceEvidence(trace: unknown): ValidatedIFEvalTrac
     if (step?.source !== "agent" || !Array.isArray(step.tool_calls)) return false;
     const called = step.tool_calls.map(record).some((call) => {
       const args = record(call?.arguments);
+      const command = traceExecCommand(args?.input);
       return (
         call?.function_name === "exec" &&
-        typeof args?.input === "string" &&
-        args.input.includes("/app/ifeval-case.json")
+        command?.cmd === "cat /app/ifeval-case.json" &&
+        command.workdir === "/app"
       );
     });
     if (!called) return false;
-    const observation = observationText(step.observation);
+    const observation = traceObservationJson(step.observation);
     return (
-      /"benchmark"\s*:\s*"IFEval"/u.test(observation) &&
-      /"key"\s*:\s*1001/u.test(observation) &&
-      observation.includes(SOURCE_DIGEST)
+      observation !== undefined &&
+      Object.keys(observation).sort().join(",") ===
+        "benchmark,key,prompt,source_digest" &&
+      observation.benchmark === "IFEval" &&
+      observation.key === CASE_KEY &&
+      typeof observation.prompt === "string" &&
+      observation.source_digest === SOURCE_DIGEST
     );
   });
   if (!readInput) {
@@ -106,15 +115,6 @@ export function validateIFEvalTraceEvidence(trace: unknown): ValidatedIFEvalTrac
     publicEntrypointInvocation: pluginTrace.publicEntrypointInvocation,
     capabilityStatus: pluginTrace.capabilityStatus,
   });
-}
-
-function observationText(value: unknown): string {
-  if (typeof value === "string") return value;
-  if (Array.isArray(value)) return value.map(observationText).join("\n");
-  const valueRecord = record(value);
-  return valueRecord === undefined
-    ? ""
-    : Object.values(valueRecord).map(observationText).join("\n");
 }
 
 function record(value: unknown): Record<string, unknown> | undefined {
