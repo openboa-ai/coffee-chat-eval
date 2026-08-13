@@ -1,66 +1,24 @@
-import { readFile } from "node:fs/promises";
+import { readFileSync, readdirSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
-const root = new URL("../", import.meta.url);
-const workflows = [
-  ".github/workflows/quality.yml",
-  ".github/workflows/policy.yml",
-  ".github/workflows/codeql.yml",
-];
-const pinnedAction = /uses:\s+[\w/-]+@[0-9a-f]{40}\b/u;
+import { parseDocument } from "yaml";
 
-function assertCheckoutCredentialsDisabled(workflow, source) {
-  const checkoutSteps =
-    source.match(/uses: actions\/checkout@[\s\S]*?persist-credentials: false/gmu) ?? [];
-  const checkoutCount = source.match(/uses: actions\/checkout@/gu)?.length ?? 0;
-  if (
-    checkoutSteps.length !== checkoutCount ||
-    source.includes("persist-credentials: true")
-  ) {
-    throw new Error(`${workflow} checkout must disable persisted credentials`);
-  }
-}
-
-function assertTrustedAuthorGateBeforeCheckout(workflow, source) {
-  for (const required of [
-    "name: Verify trusted pull request author",
-    "github.event.pull_request.author_association",
-    "OWNER|MEMBER",
-    "author=untrusted",
-  ]) {
-    if (!source.includes(required)) throw new Error(`${workflow} lacks ${required}`);
-  }
-  if (source.includes("COLLABORATOR") || source.includes("pull_request.user.login")) {
-    throw new Error(`${workflow} has unsupported author authority`);
-  }
-  if (
-    source.indexOf("name: Verify trusted pull request author") >
-    source.indexOf("uses: actions/checkout@")
-  ) {
-    throw new Error(`${workflow} checks out before author eligibility`);
-  }
-}
-
-for (const workflow of workflows) {
-  const source = await readFile(new URL(workflow, root), "utf8");
-  if (!source.includes("pull_request:") || !source.includes("merge_group:")) {
-    throw new Error(`${workflow} must run for pull_request and merge_group`);
-  }
-  if (
-    source.includes("pull_request_target") ||
-    ![...source.matchAll(/uses:.*$/gmu)].every(([line]) => pinnedAction.test(line))
-  ) {
-    throw new Error(`${workflow} has an unsafe trigger or unpinned action`);
-  }
-  assertCheckoutCredentialsDisabled(workflow, source);
-}
-
-const quality = await readFile(new URL(".github/workflows/quality.yml", root), "utf8");
-assertTrustedAuthorGateBeforeCheckout("quality workflow", quality);
-for (const required of [
-  "name: dependency review",
+const root = resolve(
+  process.env.EVAL_CI_POLICY_ROOT ??
+    resolve(dirname(fileURLToPath(import.meta.url)), ".."),
+);
+const workflowRoot = resolve(root, ".github/workflows");
+const failures = [];
+const workflowNames = ["codeql.yml", "quality.yml", "secret-boundary.yml"];
+const pinnedActions = new Set([
+  "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
   "actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294",
-  "name: aggregate",
-  "if: always()",
+  "actions/setup-node@820762786026740c76f36085b0efc47a31fe5020",
+  "github/codeql-action/analyze@5595ccaf912efad79be6eef63a5619ff05969be3",
+  "github/codeql-action/init@5595ccaf912efad79be6eef63a5619ff05969be3",
+]);
+const qualityCommands = [
   "npm run format:check",
   "npm run typecheck",
   "npm run build",
@@ -69,97 +27,569 @@ for (const required of [
   "npm run dry-run",
   "npm run smoke",
   "npm run ci:policy",
-]) {
-  if (!quality.includes(required))
-    throw new Error(`quality workflow lacks ${required}`);
-}
-for (const required of [
-  "name: harbor contract",
-  "python -m pip install --disable-pip-version-check uv==0.8.3",
+];
+const calibrationCommands = [
   "npm run canary:calibrate",
   "npm run benchmark:calibrate",
   "npm run pcda:calibrate",
-  "needs: [quality, dependency-review, harbor-contract]",
-]) {
-  if (!quality.includes(required))
-    throw new Error(`quality workflow lacks ${required}`);
+];
+const authorEligibilityGate = `case "$EVENT_NAME" in
+  merge_group) exit 0 ;;
+  pull_request)
+    case "$AUTHOR_ASSOCIATION" in OWNER|MEMBER) exit 0 ;; *) exit 1 ;; esac
+    ;;
+  *) exit 1 ;;
+esac
+`;
+
+function fail(message) {
+  failures.push(message);
 }
 
-const policy = await readFile(new URL(".github/workflows/policy.yml", root), "utf8");
-assertTrustedAuthorGateBeforeCheckout("policy workflow", policy);
-
-const codeql = await readFile(new URL(".github/workflows/codeql.yml", root), "utf8");
-for (const permission of [
-  "contents: read",
-  "actions: read",
-  "security-events: write",
-]) {
-  if (!codeql.includes(permission))
-    throw new Error(`CodeQL must declare ${permission}`);
+function isRecord(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
-const boundary = await readFile(
-  new URL(".github/workflows/secret-boundary.yml", root),
-  "utf8",
-);
-for (const required of [
-  "pull_request_target:",
-  "contents: read",
-  "path: trusted",
-  "path: candidate",
-  "cmp trusted/.gitleaksignore candidate/.gitleaksignore",
-  "gitleaks git",
-  "gitleaks dir",
-]) {
-  if (!boundary.includes(required))
-    throw new Error(`secret boundary lacks ${required}`);
+function equal(actual, expected) {
+  return JSON.stringify(actual) === JSON.stringify(expected);
 }
-if (
-  boundary.includes("npm ") ||
-  boundary.includes("node ") ||
-  boundary.includes("secrets.")
-) {
-  throw new Error("secret boundary must treat the candidate only as data");
+
+function hasExactKeys(value, keys) {
+  return isRecord(value) && equal(Object.keys(value).sort(), [...keys].sort());
 }
-const mergePolicy = JSON.parse(
-  await readFile(new URL(".github/merge-policy.json", root), "utf8"),
-);
-if (
-  JSON.stringify(mergePolicy.eligible_author_associations) !==
-    JSON.stringify(["OWNER", "MEMBER"]) ||
-  mergePolicy.merge_method !== "squash" ||
-  mergePolicy.required_approvals !== 0 ||
-  mergePolicy.auto_merge?.required_checks !== true
-) {
-  throw new Error(
-    "merge policy must require OWNER|MEMBER, squash, checks, and zero approvals",
+
+function getSteps(job) {
+  return Array.isArray(job?.steps) ? job.steps : [];
+}
+
+function indexOfRun(steps, command) {
+  return steps.findIndex((step) => isRecord(step) && step.run === command);
+}
+
+function collectUses(value, result = [], seen = new WeakSet()) {
+  if (!value || typeof value !== "object" || seen.has(value)) return result;
+  seen.add(value);
+  if (Array.isArray(value)) {
+    for (const item of value) collectUses(item, result, seen);
+    return result;
+  }
+  for (const [key, item] of Object.entries(value)) {
+    if (key === "uses") result.push(item);
+    collectUses(item, result, seen);
+  }
+  return result;
+}
+
+function collectStrings(value, result = [], seen = new WeakSet()) {
+  if (typeof value === "string") {
+    result.push(value);
+    return result;
+  }
+  if (!value || typeof value !== "object" || seen.has(value)) return result;
+  seen.add(value);
+  for (const item of Array.isArray(value) ? value : Object.values(value)) {
+    collectStrings(item, result, seen);
+  }
+  return result;
+}
+
+function parseYaml(relativePath, label) {
+  const source = readFileSync(resolve(root, relativePath), "utf8");
+  if (Buffer.byteLength(source, "utf8") > 256 * 1024) {
+    fail(`${label}: document resource limit`);
+    return undefined;
+  }
+  const document = parseDocument(source, { uniqueKeys: true });
+  if (document.errors.length > 0) {
+    fail(`${label}: workflow must parse uniquely`);
+    return undefined;
+  }
+  try {
+    return document.toJS({ maxAliasCount: 100 });
+  } catch {
+    fail(`${label}: aliases exceed their resource limit`);
+    return undefined;
+  }
+}
+
+function validateConcurrency(name, workflow) {
+  if (
+    !hasExactKeys(workflow.concurrency, ["group", "cancel-in-progress"]) ||
+    workflow.concurrency["cancel-in-progress"] !== true ||
+    typeof workflow.concurrency.group !== "string" ||
+    !workflow.concurrency.group.includes("github.workflow") ||
+    workflow.concurrency.group.includes("secrets.")
+  ) {
+    fail(`${name}: bounded concurrency`);
+  }
+}
+
+function validateWorkflowShape(name, workflow) {
+  if (
+    !isRecord(workflow) ||
+    !hasExactKeys(workflow, ["name", "on", "permissions", "concurrency", "jobs"])
+  ) {
+    fail(`${name}: workflow shape`);
+    return;
+  }
+  if (!hasExactKeys(workflow.permissions, [])) {
+    fail(`${name}: root permissions must be empty`);
+  }
+  if (!isRecord(workflow.jobs)) {
+    fail(`${name}: jobs mapping`);
+    return;
+  }
+  validateConcurrency(name, workflow);
+  for (const [jobName, job] of Object.entries(workflow.jobs)) {
+    if (
+      !isRecord(job) ||
+      !Number.isInteger(job["timeout-minutes"]) ||
+      job["timeout-minutes"] < 1 ||
+      job["timeout-minutes"] > 30 ||
+      !isRecord(job.permissions)
+    ) {
+      fail(`${name}: ${jobName} bounded timeout and job permissions`);
+    }
+  }
+}
+
+function validateActions(name, workflow) {
+  for (const action of collectUses(workflow)) {
+    if (typeof action !== "string" || !pinnedActions.has(action)) {
+      fail(`${name}: unapproved action ${String(action)}`);
+    }
+  }
+  for (const job of Object.values(workflow.jobs ?? {})) {
+    for (const step of getSteps(job)) {
+      if (
+        isRecord(step) &&
+        typeof step.uses === "string" &&
+        step.uses.startsWith("actions/checkout@") &&
+        step.with?.["persist-credentials"] !== false
+      ) {
+        fail(`${name}: checkout persists credentials`);
+      }
+    }
+  }
+}
+
+function validateJobPermissions(name, workflow) {
+  for (const [jobName, job] of Object.entries(workflow.jobs ?? {})) {
+    if (!isRecord(job?.permissions)) continue;
+    const exactCodeql =
+      name === "codeql.yml" &&
+      jobName === "analyze" &&
+      equal(job.permissions, {
+        contents: "read",
+        actions: "read",
+        "security-events": "write",
+      });
+    const exactRead = equal(job.permissions, { contents: "read" });
+    if (!exactCodeql && !exactRead) {
+      fail(`${name}: job permissions must be read-only except CodeQL`);
+    }
+  }
+}
+
+function validateCandidateWorkflow(name, workflow) {
+  if (collectStrings(workflow).some((value) => value.includes("secrets."))) {
+    fail(`${name}: secret context`);
+  }
+}
+
+function validateCodeql(workflow) {
+  if (
+    !hasExactKeys(workflow.on, ["pull_request", "merge_group", "push"]) ||
+    !equal(workflow.on.push, { branches: ["main"] })
+  ) {
+    fail("codeql.yml: approved triggers");
+  }
+  const analyze = workflow.jobs?.analyze;
+  if (
+    !hasExactKeys(workflow.jobs, ["analyze"]) ||
+    !isRecord(analyze) ||
+    analyze.name !== "JavaScript-TypeScript" ||
+    analyze["runs-on"] !== "ubuntu-24.04"
+  ) {
+    fail("codeql.yml: exact CodeQL job");
+    return;
+  }
+  const steps = getSteps(analyze);
+  if (
+    steps[0]?.uses !== "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1" ||
+    steps[1]?.uses !==
+      "github/codeql-action/init@5595ccaf912efad79be6eef63a5619ff05969be3" ||
+    steps[1]?.with?.languages !== "javascript-typescript" ||
+    steps[1]?.with?.["build-mode"] !== "none" ||
+    steps[2]?.uses !==
+      "github/codeql-action/analyze@5595ccaf912efad79be6eef63a5619ff05969be3"
+  ) {
+    fail("codeql.yml: exact pinned CodeQL actions");
+  }
+}
+
+function validateDependencyReview(job) {
+  if (
+    !isRecord(job) ||
+    job.name !== "dependency review" ||
+    job["runs-on"] !== "ubuntu-24.04" ||
+    !equal(job.permissions, { contents: "read" })
+  ) {
+    fail("quality.yml: dependency-review permissions");
+    return;
+  }
+  const [pullRequest, mergeGroup] = getSteps(job);
+  const expectedAction =
+    "actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294";
+  for (const step of [pullRequest, mergeGroup]) {
+    if (
+      !isRecord(step) ||
+      step.uses !== expectedAction ||
+      step.with?.["fail-on-severity"] !== "moderate" ||
+      step.with?.["fail-on-scopes"] !== "runtime,development,unknown" ||
+      step.with?.["show-patched-versions"] !== true ||
+      step.with?.["comment-summary-in-pr"] !== "never"
+    ) {
+      fail("quality.yml: dependency-review inputs");
+      return;
+    }
+  }
+  if (
+    pullRequest?.if !== "github.event_name == 'pull_request'" ||
+    mergeGroup?.if !== "github.event_name == 'merge_group'" ||
+    mergeGroup?.with?.["base-ref"] !== "${{ github.event.merge_group.base_sha }}" ||
+    mergeGroup?.with?.["head-ref"] !== "${{ github.event.merge_group.head_sha }}"
+  ) {
+    fail("quality.yml: exact merge-group refs");
+  }
+}
+
+function validateQuality(workflow) {
+  if (!hasExactKeys(workflow.on, ["pull_request", "merge_group"])) {
+    fail("quality.yml: approved triggers");
+  }
+  const { eligibility, quality, aggregate } = workflow.jobs ?? {};
+  const dependencyReview = workflow.jobs?.["dependency-review"];
+  const harborContract = workflow.jobs?.["harbor-contract"];
+  if (
+    !hasExactKeys(workflow.jobs, [
+      "eligibility",
+      "quality",
+      "dependency-review",
+      "harbor-contract",
+      "aggregate",
+    ])
+  ) {
+    fail("quality.yml: exact jobs");
+  }
+  if (
+    !isRecord(eligibility) ||
+    eligibility.name !== "author eligibility" ||
+    !equal(eligibility.permissions, { contents: "read" }) ||
+    getSteps(eligibility)[0]?.run !== authorEligibilityGate
+  ) {
+    fail("quality.yml: OWNER|MEMBER author gate");
+  }
+  if (
+    !isRecord(quality) ||
+    quality.name !== "required" ||
+    quality.needs !== "eligibility" ||
+    !equal(quality.permissions, { contents: "read" })
+  ) {
+    fail("quality.yml: candidate checkout requires eligibility");
+  } else {
+    const steps = getSteps(quality);
+    const install = indexOfRun(steps, "npm ci --ignore-scripts");
+    const audit = indexOfRun(steps, "npm audit --audit-level=moderate");
+    const commands = qualityCommands.map((command) => indexOfRun(steps, command));
+    if (
+      steps[0]?.uses !== "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1" ||
+      install < 0 ||
+      audit <= install ||
+      commands.some((index) => index <= audit) ||
+      commands.some(
+        (index, position) => position > 0 && index <= commands[position - 1],
+      ) ||
+      commands.at(-1) !== steps.length - 1
+    ) {
+      fail(
+        "quality.yml: immutable install and moderate audit precede exact repository scripts",
+      );
+    }
+    const scan = steps.find(
+      (step) => step?.name === "Scan complete Git history and worktree",
+    )?.run;
+    if (
+      typeof scan !== "string" ||
+      !scan.includes("gitleaks git") ||
+      !scan.includes("gitleaks dir")
+    ) {
+      fail("quality.yml: complete history and worktree secret scan");
+    }
+    if (indexOfRun(steps, "npm run ci:policy") < 0) {
+      fail("quality.yml: quality job runs the policy command");
+    }
+  }
+  validateDependencyReview(dependencyReview);
+  if (
+    !isRecord(harborContract) ||
+    harborContract.name !== "harbor contract" ||
+    harborContract.needs !== "eligibility" ||
+    !equal(harborContract.permissions, { contents: "read" })
+  ) {
+    fail("quality.yml: Harbor execution requires eligibility");
+  } else {
+    const steps = getSteps(harborContract);
+    const install = indexOfRun(steps, "npm ci --ignore-scripts");
+    const audit = indexOfRun(steps, "npm audit --audit-level=moderate");
+    const uv = indexOfRun(
+      steps,
+      "python3 -m pip install --disable-pip-version-check --require-hashes -r .github/uv-requirements.txt",
+    );
+    const calibrations = calibrationCommands.map((command) =>
+      indexOfRun(steps, command),
+    );
+    if (
+      install < 0 ||
+      audit <= install ||
+      uv <= audit ||
+      calibrations.some((index) => index <= uv) ||
+      calibrations.some(
+        (index, position) => position > 0 && index <= calibrations[position - 1],
+      )
+    ) {
+      fail("quality.yml: hash-pinned Harbor calibration contract");
+    }
+  }
+  if (
+    collectStrings(workflow).some(
+      (value) =>
+        value.includes("npm run pcda:codex") ||
+        value.includes("canary:codex") ||
+        value.includes("benchmark:smoke"),
+    )
+  ) {
+    fail("quality.yml: live model execution is forbidden in required CI");
+  }
+  if (
+    !isRecord(aggregate) ||
+    aggregate.name !== "aggregate" ||
+    aggregate.if !== "always()" ||
+    !equal(aggregate.needs, [
+      "eligibility",
+      "quality",
+      "dependency-review",
+      "harbor-contract",
+    ]) ||
+    !equal(aggregate.permissions, { contents: "read" })
+  ) {
+    fail("quality.yml: aggregate contract");
+  }
+}
+
+function validateSecretBoundary(workflow) {
+  if (
+    !hasExactKeys(workflow.on, ["pull_request_target", "workflow_dispatch"]) ||
+    !equal(workflow.on.pull_request_target?.types, [
+      "opened",
+      "synchronize",
+      "reopened",
+      "ready_for_review",
+    ]) ||
+    workflow.on.workflow_dispatch !== null ||
+    !hasExactKeys(workflow.jobs, ["secret-boundary"])
+  ) {
+    fail("secret-boundary.yml: trusted boundary shape");
+    return;
+  }
+  const boundary = workflow.jobs["secret-boundary"];
+  if (
+    !isRecord(boundary) ||
+    boundary.name !== "Secret boundary" ||
+    boundary["runs-on"] !== "ubuntu-latest" ||
+    boundary.if !==
+      "github.event_name == 'workflow_dispatch' || github.event.pull_request.author_association == 'OWNER' || github.event.pull_request.author_association == 'MEMBER'" ||
+    !equal(boundary.permissions, { contents: "read" })
+  ) {
+    fail("secret-boundary.yml: trusted author boundary");
+    return;
+  }
+  const steps = getSteps(boundary);
+  const trusted = steps.findIndex((step) => step?.with?.path === "trusted");
+  const candidate = steps.findIndex((step) => step?.with?.path === "candidate");
+  if (trusted !== 0 || candidate < 2) {
+    fail("secret-boundary.yml: trusted checkout before candidate data checkout");
+  }
+  const strings = collectStrings(workflow);
+  if (
+    strings.some(
+      (value) => /(?:^|\s)(?:npm|node)\s/u.test(value) || value.includes("secrets."),
+    )
+  ) {
+    fail("secret-boundary.yml: candidate execution or secret context");
+  }
+  const scan = steps.at(-1)?.run;
+  if (
+    typeof scan !== "string" ||
+    !scan.includes("set -o pipefail") ||
+    !scan.includes("gitleaks git") ||
+    !scan.includes("gitleaks dir") ||
+    !scan.includes("git -C candidate fetch --no-tags --depth=1") ||
+    !scan.includes("git -C candidate cat-file blob")
+  ) {
+    fail("secret-boundary.yml: complete history, worktree, and raw-blob scans");
+  }
+}
+
+function validateDependabot() {
+  const config = parseYaml(".github/dependabot.yml", "dependabot.yml");
+  const updates = config?.updates;
+  if (!Array.isArray(updates) || updates.length !== 2) {
+    fail("dependabot.yml: exact update lanes");
+    return;
+  }
+  const npm = updates.find((item) => item?.["package-ecosystem"] === "npm");
+  const actions = updates.find(
+    (item) => item?.["package-ecosystem"] === "github-actions",
   );
-}
-if (!mergePolicy.required_contexts?.includes("Secret boundary")) {
-  throw new Error("merge policy must require the trusted secret boundary");
+  const ignoredMajors = [
+    { "dependency-name": "*", "update-types": ["version-update:semver-major"] },
+  ];
+  if (
+    !isRecord(npm) ||
+    !equal(npm.groups?.security, {
+      "applies-to": "security-updates",
+      patterns: ["*"],
+    }) ||
+    !equal(npm.groups?.production, {
+      "applies-to": "version-updates",
+      "dependency-type": "production",
+      "update-types": ["minor", "patch"],
+    }) ||
+    !equal(npm.groups?.development, {
+      "applies-to": "version-updates",
+      "dependency-type": "development",
+      "update-types": ["minor", "patch"],
+    }) ||
+    !equal(npm.ignore, ignoredMajors)
+  ) {
+    fail("dependabot.yml: npm security, compatible version, and major policy");
+  }
+  if (
+    !isRecord(actions) ||
+    !equal(actions.groups?.security, {
+      "applies-to": "security-updates",
+      patterns: ["*"],
+    }) ||
+    !equal(actions.groups?.versions, {
+      "applies-to": "version-updates",
+      "update-types": ["minor", "patch"],
+      patterns: ["*"],
+    }) ||
+    !equal(actions.ignore, ignoredMajors)
+  ) {
+    fail("dependabot.yml: Actions security, compatible version, and major policy");
+  }
 }
 
-const packageJson = JSON.parse(await readFile(new URL("package.json", root), "utf8"));
-for (const script of [
-  "format:check",
-  "typecheck",
-  "build",
-  "test",
-  "canary:check",
-  "canary:calibrate",
-  "benchmark:calibrate",
-  "pcda:calibrate",
-  "pcda:codex",
-  "dry-run",
-  "smoke",
-  "ci:policy",
-]) {
-  if (typeof packageJson.scripts?.[script] !== "string")
-    throw new Error(`missing ${script} script`);
+function validateMergePolicy() {
+  const policy = JSON.parse(
+    readFileSync(resolve(root, ".github/merge-policy.json"), "utf8"),
+  );
+  if (
+    policy.merge_method !== "squash" ||
+    policy.auto_merge?.provider !== "github-native" ||
+    policy.auto_merge.required_checks !== true ||
+    policy.required_approvals !== 0 ||
+    !equal(policy.eligible_author_associations, ["OWNER", "MEMBER"]) ||
+    policy.review_policy?.default_required_approvals !== 0 ||
+    policy.review_policy?.sensitive_paths_use_human_team_reviewer !== true
+  ) {
+    fail("merge policy must be GitHub-native selective-review squash");
+  }
+  for (const context of [
+    "Eval / aggregate",
+    "Eval / dependency review",
+    "Secret boundary",
+    "JavaScript-TypeScript",
+  ]) {
+    if (!policy.required_contexts?.includes(context)) {
+      fail(`merge policy must require ${context}`);
+    }
+  }
+  for (const path of [
+    ".github/**",
+    ".githooks/**",
+    "AGENTS.md",
+    "SECURITY.md",
+    "integrations/harbor/**",
+    "src/pcda-harbor.ts",
+    "src/pcda-runner.ts",
+    "src/runner.ts",
+  ]) {
+    if (!policy.protected_paths?.includes(path)) {
+      fail(`merge policy must protect ${path}`);
+    }
+  }
 }
-if (quality.includes("npm run pcda:codex")) {
-  throw new Error("live PCDA Codex execution must remain outside required CI");
+
+const discovered = readdirSync(workflowRoot)
+  .filter((name) => /\.ya?ml$/u.test(name))
+  .sort();
+if (!equal(discovered, workflowNames)) fail("workflow set must be exact");
+
+const workflows = {};
+for (const name of workflowNames) {
+  const workflow = parseYaml(`.github/workflows/${name}`, name);
+  if (workflow === undefined) continue;
+  workflows[name] = workflow;
+  validateWorkflowShape(name, workflow);
+  validateActions(name, workflow);
+  validateJobPermissions(name, workflow);
+}
+if (workflows["codeql.yml"]) {
+  validateCandidateWorkflow("codeql.yml", workflows["codeql.yml"]);
+  validateCodeql(workflows["codeql.yml"]);
+}
+if (workflows["quality.yml"]) {
+  validateCandidateWorkflow("quality.yml", workflows["quality.yml"]);
+  validateQuality(workflows["quality.yml"]);
+}
+if (workflows["secret-boundary.yml"]) {
+  validateSecretBoundary(workflows["secret-boundary.yml"]);
+}
+
+const packageJson = JSON.parse(readFileSync(resolve(root, "package.json"), "utf8"));
+if (
+  packageJson.scripts?.["ci:policy"] !==
+  "node --test tests/workflow-policy.test.mjs && node .github/ci-policy.mjs"
+) {
+  fail("package command must run fixtures before the checker");
+}
+if (packageJson.devDependencies?.yaml !== "2.9.0") {
+  fail("package policy requires exact yaml 2.9.0");
 }
 if (Object.hasOwn(packageJson.dependencies ?? {}, "@openboa/coffee-chat")) {
-  throw new Error("the evaluator must not depend on private Coffee Chat source");
+  fail("the evaluator must not depend on private Coffee Chat source");
+}
+const uvRequirement = readFileSync(
+  resolve(root, ".github/uv-requirements.txt"),
+  "utf8",
+);
+const approvedUvRequirement = [
+  "uv==0.8.3 \\",
+  "    --hash=sha256:f1eb7c896fc0d80ed534748aaf46697b6ebc8ce401f1c51666ce0b9923c3db9a",
+  "",
+].join("\n");
+if (uvRequirement !== approvedUvRequirement) {
+  fail("uv requirement must use the approved PyPI wheel hash");
+}
+validateDependabot();
+validateMergePolicy();
+
+if (failures.length > 0) {
+  process.stderr.write(`${failures.join("\n")}\n`);
+  process.exitCode = 1;
+} else {
+  process.stdout.write("CI policy passed\n");
 }

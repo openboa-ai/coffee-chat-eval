@@ -1,0 +1,2 @@
+uv==0.8.3 \
+    --hash=sha256:f1eb7c896fc0d80ed534748aaf46697b6ebc8ce401f1c51666ce0b9923c3db9a

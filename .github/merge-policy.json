@@ -1,30 +1,36 @@
 {
   "schema": "coffee-chat/merge-policy",
   "auto_merge": {
+    "provider": "github-native",
     "required_checks": true,
     "verified_members_only": true
   },
   "merge_method": "squash",
   "required_approvals": 0,
+  "review_policy": {
+    "default_required_approvals": 0,
+    "sensitive_paths_use_human_team_reviewer": true
+  },
   "eligible_author_associations": ["OWNER", "MEMBER"],
   "protected_paths": [
     ".github/**",
+    ".githooks/**",
+    ".gitleaksignore",
+    ".gitleaks.toml",
     "AGENTS.md",
-    "LICENSE",
-    "PLAN.md",
+    "CODEOWNERS",
     "SECURITY.md",
-    "package.json",
-    "package-lock.json",
-    "prettier.config.mjs",
-    "src/identity.ts",
-    "src/matrix.ts",
-    "src/runner.ts",
-    "src/types.ts",
-    "tsconfig.json"
+    "integrations/harbor/**",
+    "src/harbor.ts",
+    "src/pcda-harbor.ts",
+    "src/pcda-runner.ts",
+    "src/registry.ts",
+    "src/runner.ts"
   ],
   "required_contexts": [
     "Eval / aggregate",
     "Eval / dependency review",
-    "Secret boundary"
+    "Secret boundary",
+    "JavaScript-TypeScript"
   ]
 }

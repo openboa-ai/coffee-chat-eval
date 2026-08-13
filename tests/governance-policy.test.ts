@@ -19,18 +19,18 @@ test("policy check accepts the lean protected workflow shape", () => {
 });
 
 test("candidate workflows admit only owners or members before checkout", () => {
-  for (const workflowPath of [
-    ".github/workflows/quality.yml",
-    ".github/workflows/policy.yml",
-  ]) {
-    const workflow = read(workflowPath);
-    assert.match(workflow, /OWNER\|MEMBER/u);
-    assert.doesNotMatch(workflow, /COLLABORATOR|pull_request\.user\.login/u);
-    assert.ok(
-      workflow.indexOf("Verify trusted pull request author") <
-        workflow.indexOf("uses: actions\/checkout@"),
-    );
-  }
+  const workflow = read(".github/workflows/quality.yml");
+  assert.match(workflow, /OWNER\|MEMBER/u);
+  assert.doesNotMatch(workflow, /COLLABORATOR|pull_request\.user\.login/u);
+  assert.match(workflow, /quality:\n    name: required\n    needs: eligibility/u);
+  assert.match(
+    workflow,
+    /harbor-contract:\n    name: harbor contract\n    needs: eligibility/u,
+  );
+  assert.ok(
+    workflow.indexOf("name: Decide author eligibility") <
+      workflow.indexOf("uses: actions/checkout@"),
+  );
 });
 
 test("required CI calibrates Harbor tasks without running model evaluation", () => {
@@ -39,7 +39,11 @@ test("required CI calibrates Harbor tasks without running model evaluation", () 
   assert.match(workflow, /npm run canary:check/u);
   assert.match(workflow, /npm run canary:calibrate/u);
   assert.match(workflow, /npm run benchmark:calibrate/u);
-  assert.doesNotMatch(workflow, /canary:codex|benchmark:smoke|OPENAI_API_KEY/u);
+  assert.match(workflow, /npm run pcda:calibrate/u);
+  assert.doesNotMatch(
+    workflow,
+    /canary:codex|benchmark:smoke|pcda:codex|OPENAI_API_KEY/u,
+  );
 });
 
 test("secret scanning uses trusted base controls and never executes candidate code", () => {
