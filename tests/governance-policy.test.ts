@@ -53,6 +53,11 @@ test("credential-free Harbor calibration remains hash locked", () => {
   );
 });
 
+test("protocol canary image contains no unused online Codex install", () => {
+  const dockerfile = read("evals/protocol-canary/environment/Dockerfile");
+  assert.doesNotMatch(dockerfile, /@openai\/codex|npm install --global/u);
+});
+
 test("credential-bearing candidate execution remains absent until a broker exists", () => {
   const packageJson = JSON.parse(read("package.json")) as {
     scripts?: Record<string, string>;

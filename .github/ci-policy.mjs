@@ -9,6 +9,7 @@ const controlRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const root = resolve(process.env.EVAL_CI_POLICY_ROOT ?? controlRoot);
 const { parseDocument } = loadPolicyParser(controlRoot);
 const workflowRoot = resolve(root, ".github/workflows");
+const TRUSTED_CONTROL_SHA = "f2e0db9ee5fc67c63fe789d0e80bb3061436bc6c";
 const failures = [];
 if (existsSync(resolve(root, ".npmrc"))) {
   failures.push("root .npmrc must be absent");
@@ -314,8 +315,11 @@ function validateMergePolicy() {
       "SECURITY.md",
       ".npmrc",
       "npm-shrinkwrap.json",
+      "package-lock.json",
+      "package.json",
       "integrations/harbor/**",
       "evals/**",
+      "tests/fixtures/pcda-calibration/**",
       "src/benchmark-smoke.ts",
       "src/canary-cli.ts",
       "src/harbor.ts",
@@ -345,9 +349,7 @@ const trustedWorkflowSource = readFileSync(
 const trustedControlSha = trustedWorkflowSource.match(
   /uses: openboa-ai\/\.github\/\.github\/workflows\/coffee-trusted-gate\.yml@([0-9a-f]{40})/u,
 )?.[1];
-const expectedTrustedWorkflow =
-  trustedControlSha &&
-  `name: OpenBoa Coffee trusted gate
+const expectedTrustedWorkflow = `name: OpenBoa Coffee trusted gate
 
 on:
   pull_request_target:
@@ -362,11 +364,14 @@ jobs:
       actions: read
       contents: read
       security-events: write
-    uses: openboa-ai/.github/.github/workflows/coffee-trusted-gate.yml@${trustedControlSha}
+    uses: openboa-ai/.github/.github/workflows/coffee-trusted-gate.yml@${TRUSTED_CONTROL_SHA}
     with:
-      control_sha: ${trustedControlSha}
+      control_sha: ${TRUSTED_CONTROL_SHA}
 `;
-if (!trustedControlSha || trustedWorkflowSource !== expectedTrustedWorkflow) {
+if (
+  trustedControlSha !== TRUSTED_CONTROL_SHA ||
+  trustedWorkflowSource !== expectedTrustedWorkflow
+) {
   fail("trusted wrapper must remain exact");
 }
 

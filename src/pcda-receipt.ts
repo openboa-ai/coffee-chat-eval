@@ -111,6 +111,21 @@ export function calibratePcdaNativeResults(input: {
   if (oracle.state === "invalid" || noop.state === "invalid") {
     return { state: "invalid", reason: "calibration native evidence is invalid" };
   }
+  if (
+    oracle.nativeTrialId !== "pcda-calibration-oracle" ||
+    oracle.nativeTrialName !== "coffee-chat-pcda-calibration__oracle__1" ||
+    oracle.nativeAgentName !== "oracle" ||
+    oracle.nativeAgentVersion !== "0.1.0" ||
+    noop.nativeTrialId !== "pcda-calibration-noop" ||
+    noop.nativeTrialName !== "coffee-chat-pcda-calibration__nop__1" ||
+    noop.nativeAgentName !== "nop" ||
+    noop.nativeAgentVersion !== "0.1.0"
+  ) {
+    return {
+      state: "invalid",
+      reason: "calibration native identities do not match the sealed Oracle/no-op pair",
+    };
+  }
   if (oracle.nativeReward !== 1 || noop.nativeReward !== 0) {
     return { state: "rejected", reason: "Oracle must be 1 and no-op must be 0" };
   }
