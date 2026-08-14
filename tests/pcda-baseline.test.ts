@@ -13,8 +13,8 @@ import { PCDA_CALIBRATION_RESULT_BYTES } from "../src/pcda-resources.ts";
 
 function nativeResult(overrides: Record<string, unknown> = {}): unknown {
   return {
-    id: "native-trial-t1-a",
-    trial_name: "coffee-chat-pcda-t1-a__codex__1",
+    id: "pcda-calibration-oracle",
+    trial_name: "coffee-chat-pcda-calibration__oracle__1",
     task_name: "openboa-ai/pcda-case-projection",
     exception_info: null,
     verifier_environment_mode: "separate",
@@ -34,8 +34,8 @@ test("credential-free PCDA calibration accepts Oracle=1 and no-op=0", () => {
     calibratePcdaNativeResults({
       oracle: nativeResult(),
       noop: nativeResult({
-        id: "native-trial-nop",
-        trial_name: "coffee-chat-pcda-nop__nop__1",
+        id: "pcda-calibration-noop",
+        trial_name: "coffee-chat-pcda-calibration__nop__1",
         agent_info: { name: "nop", version: "0.1.0" },
         verifier_result: { rewards: { reward: 0 } },
       }),
@@ -48,7 +48,12 @@ test("PCDA calibration rejects reversed evidence and preserves verifier failures
   assert.deepEqual(
     calibratePcdaNativeResults({
       oracle: nativeResult({ verifier_result: { rewards: { reward: 0 } } }),
-      noop: nativeResult({ verifier_result: { rewards: { reward: 1 } } }),
+      noop: nativeResult({
+        id: "pcda-calibration-noop",
+        trial_name: "coffee-chat-pcda-calibration__nop__1",
+        agent_info: { name: "nop", version: "0.1.0" },
+        verifier_result: { rewards: { reward: 1 } },
+      }),
     }),
     { state: "rejected", reason: "Oracle must be 1 and no-op must be 0" },
   );
@@ -67,6 +72,43 @@ test("PCDA calibration rejects reversed evidence and preserves verifier failures
   );
 });
 
+test("PCDA calibration binds exact Oracle and no-op native identities", () => {
+  const noop = nativeResult({
+    id: "pcda-calibration-noop",
+    trial_name: "coffee-chat-pcda-calibration__nop__1",
+    agent_info: { name: "nop", version: "0.1.0" },
+    verifier_result: { rewards: { reward: 0 } },
+  });
+  for (const [label, oracle, candidateNoop] of [
+    [
+      "swapped roles",
+      nativeResult({ agent_info: { name: "nop", version: "0.1.0" } }),
+      nativeResult({
+        id: "pcda-calibration-noop",
+        trial_name: "coffee-chat-pcda-calibration__nop__1",
+        agent_info: { name: "oracle", version: "0.1.0" },
+        verifier_result: { rewards: { reward: 0 } },
+      }),
+    ],
+    [
+      "unexpected agent version",
+      nativeResult({ agent_info: { name: "oracle", version: "0.2.0" } }),
+      noop,
+    ],
+    [
+      "unexpected trial identity",
+      nativeResult({ id: "candidate-selected-oracle" }),
+      noop,
+    ],
+  ] as const) {
+    assert.equal(
+      calibratePcdaNativeResults({ oracle, noop: candidateNoop }).state,
+      "invalid",
+      label,
+    );
+  }
+});
+
 test("PCDA CLI exposes calibration only", async () => {
   const root = mkdtempSync(join(tmpdir(), "pcda-calibration-"));
   try {
@@ -77,8 +119,8 @@ test("PCDA CLI exposes calibration only", async () => {
       noop,
       `${JSON.stringify(
         nativeResult({
-          id: "native-trial-nop",
-          trial_name: "coffee-chat-pcda-nop__nop__1",
+          id: "pcda-calibration-noop",
+          trial_name: "coffee-chat-pcda-calibration__nop__1",
           agent_info: { name: "nop", version: "0.1.0" },
           verifier_result: { rewards: { reward: 0 } },
         }),

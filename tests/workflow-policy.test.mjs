@@ -10,6 +10,7 @@ import { promisify } from "node:util";
 const execFileAsync = promisify(execFile);
 const repositoryRoot = fileURLToPath(new URL("../", import.meta.url));
 const checker = join(repositoryRoot, ".github/ci-policy.mjs");
+const CENTRAL_CONTROL_SHA = "f2e0db9ee5fc67c63fe789d0e80bb3061436bc6c";
 
 async function withFixture(mutate, check) {
   const fixture = await mkdtemp(join(tmpdir(), "eval-policy-"));
@@ -82,6 +83,16 @@ test("merge policy binds the trusted aggregate and protected Environment", async
     required_approvals: 1,
     prevent_self_review: false,
   });
+  for (const protectedPath of [
+    "package.json",
+    "package-lock.json",
+    "tests/fixtures/pcda-calibration/**",
+  ]) {
+    assert.ok(
+      mergePolicy.protected_paths.includes(protectedPath),
+      `${protectedPath} must require the protected Environment`,
+    );
+  }
 });
 
 test("target repository exposes only the exact trusted wrapper", async () => {
@@ -91,6 +102,15 @@ test("target repository exposes only the exact trusted wrapper", async () => {
       .sort(),
     ["trusted.yml"],
   );
+  const wrapper = await readFile(
+    join(repositoryRoot, ".github/workflows/trusted.yml"),
+    "utf8",
+  );
+  assert.match(
+    wrapper,
+    new RegExp(`coffee-trusted-gate\\.yml@${CENTRAL_CONTROL_SHA}`, "u"),
+  );
+  assert.match(wrapper, new RegExp(`control_sha: ${CENTRAL_CONTROL_SHA}`, "u"));
   const result = await runChecker(repositoryRoot);
   assert.equal(result.status, 0, result.output);
 });

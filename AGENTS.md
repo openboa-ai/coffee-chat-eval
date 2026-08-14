@@ -25,6 +25,9 @@ candidate runner, staged Bench signer/judge adapter, and `pcda:codex` command
 are removed. Do not restore provider-bearing candidate execution until a
 reviewed credential broker or split execution service keeps provider secrets
 outside the candidate process and filesystem.
+The checked-in PCDA calibration pair is trust-bearing evidence: keep its exact
+Oracle and `nop` agent names, versions, trial IDs, and trial names bound in the
+receipt validator, and route fixture changes through `coffee-security`.
 
 Use the single unpadded `YYYY.M.D` CalVer in `package.json`, `PLAN.md`, dry-run
 reports, and receipts. Run `npm run format:check`, `npm run typecheck`,
@@ -57,7 +60,8 @@ that parser independently, and treats the pull request as inert data before any
 candidate dependency or script runs. Candidate-local checks are deterministic
 quality evidence only, never authorization. Treat the bootstrap, manifest,
 lockfile, checker, wrapper, and central gate revision as one sensitive boundary.
-Root
-dependency updates stay on the GitHub-native path only when package names,
-exact versions, npm registry tarball identities, and sha512 lockfile
-integrities pass that protected policy.
+Root package files are sensitive executable authority for maintainer or agent
+changes. Only exact in-repository `dependabot[bot]` package-only updates stay on
+the GitHub-native path, and only when package names, exact versions, npm
+registry tarball identities, and sha512 lockfile integrities pass the protected
+base policy and central dependency review.
