@@ -8,9 +8,9 @@
   },
   "scripts": {
     "test": "node --experimental-strip-types --test tests/*.test.*",
-    "typecheck": "node node_modules/typescript/bin/tsc --noEmit",
-    "format": "node node_modules/prettier/bin/prettier.cjs --write .",
-    "format:check": "node node_modules/prettier/bin/prettier.cjs --check .",
+    "typecheck": "tsc --noEmit",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "hooks:install": "git config core.hooksPath .githooks",
     "build": "tsc --noEmit",
     "security:scan": "gitleaks git --redact --no-banner .",
