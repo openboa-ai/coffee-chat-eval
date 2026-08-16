@@ -35,7 +35,8 @@ schema-constrained verdict request, and preserves unavailable, failed,
 invalid, and disagreeing votes. The recorded probe is deliberately
 `qualificationState: unqualified` and `measurement: unmeasured`: the Bench
 qualification study currently has no genuine human annotation records, and
-the current three-model probe has an unavailable Sol model. No response is
+the current three-model probe has complete transport responses but
+cross-model disagreement (`Sol/Terra=left`, `Luna=right`). No response is
 promoted to benchmark measurement.
 
 The full scored coverage is retained in [reports/2026.8.12/codex-baseline-coverage-receipts.json](reports/2026.8.12/codex-baseline-coverage-receipts.json) and summarized in [reports/2026.8.12/codex-baseline-coverage-report.md](reports/2026.8.12/codex-baseline-coverage-report.md). All 48 receipts remain `measurement=unmeasured`.
