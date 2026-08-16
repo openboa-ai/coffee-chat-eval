@@ -9,7 +9,7 @@ const controlRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const root = resolve(process.env.EVAL_CI_POLICY_ROOT ?? controlRoot);
 const { parseDocument } = loadPolicyParser(controlRoot);
 const workflowRoot = resolve(root, ".github/workflows");
-const TRUSTED_CONTROL_SHA = "3daa3db8332337863a8b2586dd5ea69ef3fc7d61";
+const TRUSTED_CONTROL_SHA = "4c1d9742f8083a825b94e7d2cfa389eb5930a70e";
 const failures = [];
 if (existsSync(resolve(root, ".npmrc"))) {
   failures.push("root .npmrc must be absent");
