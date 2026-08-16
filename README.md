@@ -13,17 +13,22 @@ commit. It selects one case with two candidate-visible conditions:
 - `task_only`;
 - one explicitly chosen `diagnostic_target_a` or `diagnostic_target_b`.
 
-Each condition runs in a fresh Harbor 0.21 Docker trial. The current executable
-agent is Harbor Oracle, used only to prove task loading, artifact collection,
-verifier execution, cleanup, and receipt parsing. Native reward `1` means the
-output met the structural UTF-8, size, and citation contract. It is not semantic
-benchmark credit and every Oracle receipt says `measurement: not_performed`.
+Each condition runs in a fresh Harbor 0.21 Docker trial. The Oracle path proves
+task loading, artifact collection, verifier execution, cleanup, and receipt
+parsing. The Codex candidate path uses the `harbor-codex-proxy` adapter: a
+host-held OpenAI Responses proxy injects the provider key, while the candidate
+receives only a per-trial capability token and a Responses-wire Codex config.
+The candidate network overlay allows only `host.docker.internal`; setup hosts
+are separate from the agent allowlist. Native reward `1` means only that the
+structural output contract passed. It is not semantic benchmark credit, and
+candidate receipts remain `measurement: unmeasured` until the qualified Bench
+judge and validity boundary are available.
 
 Stock Harbor 0.21 Codex is explicitly `credential_isolation_unavailable`.
 That adapter writes provider authentication into candidate-readable process and
-filesystem state. Eval will not pass the saved API key through that path. A
-future Codex run must use a credential-isolated adapter whose provider secret
-never enters the candidate process, filesystem, artifacts, or logs.
+filesystem state. Eval does not use that path. The proxy adapter keeps the
+provider key in the host boundary; its receipt records whether the key appeared
+in candidate-owned artifacts and whether the container was deleted.
 
 ## Commands
 
@@ -56,6 +61,31 @@ npm run bench:oracle -- \
 The jobs root must be new and its parent must be a canonical path visible to
 Docker Desktop. On macOS, do not use the `/tmp` symlink for Harbor log mounts;
 use a workspace path such as this repository's ignored `artifacts/` directory.
+
+Manual Codex candidate baseline (live provider call; never a CI command):
+
+```sh
+OPENAI_API_KEY=... node --experimental-strip-types src/cli.ts codex-baseline -- \
+  --projection-root /absolute/path/to/projected \
+  --case-id CASE_ID \
+  --diagnostic-target a \
+  --bench-commit FULL_40_CHARACTER_COMMIT \
+  --harbor-command /absolute/path/to/pinned/harbor \
+  --jobs-root /absolute/canonical/docker-shareable/path/new-run \
+  --model gpt-5.6-luna
+```
+
+The key is read by the host process and is never placed in the candidate
+command line or candidate task files. The checked-in four-trial baseline
+receipts are in
+[`reports/2026.8.12/codex-baseline-receipts.json`](reports/2026.8.12/codex-baseline-receipts.json).
+They are execution evidence only: no native reward is promoted to a semantic
+score, and no judge result is treated as qualified measurement.
+
+The first live judge transport probe is retained separately in
+[`reports/2026.8.12/codex-judge-probe.json`](reports/2026.8.12/codex-judge-probe.json).
+It is intentionally unqualified and unmeasured because the Bench study has no
+genuine human qualification records and the primary model votes disagreed.
 
 The evaluation shape follows OpenAI's skill-evaluation pattern: define a small
 set of observable outcome, process, style, and efficiency checks; capture the

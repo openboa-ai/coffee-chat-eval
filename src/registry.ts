@@ -25,6 +25,11 @@ export function createDryRunRegistry(): DryRunRegistry {
         status: "unavailable" as const,
         reason: "credential_isolation_unavailable",
       },
+      {
+        id: "harbor-codex-proxy",
+        status: "unmeasured" as const,
+        reason: "manual_baseline_receipts_exist_without_qualified_semantic_judgment",
+      },
     ]),
   });
 }

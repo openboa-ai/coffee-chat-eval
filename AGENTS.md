@@ -10,11 +10,13 @@ The active input is the candidate-neutral Harbor projection from an exact
 and one diagnostic condition. Harbor Oracle is control evidence only; its
 native reward cannot become semantic measurement or a Coffee Chat score.
 
-Provider credentials must not enter candidate environment variables,
+Provider credentials must not enter candidate-readable environment variables,
 filesystems, process memory, artifacts, or logs. Harbor 0.21 native Codex is
-therefore unavailable. Do not restore it by passing `OPENAI_API_KEY`, writing
-`auth.json`, or weakening the boundary. A future adapter must prove credential
-isolation before its first paid run.
+therefore unavailable. Do not restore it by passing the provider key, writing
+`auth.json`, or weakening the boundary. The approved manual adapter may pass a
+short-lived proxy capability under the candidate's expected credential name;
+that token is not the provider credential and must never be accepted as proof
+of semantic evaluation. The adapter must prove this boundary on every trial.
 
 Keep status explicit: host failure, candidate failure, verifier failure,
 invalid artifact, unavailable execution, and unmeasured output are distinct.

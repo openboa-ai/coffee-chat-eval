@@ -10,9 +10,16 @@ const read = (path: string): string => readFileSync(new URL(path, root), "utf8")
 test("stock Harbor Codex is unavailable until credentials leave candidate state", () => {
   assert.equal(NATIVE_CODEX_AVAILABILITY.status, "unavailable");
   assert.equal(NATIVE_CODEX_AVAILABILITY.reason, "credential_isolation_unavailable");
-  const executionSources = ["src/cli.ts", "src/runner.ts", "src/harbor.ts"]
+  const adapterSources = [
+    "src/codex-runner.ts",
+    "src/codex.ts",
+    "src/responses-proxy.ts",
+  ]
     .map(read)
     .join("\n");
-  assert.doesNotMatch(executionSources, /process\.env\.OPENAI_API_KEY/u);
-  assert.doesNotMatch(executionSources, /auth\.json|--agent-env/u);
+  assert.match(adapterSources, /startResponsesProxy/u);
+  assert.match(adapterSources, /proxy_capability_only/u);
+  assert.match(adapterSources, /capabilityToken: proxy\.capabilityToken/u);
+  assert.match(adapterSources, /providerKeyInCandidateArtifacts/u);
+  assert.doesNotMatch(adapterSources, /auth\.json/u);
 });

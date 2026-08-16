@@ -1,0 +1,39 @@
+{
+  "schema": "coffee-chat-eval/judge-probe",
+  "benchmark": {
+    "repository": "https://github.com/openboa-ai/coffee-chat-bench",
+    "commit": "2cbe070cc4640182be2ebeb2b7722c10ccda46fc",
+    "release": "2026.8.12",
+    "bankDigest": "sha256:a7ce9ce12679f81bd212324919e39dd3eda26115dec7366c52aea8768cf790dd",
+    "projectionDigest": "sha256:c3ca7aff2aee9270700dced4bb25c34bbc218c353abd67cacae44755ef67589d"
+  },
+  "caseId": "ccbench-ra-s1-dialogue-01",
+  "conditions": ["diagnostic_target_a", "task_only"],
+  "mode": "pairwise",
+  "dimension": "task_utility",
+  "rubricProjection": {
+    "id": "utility",
+    "digest": "sha256:95cc588a72cd72cc6ee0bb359acc89ddaeed3541d846a47ae969a796e0bfb7bc"
+  },
+  "judgeProtocol": "human-criterion-and-primary-judge-qualification-2026.8.15",
+  "qualificationStudyDigest": "sha256:b03a3fcebd1e45f65682e4c1a68d0f3e2eadd9244c388401af143cbb90571755",
+  "qualificationState": "unqualified",
+  "results": [
+    {
+      "model": "gpt-5.6-terra",
+      "state": "succeeded",
+      "resolvedModel": "gpt-5.6-terra",
+      "verdict": "tie",
+      "responseDigest": "sha256:a8468c2114c8e4107979c3c3cb2ab2169c2951131886e7a8ec041d6945e7a24a"
+    },
+    {
+      "model": "gpt-5.6-luna",
+      "state": "succeeded",
+      "resolvedModel": "gpt-5.6-luna",
+      "verdict": "right",
+      "responseDigest": "sha256:7e81510fc4f53755104806cdb7ba6309b7c9b8488a2b5f36553e60fbdf7eb7dc"
+    }
+  ],
+  "measurement": "unmeasured",
+  "reason": ["qualified_judge_configuration_unavailable", "primary_judge_disagreement"]
+}

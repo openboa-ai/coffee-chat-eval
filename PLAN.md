@@ -9,30 +9,43 @@ exact Bench commit
   -> candidate-neutral Harbor projection
   -> one case: task_only + one diagnostic condition
   -> two fresh Harbor/Docker Oracle controls
-  -> structural verifier and collected answer artifact
-  -> evaluator receipts marked measurement=not_performed
+  -> four Codex candidate trials: Luna/Terra x task_only/direct_context
+  -> host-held Responses proxy with per-trial capability token
+  -> structural verifier, trace/artifact collection, and cleanup evidence
+  -> evaluator receipts marked measurement=unmeasured
 ```
 
 Eval validates the projection manifest and its digest, keeps the selected task
 identities in the receipt, invokes only an absolute pinned Harbor executable,
 and preserves host, candidate, verifier, and artifact failures as invalid
 evidence. The two Oracle controls establish executable plumbing, not system
-quality or benchmark validity.
+quality or benchmark validity. The four Codex receipts establish that the first
+credential-isolated Harbor candidate path can execute the same public task
+projection for both allowed account models. They do not establish semantic
+quality, utility, target transfer, or benchmark activation.
 
-## Next executable boundary
+## Judge handoff boundary
 
-The next implementation unit is one Codex candidate adapter with provider
-credentials outside candidate-readable state. The minimum acceptable design is
-an exact-version OpenAI Responses proxy started by a privileged boundary and a
-non-root Codex process that receives only the loopback provider endpoint. The
-adapter must also bound run duration and retained outputs and must terminate the
-proxy after each trial. Until those properties are demonstrated, native Harbor
-Codex remains `credential_isolation_unavailable`.
+The Eval-owned `JudgeTransport` boundary is implemented as a host-held
+Responses proxy. It calls only the approved judge models, sends a
+schema-constrained verdict request, and preserves unavailable, failed,
+invalid, and disagreeing votes. The recorded probe is deliberately
+`qualificationState: unqualified` and `measurement: unmeasured`: the Bench
+qualification study currently has no genuine human annotation records, and
+the two primary judge responses disagreed. No response is promoted to
+benchmark measurement.
 
-After candidate artifacts exist, Bench-owned qualified judges may measure them.
-Eval transports candidate-visible inputs and outputs and records provenance; it
-does not reproduce Bench rubrics, qualification logic, or metric calculations.
-Required CI remains deterministic and free of paid performance evaluation.
+The probe is retained as transport evidence in
+[`reports/2026.8.12/codex-judge-probe.json`](reports/2026.8.12/codex-judge-probe.json)
+and its interpretation is recorded in
+[`reports/2026.8.12/codex-judge-probe-report.md`](reports/2026.8.12/codex-judge-probe-report.md).
+
+After human qualification evidence exists, Eval transports candidate-visible
+inputs and outputs to the Bench-owned qualified judge and records provenance;
+it does not reproduce Bench rubrics, qualification logic, or metric
+calculations. Until then, the next executable unit is Bench qualification and
+validity evidence, not a score-producing runtime. Required CI remains
+deterministic and free of paid performance evaluation.
 
 ## Eval method reference
 

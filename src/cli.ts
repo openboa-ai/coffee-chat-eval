@@ -5,6 +5,7 @@ import { parseProjectionManifest, selectBaselineTasks } from "./bench.ts";
 import { createDryRunRegistry } from "./registry.ts";
 import { formatDryRunReport } from "./report.ts";
 import { readBoundedJson } from "./resources.ts";
+import { runCodexCandidate } from "./codex-runner.ts";
 import { runOracleControl } from "./runner.ts";
 
 const MANIFEST_BYTES = 2 * 1024 * 1024;
@@ -28,14 +29,14 @@ function required(values: ReadonlyMap<string, string>, name: string): string {
   return value;
 }
 
-export function runCli(args: readonly string[]): void {
+export async function runCli(args: readonly string[]): Promise<void> {
   if (args.length === 1 && args[0] === "dry-run") {
     process.stdout.write(`${formatDryRunReport(createDryRunRegistry())}\n`);
     return;
   }
-  if (args[0] !== "oracle-control") {
+  if (args[0] !== "oracle-control" && args[0] !== "codex-baseline") {
     throw new TypeError(
-      "usage: coffee-chat-eval dry-run | oracle-control --projection-root PATH --case-id ID --diagnostic-target a|b --bench-commit SHA --harbor-command PATH --jobs-root PATH",
+      "usage: coffee-chat-eval dry-run | oracle-control | codex-baseline --projection-root PATH --case-id ID --diagnostic-target a|b --bench-commit SHA --harbor-command PATH --jobs-root PATH",
     );
   }
   const values = flags(args.slice(1));
@@ -58,25 +59,44 @@ export function runCli(args: readonly string[]): void {
   });
   const jobsRoot = resolve(required(values, "--jobs-root"));
   mkdirSync(jobsRoot, { recursive: false });
-  const receipts = tasks.map((task, index) =>
-    runOracleControl({
-      task,
-      manifest,
-      benchmarkCommit: required(values, "--bench-commit"),
-      harborCommand: resolve(required(values, "--harbor-command")),
-      jobsRoot: resolve(jobsRoot, String(index)),
-    }),
-  );
+  const benchmarkCommit = required(values, "--bench-commit");
+  const harborCommand = resolve(required(values, "--harbor-command"));
+  const receipts =
+    args[0] === "oracle-control"
+      ? tasks.map((task, index) =>
+          runOracleControl({
+            task,
+            manifest,
+            benchmarkCommit,
+            harborCommand,
+            jobsRoot: resolve(jobsRoot, String(index)),
+          }),
+        )
+      : await Promise.all(
+          tasks.map((task, index) => {
+            const apiKey = process.env.OPENAI_API_KEY;
+            if (apiKey === undefined || apiKey.length === 0) {
+              throw new TypeError("OPENAI_API_KEY environment variable is required");
+            }
+            return runCodexCandidate({
+              task,
+              manifest,
+              benchmarkCommit,
+              harborCommand,
+              jobsRoot: resolve(jobsRoot, String(index)),
+              model: required(values, "--model"),
+              apiKey,
+            });
+          }),
+        );
   const serialized = `${JSON.stringify(receipts, null, 2)}\n`;
   writeFileSync(resolve(jobsRoot, "receipts.json"), serialized, { flag: "wx" });
   process.stdout.write(serialized);
 }
 
 if (process.argv[1]?.endsWith("/cli.ts")) {
-  try {
-    runCli(process.argv.slice(2));
-  } catch (error) {
+  void runCli(process.argv.slice(2)).catch((error) => {
     process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
     process.exitCode = 1;
-  }
+  });
 }

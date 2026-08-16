@@ -27,7 +27,9 @@ digests but no local projection path or provider credential.
 
 ## Boundary
 
-Stock Harbor Codex remains unavailable for this evaluator until a
-credential-isolated adapter is demonstrated. The next live candidate run must
-capture a structured Codex trace and artifacts, apply deterministic checks
-first, and preserve any model-graded result as a separate qualified judgment.
+Stock Harbor Codex remains unavailable for this evaluator because its native
+credential path is candidate-readable. The separate `harbor-codex-proxy`
+adapter now provides the manual candidate path; its four-trial execution
+evidence is recorded in `codex-baseline-receipts.json`. Those receipts remain
+unmeasured until the Bench-owned judge qualification and validity boundary are
+complete.
