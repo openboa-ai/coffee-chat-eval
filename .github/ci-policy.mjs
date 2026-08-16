@@ -52,15 +52,15 @@ const expectedPackageScripts = {
   "ci:policy":
     "node --test tests/workflow-policy.test.mjs && node .github/ci-policy.mjs",
   "dry-run": "node --experimental-strip-types src/cli.ts dry-run",
-  format: "prettier --write .",
-  "format:check": "prettier --check .",
+  format: "node node_modules/prettier/bin/prettier.cjs --write .",
+  "format:check": "node node_modules/prettier/bin/prettier.cjs --check .",
   "hooks:install": "git config core.hooksPath .githooks",
   "pcda:calibrate":
     "node --experimental-strip-types src/pcda-cli.ts calibrate --oracle-result $PWD/tests/fixtures/pcda-calibration/oracle-result.json --noop-result $PWD/tests/fixtures/pcda-calibration/noop-result.json",
   "security:scan": "gitleaks git --redact --no-banner .",
   smoke: "node --experimental-strip-types --test tests/smoke.test.ts",
   test: "node --experimental-strip-types --test tests/*.test.*",
-  typecheck: "tsc --noEmit",
+  typecheck: "node node_modules/typescript/bin/tsc --noEmit",
 };
 function fail(message) {
   failures.push(message);
