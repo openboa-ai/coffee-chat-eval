@@ -9,7 +9,7 @@ const controlRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const root = resolve(process.env.EVAL_CI_POLICY_ROOT ?? controlRoot);
 const { parseDocument } = loadPolicyParser(controlRoot);
 const workflowRoot = resolve(root, ".github/workflows");
-const TRUSTED_CONTROL_SHA = "3daa3db8332337863a8b2586dd5ea69ef3fc7d61";
+const TRUSTED_CONTROL_SHA = "4c1d9742f8083a825b94e7d2cfa389eb5930a70e";
 const failures = [];
 if (existsSync(resolve(root, ".npmrc"))) {
   failures.push("root .npmrc must be absent");
@@ -48,13 +48,13 @@ const expectedPackageScripts = {
   "ci:policy":
     "node --test tests/workflow-policy.test.mjs && node .github/ci-policy.mjs",
   "dry-run": "node --experimental-strip-types src/cli.ts dry-run",
-  format: "prettier --write .",
-  "format:check": "prettier --check .",
+  format: "node node_modules/prettier/bin/prettier.cjs --write .",
+  "format:check": "node node_modules/prettier/bin/prettier.cjs --check .",
   "hooks:install": "git config core.hooksPath .githooks",
   "security:scan": "gitleaks git --redact --no-banner .",
   smoke: "node --experimental-strip-types --test tests/smoke.test.ts",
   test: "node --experimental-strip-types --test tests/*.test.*",
-  typecheck: "tsc --noEmit",
+  typecheck: "node node_modules/typescript/bin/tsc --noEmit",
 };
 function fail(message) {
   failures.push(message);
