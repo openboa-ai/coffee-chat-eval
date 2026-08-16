@@ -1,51 +1,12 @@
-{
-  "schema": "coffee-chat-eval/judge-probe",
-  "benchmark": {
-    "repository": "https://github.com/openboa-ai/coffee-chat-bench",
-    "commit": "1bc71605964770bbd1bd96e049b8412b6ee068fc",
-    "release": "2026.8.12",
-    "bankDigest": "sha256:a7ce9ce12679f81bd212324919e39dd3eda26115dec7366c52aea8768cf790dd",
-    "projectionDigest": "sha256:b66e45ee0d09c4afad92d974e1315c8cfa85d9ca0de1a48ac08219afabd1a9c3"
-  },
-  "caseId": "ccbench-ra-s1-dialogue-01",
-  "conditions": ["diagnostic_target_a", "task_only"],
-  "mode": "pairwise",
-  "dimension": "task_utility",
-  "rubricProjection": {
-    "id": "utility",
-    "digest": "sha256:95cc588a72cd72cc6ee0bb359acc89ddaeed3541d846a47ae969a796e0bfb7bc"
-  },
-  "judgeProtocol": "human-criterion-and-cross-validation-judge-qualification-2026.8.15",
-  "judgePromptContractDigest": "sha256:5eee79a1c6b456c34631a6cf40587c873bb29340b19f1dc95ac44934bcec50b6",
-  "qualificationStudyDigest": "sha256:a5c7a8490134f950d44f82edea88afb81e12cc95687ef145fd0e2a5dd5f7e192",
-  "requestDigest": "sha256:db987ffa4703ee49e0d43d38eb78c535d4935b9407d87c45d585a6dab9007f2e",
-  "qualificationState": "unqualified",
-  "results": [
-    {
-      "model": "gpt-5.6-sol",
-      "state": "failed",
-      "resolvedModel": null,
-      "failureCode": "judge provider returned HTTP 403: Project `proj_jyqxyWlI1Rs7cOqfZLppxJBM` does not have access to model `gpt-5.6-sol`"
-    },
-    {
-      "model": "gpt-5.6-terra",
-      "state": "succeeded",
-      "resolvedModel": "gpt-5.6-terra",
-      "verdict": "left",
-      "responseDigest": "sha256:9611d4f49ad46cb080d94ae5191c978dad0df0d18ce55cc7df550259efd4dd0d"
-    },
-    {
-      "model": "gpt-5.6-luna",
-      "state": "succeeded",
-      "resolvedModel": "gpt-5.6-luna",
-      "verdict": "left",
-      "responseDigest": "sha256:9611d4f49ad46cb080d94ae5191c978dad0df0d18ce55cc7df550259efd4dd0d"
-    }
-  ],
-  "measurement": "unmeasured",
-  "reason": [
-    "qualified_judge_configuration_unavailable",
-    "judge_model_unavailable",
-    "human_criterion_labels_missing"
-  ]
-}
+file:///Users/sangjoon/Coding/coffee-chat/.runs/eval-provenance-1786867617/[eval1]:1
+process.stdout.write(require('fs').readFileSync('reports/2026.8.12/codex-judge-probe.json','utf8'))
+               ^
+
+ReferenceError: require is not defined in ES module scope, you can use import instead
+    at file:///Users/sangjoon/Coding/coffee-chat/.runs/eval-provenance-1786867617/[eval1]:1:16
+    at ModuleJob.run (node:internal/modules/esm/module_job:371:25)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:271:26)
+    at async ModuleLoader.executeModuleJob (node:internal/modules/esm/loader:268:20)
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.5.0

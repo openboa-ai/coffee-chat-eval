@@ -1,38 +1,12 @@
-# Codex judge transport probe
+file:///Users/sangjoon/Coding/coffee-chat/.runs/eval-provenance-1786867617/[eval1]:1
+process.stdout.write(require('fs').readFileSync('reports/2026.8.12/codex-judge-probe-report.md','utf8'))
+               ^
 
-CalVer: `2026.8.12`
+ReferenceError: require is not defined in ES module scope, you can use import instead
+    at file:///Users/sangjoon/Coding/coffee-chat/.runs/eval-provenance-1786867617/[eval1]:1:16
+    at ModuleJob.run (node:internal/modules/esm/module_job:371:25)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:271:26)
+    at async ModuleLoader.executeModuleJob (node:internal/modules/esm/loader:268:20)
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
 
-## Result
-
-The Eval-owned Responses judge transport sent the current frozen pairwise
-`task_utility` request for `ccbench-ra-s1-dialogue-01` against the final
-Bench commit and current judge protocol. The configured cross-validation set
-was attempted:
-
-- `gpt-5.6-sol`: failed because the configured project could not access that
-  model;
-- `gpt-5.6-terra`: succeeded with `left`;
-- `gpt-5.6-luna`: succeeded with `left` after a transport retry; the initial
-  empty response is preserved as a failed attempt and is not treated as a
-  vote.
-
-The response digest and provenance are in
-[`codex-judge-probe.json`](codex-judge-probe.json). Raw model response text is
-not checked in. Provider errors are reduced to explicit failure codes and no
-credential or project identifier is stored.
-
-## Interpretation
-
-This is a transport and cross-model probe, not a benchmark score.
-The current Bench qualification study digest and judge protocol are recorded
-in the receipt. The study still has no genuine human annotation records, so no
-qualified runtime judge configuration exists. The judge set is incomplete and
-cannot support the required three-model cross-validation. The receipt therefore
-preserves success and failure states and records `measurement: unmeasured`; it
-does not collapse the result into a pass, fail, or numeric value.
-
-## Next evidence
-
-Human criterion labels, model-access resolution, and judge qualification must
-be completed in the Bench repository before this transport can participate in
-semantic measurement.
+Node.js v24.5.0
