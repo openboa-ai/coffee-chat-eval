@@ -34,15 +34,16 @@
     },
     {
       "model": "gpt-5.6-luna",
-      "state": "failed",
-      "resolvedModel": null,
-      "failureCode": "empty_structured_response"
+      "state": "succeeded",
+      "resolvedModel": "gpt-5.6-luna",
+      "verdict": "left",
+      "responseDigest": "sha256:9611d4f49ad46cb080d94ae5191c978dad0df0d18ce55cc7df550259efd4dd0d"
     }
   ],
   "measurement": "unmeasured",
   "reason": [
     "qualified_judge_configuration_unavailable",
-    "judge_model_unavailable_or_failed",
+    "judge_model_unavailable",
     "human_criterion_labels_missing"
   ]
 }

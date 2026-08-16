@@ -35,8 +35,8 @@ schema-constrained verdict request, and preserves unavailable, failed,
 invalid, and disagreeing votes. The recorded probe is deliberately
 `qualificationState: unqualified` and `measurement: unmeasured`: the Bench
 qualification study currently has no genuine human annotation records, and
-the current three-model probe has unavailable/failed judge states. No response
-is promoted to benchmark measurement.
+the current three-model probe has an unavailable Sol model. No response is
+promoted to benchmark measurement.
 
 The probe is retained as transport evidence in
 [`reports/2026.8.12/codex-judge-probe.json`](reports/2026.8.12/codex-judge-probe.json)
