@@ -32,9 +32,7 @@
       "configurationDigest": "sha256:a338d10f2351f4d9e08c5fa086e9f8ad124cacb55f1f982d54845b9f646ecd5f",
       "proxyConfigDigest": "sha256:ddc5e2c864a3b7bf5d0c2b4a61ca6215cb66b2a6999b31977841656fc37a134d",
       "agentNetwork": "allowlist",
-      "allowedHosts": [
-        "host.docker.internal"
-      ]
+      "allowedHosts": ["host.docker.internal"]
     },
     "execution": {
       "resultState": "executed",
@@ -110,9 +108,7 @@
       "configurationDigest": "sha256:82f527a72f24be5683f422e23fc180feff4654c01f6557696e63abbbd8d1fd5b",
       "proxyConfigDigest": "sha256:6f36f0cd74399be50221a006ddbfdccb9179842d207586e8b127d8e41c57215a",
       "agentNetwork": "allowlist",
-      "allowedHosts": [
-        "host.docker.internal"
-      ]
+      "allowedHosts": ["host.docker.internal"]
     },
     "execution": {
       "resultState": "executed",
@@ -188,9 +184,7 @@
       "configurationDigest": "sha256:8268dcf7efd6445b95b6aee5334c13d484c60db44dc14c1c96846c87c9cf4c48",
       "proxyConfigDigest": "sha256:1ef1e37d32d1c81d1cddb889a461f769196e74b7c09581a088c4aebac8684324",
       "agentNetwork": "allowlist",
-      "allowedHosts": [
-        "host.docker.internal"
-      ]
+      "allowedHosts": ["host.docker.internal"]
     },
     "execution": {
       "resultState": "executed",
@@ -266,9 +260,7 @@
       "configurationDigest": "sha256:7646120210a9852df1403dc684377c6f8c9725b9b926e286df8806b3ff82f01c",
       "proxyConfigDigest": "sha256:6e0fe60ddb156633b8a50a2e5b5a21d37c04758766c902f8944f8b57600a8b2e",
       "agentNetwork": "allowlist",
-      "allowedHosts": [
-        "host.docker.internal"
-      ]
+      "allowedHosts": ["host.docker.internal"]
     },
     "execution": {
       "resultState": "executed",
@@ -344,9 +336,7 @@
       "configurationDigest": "sha256:cc63889c9935889dc850f4d5d9d803476c70c21a14e9d800cbb7426f58d652b6",
       "proxyConfigDigest": "sha256:aa02c7858a840039fbe2023a3629990858bbff83d7d1480397502882ba343be7",
       "agentNetwork": "allowlist",
-      "allowedHosts": [
-        "host.docker.internal"
-      ]
+      "allowedHosts": ["host.docker.internal"]
     },
     "execution": {
       "resultState": "executed",
@@ -422,9 +412,7 @@
       "configurationDigest": "sha256:55cfba93fd1852026bad4202d0fc456e9265f313f2e333f12a4a3a060811f648",
       "proxyConfigDigest": "sha256:c80ea584412263c16b6443d7845cd8878a055c2c663d1c78770dfe4c3257b520",
       "agentNetwork": "allowlist",
-      "allowedHosts": [
-        "host.docker.internal"
-      ]
+      "allowedHosts": ["host.docker.internal"]
     },
     "execution": {
       "resultState": "executed",
@@ -500,9 +488,7 @@
       "configurationDigest": "sha256:9a0b2f9fb47dec04a27d94f1a330f5ebd9a2af8f3964b2722ecb13c5d5761c03",
       "proxyConfigDigest": "sha256:9c4bc9d33014dedf449df6b2501719cb2ce94be5c1c9161edf36f1f7756b008f",
       "agentNetwork": "allowlist",
-      "allowedHosts": [
-        "host.docker.internal"
-      ]
+      "allowedHosts": ["host.docker.internal"]
     },
     "execution": {
       "resultState": "executed",
@@ -578,9 +564,7 @@
       "configurationDigest": "sha256:195506d19ad3e59c8df9c59dfdcffd42cbeeb24703ef8889d8b0042ef3802510",
       "proxyConfigDigest": "sha256:edcd88e6e92849093ede289ee365240d46ca5cfef5f7f50509952fa9d767a68f",
       "agentNetwork": "allowlist",
-      "allowedHosts": [
-        "host.docker.internal"
-      ]
+      "allowedHosts": ["host.docker.internal"]
     },
     "execution": {
       "resultState": "executed",
@@ -656,9 +640,7 @@
       "configurationDigest": "sha256:28698431470132ca4b141584e74d953afa00e4d9c8ae6c433f8f4fc07eff0ee3",
       "proxyConfigDigest": "sha256:f2f9034c0f3ff7cef08e41f6483a90a21e247c4fc2901ba076f4c26bf790531e",
       "agentNetwork": "allowlist",
-      "allowedHosts": [
-        "host.docker.internal"
-      ]
+      "allowedHosts": ["host.docker.internal"]
     },
     "execution": {
       "resultState": "executed",
@@ -734,9 +716,7 @@
       "configurationDigest": "sha256:cad575638399d42d4337531ec462eb28ad0f3e2307fdcc6c16b6ddd0107bed74",
       "proxyConfigDigest": "sha256:f2c8df9d940d6d5dddbfa8d4c3b4660f73fead5204af69b095d321c60c00b14a",
       "agentNetwork": "allowlist",
-      "allowedHosts": [
-        "host.docker.internal"
-      ]
+      "allowedHosts": ["host.docker.internal"]
     },
     "execution": {
       "resultState": "executed",
@@ -812,9 +792,7 @@
       "configurationDigest": "sha256:e966b1f1820f30c3a1f7dc5eb5db6b6934494a4132582229d198b874a0209426",
       "proxyConfigDigest": "sha256:ecbaa90b98a87cdefa3fbc88cfd86230d17028fdc623a79f432afa80def0746b",
       "agentNetwork": "allowlist",
-      "allowedHosts": [
-        "host.docker.internal"
-      ]
+      "allowedHosts": ["host.docker.internal"]
     },
     "execution": {
       "resultState": "executed",
@@ -890,9 +868,7 @@
       "configurationDigest": "sha256:38ba1f8f587293386ee5d0152a8503f73c760b1808be7dab08dc81400e49e72a",
       "proxyConfigDigest": "sha256:3dae731c4eb592c7255a12c0e6581225d904a6b79f83e96d894dcf59006ae56e",
       "agentNetwork": "allowlist",
-      "allowedHosts": [
-        "host.docker.internal"
-      ]
+      "allowedHosts": ["host.docker.internal"]
     },
     "execution": {
       "resultState": "executed",
@@ -968,9 +944,7 @@
       "configurationDigest": "sha256:6313790d90ed7a7a5d92c1b9b54efc325852f0b0a745e678311137b0c419fd20",
       "proxyConfigDigest": "sha256:30688e027c4772b52fb9c43cda10f1b9cd2dcaade9705652067034452f37ab91",
       "agentNetwork": "allowlist",
-      "allowedHosts": [
-        "host.docker.internal"
-      ]
+      "allowedHosts": ["host.docker.internal"]
     },
     "execution": {
       "resultState": "executed",
@@ -1046,9 +1020,7 @@
       "configurationDigest": "sha256:1789273481d6d6b8fc368020192169607388b795097adc044a66e2c93ec3d0b7",
       "proxyConfigDigest": "sha256:19016338b394bf8c6e45a067a10fcc23070986b5b691613dfbab6ff9af6ebfab",
       "agentNetwork": "allowlist",
-      "allowedHosts": [
-        "host.docker.internal"
-      ]
+      "allowedHosts": ["host.docker.internal"]
     },
     "execution": {
       "resultState": "executed",
@@ -1124,9 +1096,7 @@
       "configurationDigest": "sha256:c1ae0f21a2ca0b6ce8862f5765b14ef3c134dcc209f511bf0d33f5820167c173",
       "proxyConfigDigest": "sha256:a18a1c271834f195e97200615244c99545e8173498cff4ea266e68cd394277ef",
       "agentNetwork": "allowlist",
-      "allowedHosts": [
-        "host.docker.internal"
-      ]
+      "allowedHosts": ["host.docker.internal"]
     },
     "execution": {
       "resultState": "executed",
@@ -1202,9 +1172,7 @@
       "configurationDigest": "sha256:ba744dddc9b81b3cb148e4876383e8d530f109272d0353122cfce73217bb74aa",
       "proxyConfigDigest": "sha256:b6dbf52f76abe151e8c88d8744661003ac5f9521d1e3687f682285fb754caf9b",
       "agentNetwork": "allowlist",
-      "allowedHosts": [
-        "host.docker.internal"
-      ]
+      "allowedHosts": ["host.docker.internal"]
     },
     "execution": {
       "resultState": "executed",
@@ -1280,9 +1248,7 @@
       "configurationDigest": "sha256:bdd98d276dd92f8690d2cdb87ee032b2da7f501140956c539798888b67976b80",
       "proxyConfigDigest": "sha256:a0c0b7079843ef89a831dfc728716740e23ada804c7e87313002b12cfa08e31e",
       "agentNetwork": "allowlist",
-      "allowedHosts": [
-        "host.docker.internal"
-      ]
+      "allowedHosts": ["host.docker.internal"]
     },
     "execution": {
       "resultState": "executed",
@@ -1358,9 +1324,7 @@
       "configurationDigest": "sha256:1411c304a977af31f1eab64ae32b0a70992313f0d2dba666510bd787b40fe760",
       "proxyConfigDigest": "sha256:f1695ba805a869b0eb65f7845dc10d31f8952f8c73194de52a980ffa319b1182",
       "agentNetwork": "allowlist",
-      "allowedHosts": [
-        "host.docker.internal"
-      ]
+      "allowedHosts": ["host.docker.internal"]
     },
     "execution": {
       "resultState": "executed",
@@ -1436,9 +1400,7 @@
       "configurationDigest": "sha256:7cc3a619b2555cb1de2b892f8a02470c37f43dde1c4934b767ac68bec641d5f2",
       "proxyConfigDigest": "sha256:59ad5a48d8bd836fcf1200452c9a1f056f539aa707e9903163eaf9311c927d8a",
       "agentNetwork": "allowlist",
-      "allowedHosts": [
-        "host.docker.internal"
-      ]
+      "allowedHosts": ["host.docker.internal"]
     },
     "execution": {
       "resultState": "executed",
@@ -1514,9 +1476,7 @@
       "configurationDigest": "sha256:1c208addb320e2066426b6206075d4109ddef50331d6129b9f534bae3de30777",
       "proxyConfigDigest": "sha256:36537e96f9eeff2e62f86cc1591c43e9b98182af3b092b4473110137c83704f5",
       "agentNetwork": "allowlist",
-      "allowedHosts": [
-        "host.docker.internal"
-      ]
+      "allowedHosts": ["host.docker.internal"]
     },
     "execution": {
       "resultState": "executed",
@@ -1592,9 +1552,7 @@
       "configurationDigest": "sha256:ccc66fe01e1ad8eecb6c519c6cf058560964b1b4557251fdd8fabb9e25083904",
       "proxyConfigDigest": "sha256:9ba6aff548e6c86b6674a8e812d6f13b4e6c604417178cd280a47d75c791d09b",
       "agentNetwork": "allowlist",
-      "allowedHosts": [
-        "host.docker.internal"
-      ]
+      "allowedHosts": ["host.docker.internal"]
     },
     "execution": {
       "resultState": "executed",
@@ -1670,9 +1628,7 @@
       "configurationDigest": "sha256:f03f56421b4ded9c8d0668b44ecb89e603780e5004640d844616a80a33d0bb9c",
       "proxyConfigDigest": "sha256:304e7937daeef2e70da4d1b0e6ac5e854ca1aed6ad623648e9e66d31bee54ae3",
       "agentNetwork": "allowlist",
-      "allowedHosts": [
-        "host.docker.internal"
-      ]
+      "allowedHosts": ["host.docker.internal"]
     },
     "execution": {
       "resultState": "executed",
@@ -1748,9 +1704,7 @@
       "configurationDigest": "sha256:5c35860777fc1265c36aede0fb98cfa929642fa8fc301fe528d38bf9e187b704",
       "proxyConfigDigest": "sha256:41cab0d4d5ae1c0ecc9122d34fc4b8492f103a7f9405b7748e53830b97596be2",
       "agentNetwork": "allowlist",
-      "allowedHosts": [
-        "host.docker.internal"
-      ]
+      "allowedHosts": ["host.docker.internal"]
     },
     "execution": {
       "resultState": "executed",
@@ -1826,9 +1780,7 @@
       "configurationDigest": "sha256:a626bc52ed6eab4e8415e65b87ecd02595bf7d9ec4e063e15785e25848067f6d",
       "proxyConfigDigest": "sha256:643132e77a2fffa99be8e0e76063d1bc8f414fa80c3aae3a0ad8b4e9d5d25145",
       "agentNetwork": "allowlist",
-      "allowedHosts": [
-        "host.docker.internal"
-      ]
+      "allowedHosts": ["host.docker.internal"]
     },
     "execution": {
       "resultState": "executed",
@@ -1904,9 +1856,7 @@
       "configurationDigest": "sha256:a338d10f2351f4d9e08c5fa086e9f8ad124cacb55f1f982d54845b9f646ecd5f",
       "proxyConfigDigest": "sha256:0d4bcec8ed37b1c2ca57dacd368315c9712cd8e9514102b8d691640f1a7301f4",
       "agentNetwork": "allowlist",
-      "allowedHosts": [
-        "host.docker.internal"
-      ]
+      "allowedHosts": ["host.docker.internal"]
     },
     "execution": {
       "resultState": "executed",
@@ -1982,9 +1932,7 @@
       "configurationDigest": "sha256:82f527a72f24be5683f422e23fc180feff4654c01f6557696e63abbbd8d1fd5b",
       "proxyConfigDigest": "sha256:56faac69adbfad30c73a27be643a0cfed9badafb66bbe4e52173001b80565659",
       "agentNetwork": "allowlist",
-      "allowedHosts": [
-        "host.docker.internal"
-      ]
+      "allowedHosts": ["host.docker.internal"]
     },
     "execution": {
       "resultState": "executed",
@@ -2060,9 +2008,7 @@
       "configurationDigest": "sha256:8268dcf7efd6445b95b6aee5334c13d484c60db44dc14c1c96846c87c9cf4c48",
       "proxyConfigDigest": "sha256:8b7b5b741519204ea296d39fea400b48ecfb9ba1a4f6f5b8c85caada96ca6ceb",
       "agentNetwork": "allowlist",
-      "allowedHosts": [
-        "host.docker.internal"
-      ]
+      "allowedHosts": ["host.docker.internal"]
     },
     "execution": {
       "resultState": "executed",
@@ -2138,9 +2084,7 @@
       "configurationDigest": "sha256:7646120210a9852df1403dc684377c6f8c9725b9b926e286df8806b3ff82f01c",
       "proxyConfigDigest": "sha256:477150ae91a272b85eb205b7e66652368dd552a426429c636b76fdee6bc3befe",
       "agentNetwork": "allowlist",
-      "allowedHosts": [
-        "host.docker.internal"
-      ]
+      "allowedHosts": ["host.docker.internal"]
     },
     "execution": {
       "resultState": "executed",
@@ -2216,9 +2160,7 @@
       "configurationDigest": "sha256:cc63889c9935889dc850f4d5d9d803476c70c21a14e9d800cbb7426f58d652b6",
       "proxyConfigDigest": "sha256:64d1c2e026c0116a0f754d1c8976fc6ad4a5959b14e9f40e67dce1366b6dae9b",
       "agentNetwork": "allowlist",
-      "allowedHosts": [
-        "host.docker.internal"
-      ]
+      "allowedHosts": ["host.docker.internal"]
     },
     "execution": {
       "resultState": "executed",
@@ -2294,9 +2236,7 @@
       "configurationDigest": "sha256:55cfba93fd1852026bad4202d0fc456e9265f313f2e333f12a4a3a060811f648",
       "proxyConfigDigest": "sha256:77009e37d14adfd86cfb306c04be9b1aeba61b2703355a9f4450b2a5df678761",
       "agentNetwork": "allowlist",
-      "allowedHosts": [
-        "host.docker.internal"
-      ]
+      "allowedHosts": ["host.docker.internal"]
     },
     "execution": {
       "resultState": "executed",
@@ -2372,9 +2312,7 @@
       "configurationDigest": "sha256:9a0b2f9fb47dec04a27d94f1a330f5ebd9a2af8f3964b2722ecb13c5d5761c03",
       "proxyConfigDigest": "sha256:13730e1b816202f6ef35be01e07817bb299564e8ae289c501596f644951f7407",
       "agentNetwork": "allowlist",
-      "allowedHosts": [
-        "host.docker.internal"
-      ]
+      "allowedHosts": ["host.docker.internal"]
     },
     "execution": {
       "resultState": "executed",
@@ -2450,9 +2388,7 @@
       "configurationDigest": "sha256:195506d19ad3e59c8df9c59dfdcffd42cbeeb24703ef8889d8b0042ef3802510",
       "proxyConfigDigest": "sha256:0ee768f6f5438f9127752bbc044ef6149716db7ad72b20a86cbeab9a56be582e",
       "agentNetwork": "allowlist",
-      "allowedHosts": [
-        "host.docker.internal"
-      ]
+      "allowedHosts": ["host.docker.internal"]
     },
     "execution": {
       "resultState": "executed",
@@ -2528,9 +2464,7 @@
       "configurationDigest": "sha256:28698431470132ca4b141584e74d953afa00e4d9c8ae6c433f8f4fc07eff0ee3",
       "proxyConfigDigest": "sha256:3f65f0d9b780ef81b0d341b00abc477e69a4a788ad22de9ac0d3492d27fc7f00",
       "agentNetwork": "allowlist",
-      "allowedHosts": [
-        "host.docker.internal"
-      ]
+      "allowedHosts": ["host.docker.internal"]
     },
     "execution": {
       "resultState": "executed",
@@ -2606,9 +2540,7 @@
       "configurationDigest": "sha256:cad575638399d42d4337531ec462eb28ad0f3e2307fdcc6c16b6ddd0107bed74",
       "proxyConfigDigest": "sha256:6b0c3f2cb57fdc8622823ef69e963b4bbdbe933112e71de0c5de1d6537049c81",
       "agentNetwork": "allowlist",
-      "allowedHosts": [
-        "host.docker.internal"
-      ]
+      "allowedHosts": ["host.docker.internal"]
     },
     "execution": {
       "resultState": "executed",
@@ -2684,9 +2616,7 @@
       "configurationDigest": "sha256:e966b1f1820f30c3a1f7dc5eb5db6b6934494a4132582229d198b874a0209426",
       "proxyConfigDigest": "sha256:2d925e6366551f685a46900835c9db376552f93400f95fb1c16f9df5e151cdcb",
       "agentNetwork": "allowlist",
-      "allowedHosts": [
-        "host.docker.internal"
-      ]
+      "allowedHosts": ["host.docker.internal"]
     },
     "execution": {
       "resultState": "executed",
@@ -2762,9 +2692,7 @@
       "configurationDigest": "sha256:38ba1f8f587293386ee5d0152a8503f73c760b1808be7dab08dc81400e49e72a",
       "proxyConfigDigest": "sha256:6a0556d0c57be021ac9863da39e7de03893b169e6b642614ab14c06dd5059ca5",
       "agentNetwork": "allowlist",
-      "allowedHosts": [
-        "host.docker.internal"
-      ]
+      "allowedHosts": ["host.docker.internal"]
     },
     "execution": {
       "resultState": "executed",
@@ -2840,9 +2768,7 @@
       "configurationDigest": "sha256:6313790d90ed7a7a5d92c1b9b54efc325852f0b0a745e678311137b0c419fd20",
       "proxyConfigDigest": "sha256:cc60b2441e65aabc12ea56cdcb1e2f78d8fb1a85a2472bdea2f21d050376cedb",
       "agentNetwork": "allowlist",
-      "allowedHosts": [
-        "host.docker.internal"
-      ]
+      "allowedHosts": ["host.docker.internal"]
     },
     "execution": {
       "resultState": "executed",
@@ -2918,9 +2844,7 @@
       "configurationDigest": "sha256:1789273481d6d6b8fc368020192169607388b795097adc044a66e2c93ec3d0b7",
       "proxyConfigDigest": "sha256:9375529ebe1f008fb7e479250221aaff777930642fd15fe5d7eaf86d5dee14e7",
       "agentNetwork": "allowlist",
-      "allowedHosts": [
-        "host.docker.internal"
-      ]
+      "allowedHosts": ["host.docker.internal"]
     },
     "execution": {
       "resultState": "executed",
@@ -2996,9 +2920,7 @@
       "configurationDigest": "sha256:c1ae0f21a2ca0b6ce8862f5765b14ef3c134dcc209f511bf0d33f5820167c173",
       "proxyConfigDigest": "sha256:382ebba361fa1dacebc64c42404007e833cba6f84da4a17e731f180edd5385ce",
       "agentNetwork": "allowlist",
-      "allowedHosts": [
-        "host.docker.internal"
-      ]
+      "allowedHosts": ["host.docker.internal"]
     },
     "execution": {
       "resultState": "executed",
@@ -3074,9 +2996,7 @@
       "configurationDigest": "sha256:ba744dddc9b81b3cb148e4876383e8d530f109272d0353122cfce73217bb74aa",
       "proxyConfigDigest": "sha256:a71aedcd8d1a47d2a220daa7e8019e7dd46b45006be11655be76530b472292dc",
       "agentNetwork": "allowlist",
-      "allowedHosts": [
-        "host.docker.internal"
-      ]
+      "allowedHosts": ["host.docker.internal"]
     },
     "execution": {
       "resultState": "executed",
@@ -3152,9 +3072,7 @@
       "configurationDigest": "sha256:bdd98d276dd92f8690d2cdb87ee032b2da7f501140956c539798888b67976b80",
       "proxyConfigDigest": "sha256:6bdafd7a5f17dfc16edcb6f2b7d2a1d18eb170c80852d4b67948d580755c9d4b",
       "agentNetwork": "allowlist",
-      "allowedHosts": [
-        "host.docker.internal"
-      ]
+      "allowedHosts": ["host.docker.internal"]
     },
     "execution": {
       "resultState": "executed",
@@ -3230,9 +3148,7 @@
       "configurationDigest": "sha256:1411c304a977af31f1eab64ae32b0a70992313f0d2dba666510bd787b40fe760",
       "proxyConfigDigest": "sha256:6b365a10577a7a66e342d4237f2969a5edc84b56d1ff8da07a3b8d135ee436cc",
       "agentNetwork": "allowlist",
-      "allowedHosts": [
-        "host.docker.internal"
-      ]
+      "allowedHosts": ["host.docker.internal"]
     },
     "execution": {
       "resultState": "executed",
@@ -3308,9 +3224,7 @@
       "configurationDigest": "sha256:7cc3a619b2555cb1de2b892f8a02470c37f43dde1c4934b767ac68bec641d5f2",
       "proxyConfigDigest": "sha256:8910e62f6779435994fb481057350fa03a51226f40f4417ef60d4e75acfce649",
       "agentNetwork": "allowlist",
-      "allowedHosts": [
-        "host.docker.internal"
-      ]
+      "allowedHosts": ["host.docker.internal"]
     },
     "execution": {
       "resultState": "executed",
@@ -3386,9 +3300,7 @@
       "configurationDigest": "sha256:1c208addb320e2066426b6206075d4109ddef50331d6129b9f534bae3de30777",
       "proxyConfigDigest": "sha256:da2916e87b947e5a82efbf07e7a9ba4eb127023e25a6dec330ea71a34b7baffd",
       "agentNetwork": "allowlist",
-      "allowedHosts": [
-        "host.docker.internal"
-      ]
+      "allowedHosts": ["host.docker.internal"]
     },
     "execution": {
       "resultState": "executed",
@@ -3464,9 +3376,7 @@
       "configurationDigest": "sha256:ccc66fe01e1ad8eecb6c519c6cf058560964b1b4557251fdd8fabb9e25083904",
       "proxyConfigDigest": "sha256:88536db57c909def2b94fab62f5475f64dd0c6f40695790c8aeba0aee7b262da",
       "agentNetwork": "allowlist",
-      "allowedHosts": [
-        "host.docker.internal"
-      ]
+      "allowedHosts": ["host.docker.internal"]
     },
     "execution": {
       "resultState": "executed",
@@ -3542,9 +3452,7 @@
       "configurationDigest": "sha256:f03f56421b4ded9c8d0668b44ecb89e603780e5004640d844616a80a33d0bb9c",
       "proxyConfigDigest": "sha256:38aa050e2eb09df1c48ab9d4023d1c753586457aa170118dff9c7c7cb153e485",
       "agentNetwork": "allowlist",
-      "allowedHosts": [
-        "host.docker.internal"
-      ]
+      "allowedHosts": ["host.docker.internal"]
     },
     "execution": {
       "resultState": "executed",
@@ -3620,9 +3528,7 @@
       "configurationDigest": "sha256:5c35860777fc1265c36aede0fb98cfa929642fa8fc301fe528d38bf9e187b704",
       "proxyConfigDigest": "sha256:37c474f6c091a831ff41f582f434a38eaf76046eff6ce5d03fe36e883d6d9ad5",
       "agentNetwork": "allowlist",
-      "allowedHosts": [
-        "host.docker.internal"
-      ]
+      "allowedHosts": ["host.docker.internal"]
     },
     "execution": {
       "resultState": "executed",
@@ -3698,9 +3604,7 @@
       "configurationDigest": "sha256:a626bc52ed6eab4e8415e65b87ecd02595bf7d9ec4e063e15785e25848067f6d",
       "proxyConfigDigest": "sha256:e49d9c7078f6d3b40909738a7df5a6cdddec2b58bb39765e3cafb460b44ca25f",
       "agentNetwork": "allowlist",
-      "allowedHosts": [
-        "host.docker.internal"
-      ]
+      "allowedHosts": ["host.docker.internal"]
     },
     "execution": {
       "resultState": "executed",

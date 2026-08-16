@@ -9,7 +9,7 @@ This report is execution and isolation evidence only. It does not create a seman
 - release: `2026.8.12`
 - benchmark commit: `1bc71605964770bbd1bd96e049b8412b6ee068fc`
 - projection digest: `sha256:b66e45ee0d09c4afad92d974e1315c8cfa85d9ca0de1a48ac08219afabd1a9c3`
-- receipt aggregate digest: `sha256:5b1d31f5039a76a999e2ce9f0249eda766f43c358fd9343470c1bdaa1b1d3cf0`
+- receipt aggregate digest: `sha256:9c3569c4b0770fd8c4809f121044f8f22cc4975b6dc67b349c220d485c2f2905`
 
 ## Coverage
 
