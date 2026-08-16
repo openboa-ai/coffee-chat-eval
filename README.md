@@ -87,9 +87,9 @@ The first live judge transport probe is retained separately in
 It is intentionally unqualified and unmeasured because the Bench study has no
 genuine human qualification records and the primary model votes disagreed.
 
-A fresh two-condition Harbor Oracle control was also rerun against the current
-Bench PR head and is retained in
-[`reports/2026.8.12/oracle-control-f40c90d-receipt.json`](reports/2026.8.12/oracle-control-f40c90d-receipt.json).
+A fresh two-condition Harbor Oracle control was rerun against the merged Bench
+main commit `0598d6d10319b69e0b34da86c40b9a48d8365c03` and is retained in
+[`reports/2026.8.12/oracle-control-0598d6d-receipt.json`](reports/2026.8.12/oracle-control-0598d6d-receipt.json).
 It confirms current-head task/projection provenance, Docker execution, and
 cleanup; its structural reward remains `measurement: not_performed`.
 

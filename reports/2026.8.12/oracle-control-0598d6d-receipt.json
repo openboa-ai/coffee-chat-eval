@@ -3,7 +3,7 @@
     "schema": "coffee-chat-eval/oracle-control",
     "benchmark": {
       "repository": "https://github.com/openboa-ai/coffee-chat-bench",
-      "commit": "f40c90d766b07e56f588ae7a2fb19b82f78477f2",
+      "commit": "0598d6d10319b69e0b34da86c40b9a48d8365c03",
       "release": "2026.8.12",
       "bankDigest": "sha256:a7ce9ce12679f81bd212324919e39dd3eda26115dec7366c52aea8768cf790dd",
       "projectionDigest": "sha256:c3ca7aff2aee9270700dced4bb25c34bbc218c353abd67cacae44755ef67589d"
@@ -23,8 +23,8 @@
     "execution": {
       "resultState": "executed",
       "nativeReward": 1,
-      "nativeTrialId": "5d2654d1-5bc7-41d3-90dc-a26ad1ad0232",
-      "nativeTrialName": "task-a0dab4674f08645cd16c4170__EmnvMk6",
+      "nativeTrialId": "0e8d1ca4-1fe3-41e1-8b3b-3df3f30d1db1",
+      "nativeTrialName": "task-a0dab4674f08645cd16c4170__gkLKQp9",
       "nativeTaskName": "openboa/task-a0dab4674f08645cd16c4170",
       "nativeAgentName": "oracle",
       "nativeAgentVersion": "1.0.0",
@@ -38,7 +38,7 @@
     "schema": "coffee-chat-eval/oracle-control",
     "benchmark": {
       "repository": "https://github.com/openboa-ai/coffee-chat-bench",
-      "commit": "f40c90d766b07e56f588ae7a2fb19b82f78477f2",
+      "commit": "0598d6d10319b69e0b34da86c40b9a48d8365c03",
       "release": "2026.8.12",
       "bankDigest": "sha256:a7ce9ce12679f81bd212324919e39dd3eda26115dec7366c52aea8768cf790dd",
       "projectionDigest": "sha256:c3ca7aff2aee9270700dced4bb25c34bbc218c353abd67cacae44755ef67589d"
@@ -58,8 +58,8 @@
     "execution": {
       "resultState": "executed",
       "nativeReward": 1,
-      "nativeTrialId": "44cca27b-bd2e-4a95-9147-11604f20361f",
-      "nativeTrialName": "task-ab70d4f6912bc3dc06925ee4__aWpGCSs",
+      "nativeTrialId": "d946e744-b623-4484-9492-475eded8f334",
+      "nativeTrialName": "task-ab70d4f6912bc3dc06925ee4__eWxqgpZ",
       "nativeTaskName": "openboa/task-ab70d4f6912bc3dc06925ee4",
       "nativeAgentName": "oracle",
       "nativeAgentVersion": "1.0.0",

@@ -4,6 +4,9 @@ CalVer: `2026.8.12`
 
 ## Implemented now
 
+The current evidence pins the merged `coffee-chat-bench` main commit
+`0598d6d10319b69e0b34da86c40b9a48d8365c03`.
+
 ```text
 exact Bench commit
   -> candidate-neutral Harbor projection
@@ -40,9 +43,9 @@ The probe is retained as transport evidence in
 and its interpretation is recorded in
 [`reports/2026.8.12/codex-judge-probe-report.md`](reports/2026.8.12/codex-judge-probe-report.md).
 
-The current Bench PR head was independently exercised through two fresh
+The merged Bench main commit was independently exercised through two fresh
 Harbor 0.21 Oracle controls and retained in
-[`reports/2026.8.12/oracle-control-f40c90d-receipt.json`](reports/2026.8.12/oracle-control-f40c90d-receipt.json).
+[`reports/2026.8.12/oracle-control-0598d6d-receipt.json`](reports/2026.8.12/oracle-control-0598d6d-receipt.json).
 This refreshes execution/provenance evidence only; it does not create a
 semantic score or replace the missing human qualification evidence.
 
