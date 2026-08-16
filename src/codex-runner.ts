@@ -13,7 +13,7 @@ import {
 import { spawn } from "node:child_process";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 
-import type { BaselineTask, ProjectionManifest } from "./bench.ts";
+import type { BaselineTask, ProjectionManifest, ProjectionTask } from "./bench.ts";
 import {
   CODEX_MODELS,
   CODEX_PROXY_HOST,
@@ -61,6 +61,7 @@ export interface CodexCandidateReceipt {
     readonly conditionRole: "task_only" | "direct_context";
     readonly condition: BaselineTask["condition"];
   };
+  readonly task: ProjectionTask;
   readonly isolation: {
     readonly host: "docker";
     readonly containerDeleted: boolean;
@@ -227,6 +228,11 @@ function conditionRole(
   throw new TypeError(`condition is not a baseline candidate condition: ${condition}`);
 }
 
+export function projectTaskForReceipt(task: BaselineTask): ProjectionTask {
+  const { path: _path, ...receiptTask } = task;
+  return Object.freeze(receiptTask);
+}
+
 function createProxyConfig(path: string, baseUrl: string): `sha256:${string}` {
   const config = [
     'model_provider = "coffee_chat_eval_proxy"',
@@ -330,6 +336,7 @@ export async function runCodexCandidate(input: {
         conditionRole: conditionRole(input.task.condition),
         condition: input.task.condition,
       },
+      task: projectTaskForReceipt(input.task),
       isolation: {
         host: "docker" as const,
         containerDeleted:

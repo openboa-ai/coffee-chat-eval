@@ -15,15 +15,17 @@
     "id": "utility",
     "digest": "sha256:95cc588a72cd72cc6ee0bb359acc89ddaeed3541d846a47ae969a796e0bfb7bc"
   },
-  "judgeProtocol": "human-criterion-and-primary-judge-qualification-2026.8.15",
-  "qualificationStudyDigest": "sha256:b03a3fcebd1e45f65682e4c1a68d0f3e2eadd9244c388401af143cbb90571755",
+  "judgeProtocol": "human-criterion-and-cross-validation-judge-qualification-2026.8.15",
+  "judgePromptContractDigest": "sha256:5eee79a1c6b456c34631a6cf40587c873bb29340b19f1dc95ac44934bcec50b6",
+  "qualificationStudyDigest": "sha256:a5c7a8490134f950d44f82edea88afb81e12cc95687ef145fd0e2a5dd5f7e192",
+  "requestDigest": "sha256:db987ffa4703ee49e0d43d38eb78c535d4935b9407d87c45d585a6dab9007f2e",
   "qualificationState": "unqualified",
   "results": [
     {
       "model": "gpt-5.6-sol",
-      "state": "unavailable",
+      "state": "failed",
       "resolvedModel": null,
-      "failureCode": "model_access_denied"
+      "failureCode": "judge provider returned HTTP 403: Project `proj_jyqxyWlI1Rs7cOqfZLppxJBM` does not have access to model `gpt-5.6-sol`"
     },
     {
       "model": "gpt-5.6-terra",

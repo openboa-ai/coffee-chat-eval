@@ -10,7 +10,11 @@ import {
   type ResponsesProxyHandle,
 } from "../src/responses-proxy.ts";
 import { CODEX_MODELS, createHarborCodexPlan } from "../src/codex.ts";
-import { createCandidateTaskOverlay } from "../src/codex-runner.ts";
+import {
+  createCandidateTaskOverlay,
+  projectTaskForReceipt,
+} from "../src/codex-runner.ts";
+import type { BaselineTask } from "../src/bench.ts";
 
 async function listen(server: Server): Promise<number> {
   server.listen(0, "127.0.0.1");
@@ -172,4 +176,26 @@ test("candidate runtime overlay changes only the agent network phase", () => {
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
+});
+
+test("candidate receipt task identity is complete and excludes the local task path", () => {
+  const task: BaselineTask = {
+    caseId: "case-1",
+    condition: "task_only",
+    trialId: "trial-000000000000000000000001",
+    taskDigest: `sha256:${"a".repeat(64)}`,
+    directory: "task-000000000000000000000001",
+    taskBytesDigest: `sha256:${"b".repeat(64)}`,
+    path: "/private/projection/task-000000000000000000000001",
+  };
+
+  assert.deepEqual(projectTaskForReceipt(task), {
+    caseId: "case-1",
+    condition: "task_only",
+    trialId: "trial-000000000000000000000001",
+    taskDigest: `sha256:${"a".repeat(64)}`,
+    directory: "task-000000000000000000000001",
+    taskBytesDigest: `sha256:${"b".repeat(64)}`,
+  });
+  assert.equal("path" in projectTaskForReceipt(task), false);
 });

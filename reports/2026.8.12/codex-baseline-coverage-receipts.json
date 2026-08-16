@@ -18,6 +18,14 @@
       "conditionRole": "task_only",
       "condition": "task_only"
     },
+    "task": {
+      "caseId": "ccbench-ra-s1-artifact-01",
+      "condition": "task_only",
+      "trialId": "trial-62556c8e9ed4f546aa318ad8",
+      "taskDigest": "sha256:0a13899f1a739889835bc7c0d6c59a756de84c139656034ebe511d3aede4e54c",
+      "directory": "task-0a13899f1a739889835bc7c0",
+      "taskBytesDigest": "sha256:f7f6ebdbb212ff0791bc3d1ae92657d438fd3cb03ae1ab58e79a37296903d54e"
+    },
     "isolation": {
       "host": "docker",
       "containerDeleted": true,
@@ -93,6 +101,14 @@
       "model": "gpt-5.6-luna",
       "conditionRole": "direct_context",
       "condition": "diagnostic_target_a"
+    },
+    "task": {
+      "caseId": "ccbench-ra-s1-artifact-01",
+      "condition": "diagnostic_target_a",
+      "trialId": "trial-1dc7ca1e546b3af45cc1472c",
+      "taskDigest": "sha256:4a2374559b76929dc0004480f82a2db3d2f3776474cf2ea49322254585d85beb",
+      "directory": "task-4a2374559b76929dc0004480",
+      "taskBytesDigest": "sha256:3a5a4a49c76ca44be2a436ba6ad2c9e5b634a8d233459faf759ad8770e433641"
     },
     "isolation": {
       "host": "docker",
@@ -170,6 +186,14 @@
       "conditionRole": "task_only",
       "condition": "task_only"
     },
+    "task": {
+      "caseId": "ccbench-ra-s1-dialogue-01",
+      "condition": "task_only",
+      "trialId": "trial-0e0c88968b582eaa23ded7d4",
+      "taskDigest": "sha256:a0dab4674f08645cd16c41700980a4d8329bdecbb36706f4c66cc1fec0a91cb0",
+      "directory": "task-a0dab4674f08645cd16c4170",
+      "taskBytesDigest": "sha256:1bce346260d6f21dcfb677029f66f2b61666f4e4133bc28bf9bf5243e5d4c3c5"
+    },
     "isolation": {
       "host": "docker",
       "containerDeleted": true,
@@ -245,6 +269,14 @@
       "model": "gpt-5.6-luna",
       "conditionRole": "direct_context",
       "condition": "diagnostic_target_a"
+    },
+    "task": {
+      "caseId": "ccbench-ra-s1-dialogue-01",
+      "condition": "diagnostic_target_a",
+      "trialId": "trial-5671ef75c17c5e55cc059385",
+      "taskDigest": "sha256:ab70d4f6912bc3dc06925ee4ea09adbdec5e9e58847235842f9ff7941b408cbe",
+      "directory": "task-ab70d4f6912bc3dc06925ee4",
+      "taskBytesDigest": "sha256:6632ad2a1ebf68187dd760ce9f88f0e65b43d68346f66e2c537a0072be104eda"
     },
     "isolation": {
       "host": "docker",
@@ -322,6 +354,14 @@
       "conditionRole": "task_only",
       "condition": "task_only"
     },
+    "task": {
+      "caseId": "ccbench-ra-s2-artifact-01",
+      "condition": "task_only",
+      "trialId": "trial-5ca1d84af7e046225533dbaa",
+      "taskDigest": "sha256:479bd1c09bcc442f4025434f7959eebe784f020e261949c960ddd3770768f3e1",
+      "directory": "task-479bd1c09bcc442f4025434f",
+      "taskBytesDigest": "sha256:75d960eae36fa799f4950278cf79bddf9d5a742de9aff8dc7e9b9c889e58fc7d"
+    },
     "isolation": {
       "host": "docker",
       "containerDeleted": true,
@@ -397,6 +437,14 @@
       "model": "gpt-5.6-luna",
       "conditionRole": "direct_context",
       "condition": "diagnostic_target_a"
+    },
+    "task": {
+      "caseId": "ccbench-ra-s2-artifact-01",
+      "condition": "diagnostic_target_a",
+      "trialId": "trial-812203a3cde05aef2ed73a45",
+      "taskDigest": "sha256:9672fe946324e973d7ef607e2438422f8a09a806dfce8c7ab54e5b0f8e1335ae",
+      "directory": "task-9672fe946324e973d7ef607e",
+      "taskBytesDigest": "sha256:14de79ba34ef9e7392e6f6088e940186f249cbecfcd9838c27f4b629906d5d37"
     },
     "isolation": {
       "host": "docker",
@@ -474,6 +522,14 @@
       "conditionRole": "task_only",
       "condition": "task_only"
     },
+    "task": {
+      "caseId": "ccbench-ra-s2-dialogue-01",
+      "condition": "task_only",
+      "trialId": "trial-0cd78170456748bf57fb3125",
+      "taskDigest": "sha256:33b37e83b99fb3722da10cdcab3cd89ce9bef95e5f6150e064548ddae445d7e7",
+      "directory": "task-33b37e83b99fb3722da10cdc",
+      "taskBytesDigest": "sha256:ac956a94a03e9a9492f1be0277fda8aacdeb358bec8154639a4d45768d026a2e"
+    },
     "isolation": {
       "host": "docker",
       "containerDeleted": true,
@@ -549,6 +605,14 @@
       "model": "gpt-5.6-luna",
       "conditionRole": "direct_context",
       "condition": "diagnostic_target_a"
+    },
+    "task": {
+      "caseId": "ccbench-ra-s2-dialogue-01",
+      "condition": "diagnostic_target_a",
+      "trialId": "trial-857e234e854d40242d2e88ea",
+      "taskDigest": "sha256:a657c35bd0e2bddefaecd6c5f3b51b61d32b202b5d71b91c9a89c80c78c0b565",
+      "directory": "task-a657c35bd0e2bddefaecd6c5",
+      "taskBytesDigest": "sha256:6d0a2d279725846674500928544545117f193f82baf06adb4bbd55624add40d8"
     },
     "isolation": {
       "host": "docker",
@@ -626,6 +690,14 @@
       "conditionRole": "task_only",
       "condition": "task_only"
     },
+    "task": {
+      "caseId": "ccbench-ra-s3-artifact-01",
+      "condition": "task_only",
+      "trialId": "trial-ce31d47d2dcc5a4ec05f7ce1",
+      "taskDigest": "sha256:cc8350f6e024650bde4e7f58470793897d6a452aafe70a7d7b9c72de048813b8",
+      "directory": "task-cc8350f6e024650bde4e7f58",
+      "taskBytesDigest": "sha256:906096f17d11318607d452d79fda7705518f0e1733ffc8b961029237ba761af8"
+    },
     "isolation": {
       "host": "docker",
       "containerDeleted": true,
@@ -701,6 +773,14 @@
       "model": "gpt-5.6-luna",
       "conditionRole": "direct_context",
       "condition": "diagnostic_target_a"
+    },
+    "task": {
+      "caseId": "ccbench-ra-s3-artifact-01",
+      "condition": "diagnostic_target_a",
+      "trialId": "trial-62ceca95163357904ff2c12e",
+      "taskDigest": "sha256:6d16ba27cf63ac2f74c7e2c784cce011eed775bb0464e32ba87eefa836817564",
+      "directory": "task-6d16ba27cf63ac2f74c7e2c7",
+      "taskBytesDigest": "sha256:782126f1c669a1a162cd0761461a9b7dbc33da6c7c39aa87946bbf46a1ea8dcd"
     },
     "isolation": {
       "host": "docker",
@@ -778,6 +858,14 @@
       "conditionRole": "task_only",
       "condition": "task_only"
     },
+    "task": {
+      "caseId": "ccbench-ra-s3-dialogue-01",
+      "condition": "task_only",
+      "trialId": "trial-a4255dbdd7044a21299d8fc7",
+      "taskDigest": "sha256:4bdaccb186c77a9aa931d4d0c2c2ec431e9c5ac9b07f51720193424fd0e09f5b",
+      "directory": "task-4bdaccb186c77a9aa931d4d0",
+      "taskBytesDigest": "sha256:1dccda2d5cdc923ce3a9a00193de404e7ce797fc57203fa31dd2490dc9dc06bd"
+    },
     "isolation": {
       "host": "docker",
       "containerDeleted": true,
@@ -853,6 +941,14 @@
       "model": "gpt-5.6-luna",
       "conditionRole": "direct_context",
       "condition": "diagnostic_target_a"
+    },
+    "task": {
+      "caseId": "ccbench-ra-s3-dialogue-01",
+      "condition": "diagnostic_target_a",
+      "trialId": "trial-eddb0d2cbbfc6011da630c39",
+      "taskDigest": "sha256:35595524cd5ff06a1d11b1dc641475e11ba200400e883330f85bf6f0a04aa05a",
+      "directory": "task-35595524cd5ff06a1d11b1dc",
+      "taskBytesDigest": "sha256:11dc7ea87638afe6198ff7539e9b6b8b43760ab2f5ce37b0930aadff41b087e6"
     },
     "isolation": {
       "host": "docker",
@@ -930,6 +1026,14 @@
       "conditionRole": "task_only",
       "condition": "task_only"
     },
+    "task": {
+      "caseId": "ccbench-rb-s1-artifact-01",
+      "condition": "task_only",
+      "trialId": "trial-1d0801f726a9e24e4e6a3341",
+      "taskDigest": "sha256:2c09445c1bb54b440e33925777180239e329dd55bb96c2f58c002c1d9ea9f0a7",
+      "directory": "task-2c09445c1bb54b440e339257",
+      "taskBytesDigest": "sha256:42e6a5b5b6e6307fe5777a2e05c55d5d1c5ca97675598eb582b0b84c1e5f134e"
+    },
     "isolation": {
       "host": "docker",
       "containerDeleted": true,
@@ -1005,6 +1109,14 @@
       "model": "gpt-5.6-luna",
       "conditionRole": "direct_context",
       "condition": "diagnostic_target_a"
+    },
+    "task": {
+      "caseId": "ccbench-rb-s1-artifact-01",
+      "condition": "diagnostic_target_a",
+      "trialId": "trial-62e6eccfc598100e2ee6c2dc",
+      "taskDigest": "sha256:3df08e67803051ad7f59f982587a05d4ed7d26829afa3b2094080e7c5e1bae25",
+      "directory": "task-3df08e67803051ad7f59f982",
+      "taskBytesDigest": "sha256:4b957cf1b4a73e1910a7e87aea41f39f1dcb6852f5087a35ce8ec9069fc63282"
     },
     "isolation": {
       "host": "docker",
@@ -1082,6 +1194,14 @@
       "conditionRole": "task_only",
       "condition": "task_only"
     },
+    "task": {
+      "caseId": "ccbench-rb-s1-dialogue-01",
+      "condition": "task_only",
+      "trialId": "trial-99d58f863c34bc39e9ab64ae",
+      "taskDigest": "sha256:248182fc92265c3053978669ba8e27d974439ba408f8d559b287250c522baa92",
+      "directory": "task-248182fc92265c3053978669",
+      "taskBytesDigest": "sha256:439d83c5068c021db5a51b678167a2fcaa01d25afc4576a60f0ead21663cfa00"
+    },
     "isolation": {
       "host": "docker",
       "containerDeleted": true,
@@ -1157,6 +1277,14 @@
       "model": "gpt-5.6-luna",
       "conditionRole": "direct_context",
       "condition": "diagnostic_target_a"
+    },
+    "task": {
+      "caseId": "ccbench-rb-s1-dialogue-01",
+      "condition": "diagnostic_target_a",
+      "trialId": "trial-72f2cc411fa7bc31b565dd77",
+      "taskDigest": "sha256:76b4f244c78d07f516dc6a423dbb172ceadad5c3f923f4d6a02d34ed292bf1a3",
+      "directory": "task-76b4f244c78d07f516dc6a42",
+      "taskBytesDigest": "sha256:6a8c5379fc4b2d077df8aa0eefcb3d0f273f8ffe2e89b85beabef181e32626f9"
     },
     "isolation": {
       "host": "docker",
@@ -1234,6 +1362,14 @@
       "conditionRole": "task_only",
       "condition": "task_only"
     },
+    "task": {
+      "caseId": "ccbench-rb-s2-artifact-01",
+      "condition": "task_only",
+      "trialId": "trial-ac70bceab43a5cf9d94eaebd",
+      "taskDigest": "sha256:91cfd5fb5948e4db38e4e6edc137be86a33a652101293f99fb0a0138dc75f557",
+      "directory": "task-91cfd5fb5948e4db38e4e6ed",
+      "taskBytesDigest": "sha256:ab108771f1c3c0b3f1acde557a61f292b55f32e09dea862c4f87438e1ad84e05"
+    },
     "isolation": {
       "host": "docker",
       "containerDeleted": true,
@@ -1309,6 +1445,14 @@
       "model": "gpt-5.6-luna",
       "conditionRole": "direct_context",
       "condition": "diagnostic_target_a"
+    },
+    "task": {
+      "caseId": "ccbench-rb-s2-artifact-01",
+      "condition": "diagnostic_target_a",
+      "trialId": "trial-498424534600e9e4bfec5e2c",
+      "taskDigest": "sha256:a66630afe542bd1c0983dbaf0e83f10de184a1959d6859634702ec6b607df46e",
+      "directory": "task-a66630afe542bd1c0983dbaf",
+      "taskBytesDigest": "sha256:27ea2d7f4655fb412e9cf59bf5a2c2d9e26a931965dafc13c16bff273ad8588f"
     },
     "isolation": {
       "host": "docker",
@@ -1386,6 +1530,14 @@
       "conditionRole": "task_only",
       "condition": "task_only"
     },
+    "task": {
+      "caseId": "ccbench-rb-s2-dialogue-01",
+      "condition": "task_only",
+      "trialId": "trial-2c62dea0bfab728e9d3a00ac",
+      "taskDigest": "sha256:425858dc6961ff9d7e544dfa97f62e27e15f1dfe81d83cffa7905d4a6e6f50fa",
+      "directory": "task-425858dc6961ff9d7e544dfa",
+      "taskBytesDigest": "sha256:4e0a8ee6d52e2961dbbc9765f0dff58215cf50e2f7c924438c3ceb155c4ae9a7"
+    },
     "isolation": {
       "host": "docker",
       "containerDeleted": true,
@@ -1461,6 +1613,14 @@
       "model": "gpt-5.6-luna",
       "conditionRole": "direct_context",
       "condition": "diagnostic_target_a"
+    },
+    "task": {
+      "caseId": "ccbench-rb-s2-dialogue-01",
+      "condition": "diagnostic_target_a",
+      "trialId": "trial-a117afb1418bc24926f41bd3",
+      "taskDigest": "sha256:0d47012d3b04b89755522d5443020d8224441f9e16c3f93e169766553c7b8458",
+      "directory": "task-0d47012d3b04b89755522d54",
+      "taskBytesDigest": "sha256:0209ca9a0cc9064ce24a651d831cef0d31f54922940fe62095c63b5919441165"
     },
     "isolation": {
       "host": "docker",
@@ -1538,6 +1698,14 @@
       "conditionRole": "task_only",
       "condition": "task_only"
     },
+    "task": {
+      "caseId": "ccbench-rb-s3-artifact-01",
+      "condition": "task_only",
+      "trialId": "trial-f8f10ba304d4cd6b687be3e4",
+      "taskDigest": "sha256:ba7beff8a4b0ba650ebbaed7c6b79cee1e7903ad06746cbf1939b9488cdb8d0a",
+      "directory": "task-ba7beff8a4b0ba650ebbaed7",
+      "taskBytesDigest": "sha256:c55dcaaec9c28396f882b84b1a9e792b18392d82db203c10354c4cf858755bf5"
+    },
     "isolation": {
       "host": "docker",
       "containerDeleted": true,
@@ -1613,6 +1781,14 @@
       "model": "gpt-5.6-luna",
       "conditionRole": "direct_context",
       "condition": "diagnostic_target_a"
+    },
+    "task": {
+      "caseId": "ccbench-rb-s3-artifact-01",
+      "condition": "diagnostic_target_a",
+      "trialId": "trial-52a7d6b38687a81b5a6e04c8",
+      "taskDigest": "sha256:3c151dc7718ce953307bcd6b17086ca32796c8113e636af1fc5b95f8736ad2cc",
+      "directory": "task-3c151dc7718ce953307bcd6b",
+      "taskBytesDigest": "sha256:e01da056bd3bc8ea126dfb86e180ec5b7ec43d597d6d1162793385ba9b72ecff"
     },
     "isolation": {
       "host": "docker",
@@ -1690,6 +1866,14 @@
       "conditionRole": "task_only",
       "condition": "task_only"
     },
+    "task": {
+      "caseId": "ccbench-rb-s3-dialogue-01",
+      "condition": "task_only",
+      "trialId": "trial-9658c78672f6a91ed31706ac",
+      "taskDigest": "sha256:69d4b567ffff3c0fc86549cf493823002f4b2cfbe5a95696ab08a81bb9e5e47e",
+      "directory": "task-69d4b567ffff3c0fc86549cf",
+      "taskBytesDigest": "sha256:6e23858de9e86fd20993bc060129aae15a9d3403f4e8b812e49e9ddeb11f0a70"
+    },
     "isolation": {
       "host": "docker",
       "containerDeleted": true,
@@ -1765,6 +1949,14 @@
       "model": "gpt-5.6-luna",
       "conditionRole": "direct_context",
       "condition": "diagnostic_target_a"
+    },
+    "task": {
+      "caseId": "ccbench-rb-s3-dialogue-01",
+      "condition": "diagnostic_target_a",
+      "trialId": "trial-41140a88f815014e1370211e",
+      "taskDigest": "sha256:43b148657f2c38d218a1ce4c6756fe385931559113441c36282d1bd75588187d",
+      "directory": "task-43b148657f2c38d218a1ce4c",
+      "taskBytesDigest": "sha256:8c6087d0c821994a2c5eec5443a4576b8674799a5e16dad5581eefef4a4a7051"
     },
     "isolation": {
       "host": "docker",
@@ -1842,6 +2034,14 @@
       "conditionRole": "task_only",
       "condition": "task_only"
     },
+    "task": {
+      "caseId": "ccbench-ra-s1-artifact-01",
+      "condition": "task_only",
+      "trialId": "trial-62556c8e9ed4f546aa318ad8",
+      "taskDigest": "sha256:0a13899f1a739889835bc7c0d6c59a756de84c139656034ebe511d3aede4e54c",
+      "directory": "task-0a13899f1a739889835bc7c0",
+      "taskBytesDigest": "sha256:f7f6ebdbb212ff0791bc3d1ae92657d438fd3cb03ae1ab58e79a37296903d54e"
+    },
     "isolation": {
       "host": "docker",
       "containerDeleted": true,
@@ -1917,6 +2117,14 @@
       "model": "gpt-5.6-terra",
       "conditionRole": "direct_context",
       "condition": "diagnostic_target_a"
+    },
+    "task": {
+      "caseId": "ccbench-ra-s1-artifact-01",
+      "condition": "diagnostic_target_a",
+      "trialId": "trial-1dc7ca1e546b3af45cc1472c",
+      "taskDigest": "sha256:4a2374559b76929dc0004480f82a2db3d2f3776474cf2ea49322254585d85beb",
+      "directory": "task-4a2374559b76929dc0004480",
+      "taskBytesDigest": "sha256:3a5a4a49c76ca44be2a436ba6ad2c9e5b634a8d233459faf759ad8770e433641"
     },
     "isolation": {
       "host": "docker",
@@ -1994,6 +2202,14 @@
       "conditionRole": "task_only",
       "condition": "task_only"
     },
+    "task": {
+      "caseId": "ccbench-ra-s1-dialogue-01",
+      "condition": "task_only",
+      "trialId": "trial-0e0c88968b582eaa23ded7d4",
+      "taskDigest": "sha256:a0dab4674f08645cd16c41700980a4d8329bdecbb36706f4c66cc1fec0a91cb0",
+      "directory": "task-a0dab4674f08645cd16c4170",
+      "taskBytesDigest": "sha256:1bce346260d6f21dcfb677029f66f2b61666f4e4133bc28bf9bf5243e5d4c3c5"
+    },
     "isolation": {
       "host": "docker",
       "containerDeleted": true,
@@ -2069,6 +2285,14 @@
       "model": "gpt-5.6-terra",
       "conditionRole": "direct_context",
       "condition": "diagnostic_target_a"
+    },
+    "task": {
+      "caseId": "ccbench-ra-s1-dialogue-01",
+      "condition": "diagnostic_target_a",
+      "trialId": "trial-5671ef75c17c5e55cc059385",
+      "taskDigest": "sha256:ab70d4f6912bc3dc06925ee4ea09adbdec5e9e58847235842f9ff7941b408cbe",
+      "directory": "task-ab70d4f6912bc3dc06925ee4",
+      "taskBytesDigest": "sha256:6632ad2a1ebf68187dd760ce9f88f0e65b43d68346f66e2c537a0072be104eda"
     },
     "isolation": {
       "host": "docker",
@@ -2146,6 +2370,14 @@
       "conditionRole": "task_only",
       "condition": "task_only"
     },
+    "task": {
+      "caseId": "ccbench-ra-s2-artifact-01",
+      "condition": "task_only",
+      "trialId": "trial-5ca1d84af7e046225533dbaa",
+      "taskDigest": "sha256:479bd1c09bcc442f4025434f7959eebe784f020e261949c960ddd3770768f3e1",
+      "directory": "task-479bd1c09bcc442f4025434f",
+      "taskBytesDigest": "sha256:75d960eae36fa799f4950278cf79bddf9d5a742de9aff8dc7e9b9c889e58fc7d"
+    },
     "isolation": {
       "host": "docker",
       "containerDeleted": true,
@@ -2221,6 +2453,14 @@
       "model": "gpt-5.6-terra",
       "conditionRole": "direct_context",
       "condition": "diagnostic_target_a"
+    },
+    "task": {
+      "caseId": "ccbench-ra-s2-artifact-01",
+      "condition": "diagnostic_target_a",
+      "trialId": "trial-812203a3cde05aef2ed73a45",
+      "taskDigest": "sha256:9672fe946324e973d7ef607e2438422f8a09a806dfce8c7ab54e5b0f8e1335ae",
+      "directory": "task-9672fe946324e973d7ef607e",
+      "taskBytesDigest": "sha256:14de79ba34ef9e7392e6f6088e940186f249cbecfcd9838c27f4b629906d5d37"
     },
     "isolation": {
       "host": "docker",
@@ -2298,6 +2538,14 @@
       "conditionRole": "task_only",
       "condition": "task_only"
     },
+    "task": {
+      "caseId": "ccbench-ra-s2-dialogue-01",
+      "condition": "task_only",
+      "trialId": "trial-0cd78170456748bf57fb3125",
+      "taskDigest": "sha256:33b37e83b99fb3722da10cdcab3cd89ce9bef95e5f6150e064548ddae445d7e7",
+      "directory": "task-33b37e83b99fb3722da10cdc",
+      "taskBytesDigest": "sha256:ac956a94a03e9a9492f1be0277fda8aacdeb358bec8154639a4d45768d026a2e"
+    },
     "isolation": {
       "host": "docker",
       "containerDeleted": true,
@@ -2373,6 +2621,14 @@
       "model": "gpt-5.6-terra",
       "conditionRole": "direct_context",
       "condition": "diagnostic_target_a"
+    },
+    "task": {
+      "caseId": "ccbench-ra-s2-dialogue-01",
+      "condition": "diagnostic_target_a",
+      "trialId": "trial-857e234e854d40242d2e88ea",
+      "taskDigest": "sha256:a657c35bd0e2bddefaecd6c5f3b51b61d32b202b5d71b91c9a89c80c78c0b565",
+      "directory": "task-a657c35bd0e2bddefaecd6c5",
+      "taskBytesDigest": "sha256:6d0a2d279725846674500928544545117f193f82baf06adb4bbd55624add40d8"
     },
     "isolation": {
       "host": "docker",
@@ -2450,6 +2706,14 @@
       "conditionRole": "task_only",
       "condition": "task_only"
     },
+    "task": {
+      "caseId": "ccbench-ra-s3-artifact-01",
+      "condition": "task_only",
+      "trialId": "trial-ce31d47d2dcc5a4ec05f7ce1",
+      "taskDigest": "sha256:cc8350f6e024650bde4e7f58470793897d6a452aafe70a7d7b9c72de048813b8",
+      "directory": "task-cc8350f6e024650bde4e7f58",
+      "taskBytesDigest": "sha256:906096f17d11318607d452d79fda7705518f0e1733ffc8b961029237ba761af8"
+    },
     "isolation": {
       "host": "docker",
       "containerDeleted": true,
@@ -2525,6 +2789,14 @@
       "model": "gpt-5.6-terra",
       "conditionRole": "direct_context",
       "condition": "diagnostic_target_a"
+    },
+    "task": {
+      "caseId": "ccbench-ra-s3-artifact-01",
+      "condition": "diagnostic_target_a",
+      "trialId": "trial-62ceca95163357904ff2c12e",
+      "taskDigest": "sha256:6d16ba27cf63ac2f74c7e2c784cce011eed775bb0464e32ba87eefa836817564",
+      "directory": "task-6d16ba27cf63ac2f74c7e2c7",
+      "taskBytesDigest": "sha256:782126f1c669a1a162cd0761461a9b7dbc33da6c7c39aa87946bbf46a1ea8dcd"
     },
     "isolation": {
       "host": "docker",
@@ -2602,6 +2874,14 @@
       "conditionRole": "task_only",
       "condition": "task_only"
     },
+    "task": {
+      "caseId": "ccbench-ra-s3-dialogue-01",
+      "condition": "task_only",
+      "trialId": "trial-a4255dbdd7044a21299d8fc7",
+      "taskDigest": "sha256:4bdaccb186c77a9aa931d4d0c2c2ec431e9c5ac9b07f51720193424fd0e09f5b",
+      "directory": "task-4bdaccb186c77a9aa931d4d0",
+      "taskBytesDigest": "sha256:1dccda2d5cdc923ce3a9a00193de404e7ce797fc57203fa31dd2490dc9dc06bd"
+    },
     "isolation": {
       "host": "docker",
       "containerDeleted": true,
@@ -2677,6 +2957,14 @@
       "model": "gpt-5.6-terra",
       "conditionRole": "direct_context",
       "condition": "diagnostic_target_a"
+    },
+    "task": {
+      "caseId": "ccbench-ra-s3-dialogue-01",
+      "condition": "diagnostic_target_a",
+      "trialId": "trial-eddb0d2cbbfc6011da630c39",
+      "taskDigest": "sha256:35595524cd5ff06a1d11b1dc641475e11ba200400e883330f85bf6f0a04aa05a",
+      "directory": "task-35595524cd5ff06a1d11b1dc",
+      "taskBytesDigest": "sha256:11dc7ea87638afe6198ff7539e9b6b8b43760ab2f5ce37b0930aadff41b087e6"
     },
     "isolation": {
       "host": "docker",
@@ -2754,6 +3042,14 @@
       "conditionRole": "task_only",
       "condition": "task_only"
     },
+    "task": {
+      "caseId": "ccbench-rb-s1-artifact-01",
+      "condition": "task_only",
+      "trialId": "trial-1d0801f726a9e24e4e6a3341",
+      "taskDigest": "sha256:2c09445c1bb54b440e33925777180239e329dd55bb96c2f58c002c1d9ea9f0a7",
+      "directory": "task-2c09445c1bb54b440e339257",
+      "taskBytesDigest": "sha256:42e6a5b5b6e6307fe5777a2e05c55d5d1c5ca97675598eb582b0b84c1e5f134e"
+    },
     "isolation": {
       "host": "docker",
       "containerDeleted": true,
@@ -2829,6 +3125,14 @@
       "model": "gpt-5.6-terra",
       "conditionRole": "direct_context",
       "condition": "diagnostic_target_a"
+    },
+    "task": {
+      "caseId": "ccbench-rb-s1-artifact-01",
+      "condition": "diagnostic_target_a",
+      "trialId": "trial-62e6eccfc598100e2ee6c2dc",
+      "taskDigest": "sha256:3df08e67803051ad7f59f982587a05d4ed7d26829afa3b2094080e7c5e1bae25",
+      "directory": "task-3df08e67803051ad7f59f982",
+      "taskBytesDigest": "sha256:4b957cf1b4a73e1910a7e87aea41f39f1dcb6852f5087a35ce8ec9069fc63282"
     },
     "isolation": {
       "host": "docker",
@@ -2906,6 +3210,14 @@
       "conditionRole": "task_only",
       "condition": "task_only"
     },
+    "task": {
+      "caseId": "ccbench-rb-s1-dialogue-01",
+      "condition": "task_only",
+      "trialId": "trial-99d58f863c34bc39e9ab64ae",
+      "taskDigest": "sha256:248182fc92265c3053978669ba8e27d974439ba408f8d559b287250c522baa92",
+      "directory": "task-248182fc92265c3053978669",
+      "taskBytesDigest": "sha256:439d83c5068c021db5a51b678167a2fcaa01d25afc4576a60f0ead21663cfa00"
+    },
     "isolation": {
       "host": "docker",
       "containerDeleted": true,
@@ -2981,6 +3293,14 @@
       "model": "gpt-5.6-terra",
       "conditionRole": "direct_context",
       "condition": "diagnostic_target_a"
+    },
+    "task": {
+      "caseId": "ccbench-rb-s1-dialogue-01",
+      "condition": "diagnostic_target_a",
+      "trialId": "trial-72f2cc411fa7bc31b565dd77",
+      "taskDigest": "sha256:76b4f244c78d07f516dc6a423dbb172ceadad5c3f923f4d6a02d34ed292bf1a3",
+      "directory": "task-76b4f244c78d07f516dc6a42",
+      "taskBytesDigest": "sha256:6a8c5379fc4b2d077df8aa0eefcb3d0f273f8ffe2e89b85beabef181e32626f9"
     },
     "isolation": {
       "host": "docker",
@@ -3058,6 +3378,14 @@
       "conditionRole": "task_only",
       "condition": "task_only"
     },
+    "task": {
+      "caseId": "ccbench-rb-s2-artifact-01",
+      "condition": "task_only",
+      "trialId": "trial-ac70bceab43a5cf9d94eaebd",
+      "taskDigest": "sha256:91cfd5fb5948e4db38e4e6edc137be86a33a652101293f99fb0a0138dc75f557",
+      "directory": "task-91cfd5fb5948e4db38e4e6ed",
+      "taskBytesDigest": "sha256:ab108771f1c3c0b3f1acde557a61f292b55f32e09dea862c4f87438e1ad84e05"
+    },
     "isolation": {
       "host": "docker",
       "containerDeleted": true,
@@ -3133,6 +3461,14 @@
       "model": "gpt-5.6-terra",
       "conditionRole": "direct_context",
       "condition": "diagnostic_target_a"
+    },
+    "task": {
+      "caseId": "ccbench-rb-s2-artifact-01",
+      "condition": "diagnostic_target_a",
+      "trialId": "trial-498424534600e9e4bfec5e2c",
+      "taskDigest": "sha256:a66630afe542bd1c0983dbaf0e83f10de184a1959d6859634702ec6b607df46e",
+      "directory": "task-a66630afe542bd1c0983dbaf",
+      "taskBytesDigest": "sha256:27ea2d7f4655fb412e9cf59bf5a2c2d9e26a931965dafc13c16bff273ad8588f"
     },
     "isolation": {
       "host": "docker",
@@ -3210,6 +3546,14 @@
       "conditionRole": "task_only",
       "condition": "task_only"
     },
+    "task": {
+      "caseId": "ccbench-rb-s2-dialogue-01",
+      "condition": "task_only",
+      "trialId": "trial-2c62dea0bfab728e9d3a00ac",
+      "taskDigest": "sha256:425858dc6961ff9d7e544dfa97f62e27e15f1dfe81d83cffa7905d4a6e6f50fa",
+      "directory": "task-425858dc6961ff9d7e544dfa",
+      "taskBytesDigest": "sha256:4e0a8ee6d52e2961dbbc9765f0dff58215cf50e2f7c924438c3ceb155c4ae9a7"
+    },
     "isolation": {
       "host": "docker",
       "containerDeleted": true,
@@ -3285,6 +3629,14 @@
       "model": "gpt-5.6-terra",
       "conditionRole": "direct_context",
       "condition": "diagnostic_target_a"
+    },
+    "task": {
+      "caseId": "ccbench-rb-s2-dialogue-01",
+      "condition": "diagnostic_target_a",
+      "trialId": "trial-a117afb1418bc24926f41bd3",
+      "taskDigest": "sha256:0d47012d3b04b89755522d5443020d8224441f9e16c3f93e169766553c7b8458",
+      "directory": "task-0d47012d3b04b89755522d54",
+      "taskBytesDigest": "sha256:0209ca9a0cc9064ce24a651d831cef0d31f54922940fe62095c63b5919441165"
     },
     "isolation": {
       "host": "docker",
@@ -3362,6 +3714,14 @@
       "conditionRole": "task_only",
       "condition": "task_only"
     },
+    "task": {
+      "caseId": "ccbench-rb-s3-artifact-01",
+      "condition": "task_only",
+      "trialId": "trial-f8f10ba304d4cd6b687be3e4",
+      "taskDigest": "sha256:ba7beff8a4b0ba650ebbaed7c6b79cee1e7903ad06746cbf1939b9488cdb8d0a",
+      "directory": "task-ba7beff8a4b0ba650ebbaed7",
+      "taskBytesDigest": "sha256:c55dcaaec9c28396f882b84b1a9e792b18392d82db203c10354c4cf858755bf5"
+    },
     "isolation": {
       "host": "docker",
       "containerDeleted": true,
@@ -3437,6 +3797,14 @@
       "model": "gpt-5.6-terra",
       "conditionRole": "direct_context",
       "condition": "diagnostic_target_a"
+    },
+    "task": {
+      "caseId": "ccbench-rb-s3-artifact-01",
+      "condition": "diagnostic_target_a",
+      "trialId": "trial-52a7d6b38687a81b5a6e04c8",
+      "taskDigest": "sha256:3c151dc7718ce953307bcd6b17086ca32796c8113e636af1fc5b95f8736ad2cc",
+      "directory": "task-3c151dc7718ce953307bcd6b",
+      "taskBytesDigest": "sha256:e01da056bd3bc8ea126dfb86e180ec5b7ec43d597d6d1162793385ba9b72ecff"
     },
     "isolation": {
       "host": "docker",
@@ -3514,6 +3882,14 @@
       "conditionRole": "task_only",
       "condition": "task_only"
     },
+    "task": {
+      "caseId": "ccbench-rb-s3-dialogue-01",
+      "condition": "task_only",
+      "trialId": "trial-9658c78672f6a91ed31706ac",
+      "taskDigest": "sha256:69d4b567ffff3c0fc86549cf493823002f4b2cfbe5a95696ab08a81bb9e5e47e",
+      "directory": "task-69d4b567ffff3c0fc86549cf",
+      "taskBytesDigest": "sha256:6e23858de9e86fd20993bc060129aae15a9d3403f4e8b812e49e9ddeb11f0a70"
+    },
     "isolation": {
       "host": "docker",
       "containerDeleted": true,
@@ -3589,6 +3965,14 @@
       "model": "gpt-5.6-terra",
       "conditionRole": "direct_context",
       "condition": "diagnostic_target_a"
+    },
+    "task": {
+      "caseId": "ccbench-rb-s3-dialogue-01",
+      "condition": "diagnostic_target_a",
+      "trialId": "trial-41140a88f815014e1370211e",
+      "taskDigest": "sha256:43b148657f2c38d218a1ce4c6756fe385931559113441c36282d1bd75588187d",
+      "directory": "task-43b148657f2c38d218a1ce4c",
+      "taskBytesDigest": "sha256:8c6087d0c821994a2c5eec5443a4576b8674799a5e16dad5581eefef4a4a7051"
     },
     "isolation": {
       "host": "docker",
