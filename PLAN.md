@@ -40,6 +40,12 @@ The probe is retained as transport evidence in
 and its interpretation is recorded in
 [`reports/2026.8.12/codex-judge-probe-report.md`](reports/2026.8.12/codex-judge-probe-report.md).
 
+The current Bench PR head was independently exercised through two fresh
+Harbor 0.21 Oracle controls and retained in
+[`reports/2026.8.12/oracle-control-f40c90d-receipt.json`](reports/2026.8.12/oracle-control-f40c90d-receipt.json).
+This refreshes execution/provenance evidence only; it does not create a
+semantic score or replace the missing human qualification evidence.
+
 After human qualification evidence exists, Eval transports candidate-visible
 inputs and outputs to the Bench-owned qualified judge and records provenance;
 it does not reproduce Bench rubrics, qualification logic, or metric

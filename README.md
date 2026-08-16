@@ -87,6 +87,12 @@ The first live judge transport probe is retained separately in
 It is intentionally unqualified and unmeasured because the Bench study has no
 genuine human qualification records and the primary model votes disagreed.
 
+A fresh two-condition Harbor Oracle control was also rerun against the current
+Bench PR head and is retained in
+[`reports/2026.8.12/oracle-control-f40c90d-receipt.json`](reports/2026.8.12/oracle-control-f40c90d-receipt.json).
+It confirms current-head task/projection provenance, Docker execution, and
+cleanup; its structural reward remains `measurement: not_performed`.
+
 The evaluation shape follows OpenAI's skill-evaluation pattern: define a small
 set of observable outcome, process, style, and efficiency checks; capture the
 run trace and artifacts; apply deterministic checks first; then add a
