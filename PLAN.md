@@ -10,9 +10,9 @@ The current evidence pins the merged `coffee-chat-bench` main commit
 ```text
 exact Bench commit
   -> candidate-neutral Harbor projection
-  -> one case: task_only + one diagnostic condition
+  -> 12 scored cases across release_a/release_b and dialogue/professional-artifact forms
   -> two fresh Harbor/Docker Oracle controls
-  -> four Codex candidate trials: Luna/Terra x task_only/diagnostic_target_a
+  -> 48 Codex candidate trials: Luna/Terra x 12 scored cases x task_only/diagnostic_target_a
   -> host-held Responses proxy with per-trial capability token
   -> structural verifier, trace/artifact collection, and cleanup evidence
   -> evaluator receipts marked measurement=unmeasured
@@ -22,7 +22,7 @@ Eval validates the projection manifest and its digest, keeps the selected task
 identities in the receipt, invokes only an absolute pinned Harbor executable,
 and preserves host, candidate, verifier, and artifact failures as invalid
 evidence. The two Oracle controls establish executable plumbing, not system
-quality or benchmark validity. The four Codex receipts establish that the first
+quality or benchmark validity. The 48 Codex coverage receipts establish that the first
 credential-isolated Harbor candidate path can execute the same public task
 projection for both allowed account models. They do not establish semantic
 quality, utility, target transfer, or benchmark activation.
@@ -37,6 +37,8 @@ invalid, and disagreeing votes. The recorded probe is deliberately
 qualification study currently has no genuine human annotation records, and
 the current three-model probe has an unavailable Sol model. No response is
 promoted to benchmark measurement.
+
+The full scored coverage is retained in [reports/2026.8.12/codex-baseline-coverage-receipts.json](reports/2026.8.12/codex-baseline-coverage-receipts.json) and summarized in [reports/2026.8.12/codex-baseline-coverage-report.md](reports/2026.8.12/codex-baseline-coverage-report.md). All 48 receipts remain `measurement=unmeasured`.
 
 The probe is retained as transport evidence in
 [`reports/2026.8.12/codex-judge-probe.json`](reports/2026.8.12/codex-judge-probe.json)

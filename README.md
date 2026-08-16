@@ -76,11 +76,16 @@ OPENAI_API_KEY=... node --experimental-strip-types src/cli.ts codex-baseline -- 
 ```
 
 The key is read by the host process and is never placed in the candidate
-command line or candidate task files. The checked-in four-trial baseline
+command line or candidate task files. The checked-in initial four-trial baseline
 receipts are in
 [`reports/2026.8.12/codex-baseline-receipts.json`](reports/2026.8.12/codex-baseline-receipts.json).
 They are execution evidence only: no native reward is promoted to a semantic
 score, and no judge result is treated as qualified measurement.
+
+The completed scored release/form coverage (48 Harbor Codex trials across 12
+cases, two models, and task-only/direct-context conditions) is in
+[`reports/2026.8.12/codex-baseline-coverage-receipts.json`](reports/2026.8.12/codex-baseline-coverage-receipts.json).
+The accompanying report preserves the same unmeasured boundary.
 
 The first live judge transport probe is retained separately in
 [`reports/2026.8.12/codex-judge-probe.json`](reports/2026.8.12/codex-judge-probe.json).
