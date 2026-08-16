@@ -1,15 +1,16 @@
 # Security policy
 
-Report vulnerabilities privately to `security@openboa.ai`; do not include
-credentials, private candidate artifacts, or sealed evaluation material in a
-public issue. This repository's security scope is closed evaluator/host adapter
-boundaries, evaluator-attested isolation and artifact persistence, receipt
-redaction, and report validation. It is not the Coffee Chat product or a storage
-location for personal Roastery content.
+Report vulnerabilities privately to `security@openboa.ai`. Do not place
+credentials, private candidate artifacts, or sealed benchmark material in a
+public issue.
 
-The baseline includes live local Harbor/Docker hosting only for deterministic
-Oracle/no-op calibration. It rejects credential-bearing ambient environments and
-passes an allowlisted child environment; it has no provider or untrusted
-candidate integration. A future live candidate adapter must use a reviewed
-brokered credential, isolation, and provenance boundary before use; a manually
-supplied shared key is not an acceptable substitute.
+This repository's security boundary covers evaluator-controlled execution,
+host isolation evidence, artifact retention, receipt redaction, and report
+integrity. It stores no personal Roastery content.
+
+The current installed-Harbor path runs credential-free Oracle controls only.
+Harbor 0.21 native Codex is rejected because it exposes provider authentication
+to candidate-readable state. Candidate execution may be enabled only after a
+credential-isolated boundary proves that the secret never enters candidate
+environment variables, files, memory, artifacts, or logs and that all proxy and
+temporary state is removed after each trial.

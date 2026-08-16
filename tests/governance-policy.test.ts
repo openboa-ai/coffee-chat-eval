@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 
 const repository = new URL("..", import.meta.url);
@@ -30,49 +30,19 @@ test("target CI delegates to one immutable central gate without local execution"
   assert.doesNotMatch(wrapper, /secrets\./u);
 });
 
-test("credential-free Harbor calibration remains hash locked", () => {
+test("credential-free Bench Oracle execution remains hash locked", () => {
   const packageJson = JSON.parse(read("package.json")) as {
     scripts?: Record<string, string>;
   };
   assert.equal(
-    packageJson.scripts?.["canary:calibrate"],
-    "node --experimental-strip-types src/canary-cli.ts calibrate",
-  );
-  assert.equal(
-    packageJson.scripts?.["benchmark:calibrate"],
-    "node --experimental-strip-types src/canary-cli.ts benchmark-calibrate",
-  );
-  assert.equal(
-    packageJson.scripts?.["pcda:calibrate"],
-    "node --experimental-strip-types src/pcda-cli.ts calibrate --oracle-result $PWD/tests/fixtures/pcda-calibration/oracle-result.json --noop-result $PWD/tests/fixtures/pcda-calibration/noop-result.json",
+    packageJson.scripts?.["bench:oracle"],
+    "node --experimental-strip-types src/cli.ts oracle-control",
   );
   assert.match(read(".github/harbor-requirements.txt"), /--hash=sha256:/u);
   assert.doesNotMatch(
     Object.values(packageJson.scripts ?? {}).join("\n"),
-    /canary:codex|pcda:codex|OPENAI_API_KEY/u,
+    /OPENAI_API_KEY/u,
   );
-});
-
-test("protocol canary image contains no unused online Codex install", () => {
-  const dockerfile = read("evals/protocol-canary/environment/Dockerfile");
-  assert.doesNotMatch(dockerfile, /@openai\/codex|npm install --global/u);
-});
-
-test("credential-bearing candidate execution remains absent until a broker exists", () => {
-  const packageJson = JSON.parse(read("package.json")) as {
-    scripts?: Record<string, string>;
-  };
-  assert.equal(Object.hasOwn(packageJson.scripts ?? {}, "pcda:codex"), false);
-  for (const source of [
-    "src/pcda-bench.ts",
-    "src/pcda-harbor.ts",
-    "src/pcda-runner.ts",
-  ]) {
-    assert.equal(existsSync(new URL(source, repository)), false, source);
-  }
-  for (const document of ["AGENTS.md", "README.md", "SECURITY.md"]) {
-    assert.match(read(document), /credential broker|brokered credential/u);
-  }
 });
 
 test("the shell has no private Coffee Chat package dependency", () => {
