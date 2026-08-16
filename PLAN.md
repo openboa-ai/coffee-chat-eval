@@ -5,14 +5,14 @@ CalVer: `2026.8.12`
 ## Implemented now
 
 The current evidence pins the merged `coffee-chat-bench` main commit
-`0598d6d10319b69e0b34da86c40b9a48d8365c03`.
+`1bc71605964770bbd1bd96e049b8412b6ee068fc`.
 
 ```text
 exact Bench commit
   -> candidate-neutral Harbor projection
   -> one case: task_only + one diagnostic condition
   -> two fresh Harbor/Docker Oracle controls
-  -> four Codex candidate trials: Luna/Terra x task_only/direct_context
+  -> four Codex candidate trials: Luna/Terra x task_only/diagnostic_target_a
   -> host-held Responses proxy with per-trial capability token
   -> structural verifier, trace/artifact collection, and cleanup evidence
   -> evaluator receipts marked measurement=unmeasured
@@ -35,8 +35,8 @@ schema-constrained verdict request, and preserves unavailable, failed,
 invalid, and disagreeing votes. The recorded probe is deliberately
 `qualificationState: unqualified` and `measurement: unmeasured`: the Bench
 qualification study currently has no genuine human annotation records, and
-the two primary judge responses disagreed. No response is promoted to
-benchmark measurement.
+the current three-model probe has unavailable/failed judge states. No response
+is promoted to benchmark measurement.
 
 The probe is retained as transport evidence in
 [`reports/2026.8.12/codex-judge-probe.json`](reports/2026.8.12/codex-judge-probe.json)
@@ -45,9 +45,11 @@ and its interpretation is recorded in
 
 The merged Bench main commit was independently exercised through two fresh
 Harbor 0.21 Oracle controls and retained in
-[`reports/2026.8.12/oracle-control-0598d6d-receipt.json`](reports/2026.8.12/oracle-control-0598d6d-receipt.json).
-This refreshes execution/provenance evidence only; it does not create a
-semantic score or replace the missing human qualification evidence.
+[`reports/2026.8.12/oracle-control-1bc7160-receipt.json`](reports/2026.8.12/oracle-control-1bc7160-receipt.json).
+Both receipts record `verifierEnvironmentMode: separate`, Docker cleanup, and
+the current projection digest. This refreshes execution/provenance evidence
+only; it does not create a semantic score or replace the missing human
+qualification evidence.
 
 After human qualification evidence exists, Eval transports candidate-visible
 inputs and outputs to the Bench-owned qualified judge and records provenance;

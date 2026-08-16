@@ -12,9 +12,10 @@ one case under two conditions:
 
 Both fresh Docker trials produced a collected answer artifact, passed the
 structural verifier, recorded `nativeEnvironmentDelete: true`, and parsed as
-`resultState: executed`. The normalized receipt is in
-`oracle-control-0598d6d-receipt.json` and pins the merged Bench main commit
-`0598d6d10319b69e0b34da86c40b9a48d8365c03`.
+`resultState: executed` with `verifierEnvironmentMode: separate`. The
+normalized receipt is in `oracle-control-1bc7160-receipt.json` and pins the
+merged Bench main commit
+`1bc71605964770bbd1bd96e049b8412b6ee068fc`.
 
 ## Interpretation
 

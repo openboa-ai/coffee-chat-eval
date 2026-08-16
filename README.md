@@ -85,13 +85,15 @@ score, and no judge result is treated as qualified measurement.
 The first live judge transport probe is retained separately in
 [`reports/2026.8.12/codex-judge-probe.json`](reports/2026.8.12/codex-judge-probe.json).
 It is intentionally unqualified and unmeasured because the Bench study has no
-genuine human qualification records and the primary model votes disagreed.
+genuine human qualification records and the current three-model probe is not a
+qualified, complete judge set.
 
 A fresh two-condition Harbor Oracle control was rerun against the merged Bench
-main commit `0598d6d10319b69e0b34da86c40b9a48d8365c03` and is retained in
-[`reports/2026.8.12/oracle-control-0598d6d-receipt.json`](reports/2026.8.12/oracle-control-0598d6d-receipt.json).
-It confirms current-head task/projection provenance, Docker execution, and
-cleanup; its structural reward remains `measurement: not_performed`.
+main commit `1bc71605964770bbd1bd96e049b8412b6ee068fc` and is retained in
+[`reports/2026.8.12/oracle-control-1bc7160-receipt.json`](reports/2026.8.12/oracle-control-1bc7160-receipt.json).
+It confirms current-head task/projection provenance, separate verifier
+execution, Docker cleanup, and a structural reward that remains
+`measurement: not_performed`.
 
 The evaluation shape follows OpenAI's skill-evaluation pattern: define a small
 set of observable outcome, process, style, and efficiency checks; capture the
