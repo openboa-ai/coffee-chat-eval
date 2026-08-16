@@ -1,0 +1,4034 @@
+[
+  {
+    "schema": "coffee-chat-eval/codex-candidate",
+    "benchmark": {
+      "repository": "https://github.com/openboa-ai/coffee-chat-bench",
+      "commit": "1bc71605964770bbd1bd96e049b8412b6ee068fc",
+      "release": "2026.8.12",
+      "bankDigest": "sha256:a7ce9ce12679f81bd212324919e39dd3eda26115dec7366c52aea8768cf790dd",
+      "projectionDigest": "sha256:b66e45ee0d09c4afad92d974e1315c8cfa85d9ca0de1a48ac08219afabd1a9c3"
+    },
+    "harness": {
+      "name": "harbor",
+      "version": "0.21.0",
+      "adapter": "harbor-codex-proxy"
+    },
+    "candidate": {
+      "model": "gpt-5.6-luna",
+      "conditionRole": "task_only",
+      "condition": "task_only"
+    },
+    "task": {
+      "caseId": "ccbench-ra-s1-artifact-01",
+      "condition": "task_only",
+      "trialId": "trial-62556c8e9ed4f546aa318ad8",
+      "taskDigest": "sha256:0a13899f1a739889835bc7c0d6c59a756de84c139656034ebe511d3aede4e54c",
+      "directory": "task-0a13899f1a739889835bc7c0",
+      "taskBytesDigest": "sha256:f7f6ebdbb212ff0791bc3d1ae92657d438fd3cb03ae1ab58e79a37296903d54e"
+    },
+    "isolation": {
+      "host": "docker",
+      "containerDeleted": true,
+      "providerCredential": "proxy_capability_only",
+      "providerKeyInCandidateArtifacts": false,
+      "proxyHost": "host.docker.internal",
+      "proxyRequestLimit": 16,
+      "proxyAcceptedRequests": 3,
+      "proxyRejectedRequests": 0
+    },
+    "runtimeOverlay": {
+      "configurationDigest": "sha256:a338d10f2351f4d9e08c5fa086e9f8ad124cacb55f1f982d54845b9f646ecd5f",
+      "proxyConfigDigest": "sha256:ddc5e2c864a3b7bf5d0c2b4a61ca6215cb66b2a6999b31977841656fc37a134d",
+      "agentNetwork": "allowlist",
+      "allowedHosts": ["host.docker.internal"]
+    },
+    "execution": {
+      "resultState": "executed",
+      "nativeReward": 1,
+      "nativeTrialId": "1bae1a9d-2665-4073-a9ab-f73911a50872",
+      "nativeTrialName": "candidate-task__9C7VTwA",
+      "nativeTaskName": "openboa/task-0a13899f1a739889835bc7c0",
+      "nativeAgentName": "codex",
+      "nativeAgentVersion": "0.147.0",
+      "nativeEnvironmentType": "docker",
+      "nativeEnvironmentDelete": true,
+      "verifierEnvironmentMode": "separate"
+    },
+    "artifacts": [
+      {
+        "path": "codex.txt",
+        "bytes": 4650,
+        "digest": "sha256:0b8daa80301b9e7e7568df7e86552468a5e94a6971e4088de1f379bd63a13318"
+      },
+      {
+        "path": "rollout-2026-08-16T07-00-26-01a0095f-2906-7552-bd11-c8edd41edf0e.jsonl",
+        "bytes": 48366,
+        "digest": "sha256:6fefea4aadd171dac11df0c08edf74b2e66625788e5f60b864e2c06151674230"
+      },
+      {
+        "path": "trajectory.json",
+        "bytes": 18909,
+        "digest": "sha256:c4b3c61ac216c4ec1670f19fd998f5dedfebdfe3f8a89aae2a3a89a48da2904e"
+      },
+      {
+        "path": "answer.txt",
+        "bytes": 2645,
+        "digest": "sha256:96d0ee52e207db190cb70ea88a85591e622db482695b916bc0e8046c51ed1a3d"
+      },
+      {
+        "path": "manifest.json",
+        "bytes": 320,
+        "digest": "sha256:b6e48cc16b13b02d553cf1c376d28208bae12aefa34bc4e79fdd8d525b243d17"
+      }
+    ],
+    "measurement": "unmeasured"
+  },
+  {
+    "schema": "coffee-chat-eval/codex-candidate",
+    "benchmark": {
+      "repository": "https://github.com/openboa-ai/coffee-chat-bench",
+      "commit": "1bc71605964770bbd1bd96e049b8412b6ee068fc",
+      "release": "2026.8.12",
+      "bankDigest": "sha256:a7ce9ce12679f81bd212324919e39dd3eda26115dec7366c52aea8768cf790dd",
+      "projectionDigest": "sha256:b66e45ee0d09c4afad92d974e1315c8cfa85d9ca0de1a48ac08219afabd1a9c3"
+    },
+    "harness": {
+      "name": "harbor",
+      "version": "0.21.0",
+      "adapter": "harbor-codex-proxy"
+    },
+    "candidate": {
+      "model": "gpt-5.6-luna",
+      "conditionRole": "direct_context",
+      "condition": "diagnostic_target_a"
+    },
+    "task": {
+      "caseId": "ccbench-ra-s1-artifact-01",
+      "condition": "diagnostic_target_a",
+      "trialId": "trial-1dc7ca1e546b3af45cc1472c",
+      "taskDigest": "sha256:4a2374559b76929dc0004480f82a2db3d2f3776474cf2ea49322254585d85beb",
+      "directory": "task-4a2374559b76929dc0004480",
+      "taskBytesDigest": "sha256:3a5a4a49c76ca44be2a436ba6ad2c9e5b634a8d233459faf759ad8770e433641"
+    },
+    "isolation": {
+      "host": "docker",
+      "containerDeleted": true,
+      "providerCredential": "proxy_capability_only",
+      "providerKeyInCandidateArtifacts": false,
+      "proxyHost": "host.docker.internal",
+      "proxyRequestLimit": 16,
+      "proxyAcceptedRequests": 2,
+      "proxyRejectedRequests": 0
+    },
+    "runtimeOverlay": {
+      "configurationDigest": "sha256:82f527a72f24be5683f422e23fc180feff4654c01f6557696e63abbbd8d1fd5b",
+      "proxyConfigDigest": "sha256:6f36f0cd74399be50221a006ddbfdccb9179842d207586e8b127d8e41c57215a",
+      "agentNetwork": "allowlist",
+      "allowedHosts": ["host.docker.internal"]
+    },
+    "execution": {
+      "resultState": "executed",
+      "nativeReward": 1,
+      "nativeTrialId": "62a663a4-7489-4f3a-a4ff-3b9ba5bb0a44",
+      "nativeTrialName": "candidate-task__NGv2v6x",
+      "nativeTaskName": "openboa/task-4a2374559b76929dc0004480",
+      "nativeAgentName": "codex",
+      "nativeAgentVersion": "0.147.0",
+      "nativeEnvironmentType": "docker",
+      "nativeEnvironmentDelete": true,
+      "verifierEnvironmentMode": "separate"
+    },
+    "artifacts": [
+      {
+        "path": "codex.txt",
+        "bytes": 3863,
+        "digest": "sha256:23840c812af825f404b8d794b2e80fc1dba61aa2f08947b6fb73d85c82222ac3"
+      },
+      {
+        "path": "rollout-2026-08-16T07-00-27-01a0095f-2d4b-7470-aa0a-2669e0ba76b3.jsonl",
+        "bytes": 44491,
+        "digest": "sha256:01f6142b90b787f241a603c0432fb33c32fd92bd61d287d6830d8cd3c08f74e8"
+      },
+      {
+        "path": "trajectory.json",
+        "bytes": 16225,
+        "digest": "sha256:88cc05979f026eceb16e0b57d4d841a4b1c110b3fb9aed05c696724855210e1c"
+      },
+      {
+        "path": "answer.txt",
+        "bytes": 2174,
+        "digest": "sha256:a2f05353151034cd288416ad97c67ea6ec53c4418cdbce879c9b9ef43312d1cb"
+      },
+      {
+        "path": "manifest.json",
+        "bytes": 320,
+        "digest": "sha256:b6e48cc16b13b02d553cf1c376d28208bae12aefa34bc4e79fdd8d525b243d17"
+      }
+    ],
+    "measurement": "unmeasured"
+  },
+  {
+    "schema": "coffee-chat-eval/codex-candidate",
+    "benchmark": {
+      "repository": "https://github.com/openboa-ai/coffee-chat-bench",
+      "commit": "1bc71605964770bbd1bd96e049b8412b6ee068fc",
+      "release": "2026.8.12",
+      "bankDigest": "sha256:a7ce9ce12679f81bd212324919e39dd3eda26115dec7366c52aea8768cf790dd",
+      "projectionDigest": "sha256:b66e45ee0d09c4afad92d974e1315c8cfa85d9ca0de1a48ac08219afabd1a9c3"
+    },
+    "harness": {
+      "name": "harbor",
+      "version": "0.21.0",
+      "adapter": "harbor-codex-proxy"
+    },
+    "candidate": {
+      "model": "gpt-5.6-luna",
+      "conditionRole": "task_only",
+      "condition": "task_only"
+    },
+    "task": {
+      "caseId": "ccbench-ra-s1-dialogue-01",
+      "condition": "task_only",
+      "trialId": "trial-0e0c88968b582eaa23ded7d4",
+      "taskDigest": "sha256:a0dab4674f08645cd16c41700980a4d8329bdecbb36706f4c66cc1fec0a91cb0",
+      "directory": "task-a0dab4674f08645cd16c4170",
+      "taskBytesDigest": "sha256:1bce346260d6f21dcfb677029f66f2b61666f4e4133bc28bf9bf5243e5d4c3c5"
+    },
+    "isolation": {
+      "host": "docker",
+      "containerDeleted": true,
+      "providerCredential": "proxy_capability_only",
+      "providerKeyInCandidateArtifacts": false,
+      "proxyHost": "host.docker.internal",
+      "proxyRequestLimit": 16,
+      "proxyAcceptedRequests": 3,
+      "proxyRejectedRequests": 0
+    },
+    "runtimeOverlay": {
+      "configurationDigest": "sha256:8268dcf7efd6445b95b6aee5334c13d484c60db44dc14c1c96846c87c9cf4c48",
+      "proxyConfigDigest": "sha256:1ef1e37d32d1c81d1cddb889a461f769196e74b7c09581a088c4aebac8684324",
+      "agentNetwork": "allowlist",
+      "allowedHosts": ["host.docker.internal"]
+    },
+    "execution": {
+      "resultState": "executed",
+      "nativeReward": 1,
+      "nativeTrialId": "58075189-d2fc-4e01-9bfc-5a7bf9c890ec",
+      "nativeTrialName": "candidate-task__4ojAnGb",
+      "nativeTaskName": "openboa/task-a0dab4674f08645cd16c4170",
+      "nativeAgentName": "codex",
+      "nativeAgentVersion": "0.147.0",
+      "nativeEnvironmentType": "docker",
+      "nativeEnvironmentDelete": true,
+      "verifierEnvironmentMode": "separate"
+    },
+    "artifacts": [
+      {
+        "path": "codex.txt",
+        "bytes": 2970,
+        "digest": "sha256:068f6de052580bec532827990133dd993c9efca56957bfb9a70053e40e0bf748"
+      },
+      {
+        "path": "rollout-2026-08-16T06-57-35-01a0095c-8dc8-7da3-8939-cf82e4a8fc17.jsonl",
+        "bytes": 43615,
+        "digest": "sha256:e3a81f7933ad77cf6793fe5abede3f62a45d26753ec2f138c229b1d5e008fbe0"
+      },
+      {
+        "path": "trajectory.json",
+        "bytes": 14217,
+        "digest": "sha256:c2d42374f8b0091bb5f55deb4dcd0875651f6a213bec1b4d51e52e41d8408037"
+      },
+      {
+        "path": "answer.txt",
+        "bytes": 1255,
+        "digest": "sha256:b92600109a274fad78997e0d3c732a2aa47a64c7ec7825b7a1140e1ff5e0ceb5"
+      },
+      {
+        "path": "manifest.json",
+        "bytes": 320,
+        "digest": "sha256:b6e48cc16b13b02d553cf1c376d28208bae12aefa34bc4e79fdd8d525b243d17"
+      }
+    ],
+    "measurement": "unmeasured"
+  },
+  {
+    "schema": "coffee-chat-eval/codex-candidate",
+    "benchmark": {
+      "repository": "https://github.com/openboa-ai/coffee-chat-bench",
+      "commit": "1bc71605964770bbd1bd96e049b8412b6ee068fc",
+      "release": "2026.8.12",
+      "bankDigest": "sha256:a7ce9ce12679f81bd212324919e39dd3eda26115dec7366c52aea8768cf790dd",
+      "projectionDigest": "sha256:b66e45ee0d09c4afad92d974e1315c8cfa85d9ca0de1a48ac08219afabd1a9c3"
+    },
+    "harness": {
+      "name": "harbor",
+      "version": "0.21.0",
+      "adapter": "harbor-codex-proxy"
+    },
+    "candidate": {
+      "model": "gpt-5.6-luna",
+      "conditionRole": "direct_context",
+      "condition": "diagnostic_target_a"
+    },
+    "task": {
+      "caseId": "ccbench-ra-s1-dialogue-01",
+      "condition": "diagnostic_target_a",
+      "trialId": "trial-5671ef75c17c5e55cc059385",
+      "taskDigest": "sha256:ab70d4f6912bc3dc06925ee4ea09adbdec5e9e58847235842f9ff7941b408cbe",
+      "directory": "task-ab70d4f6912bc3dc06925ee4",
+      "taskBytesDigest": "sha256:6632ad2a1ebf68187dd760ce9f88f0e65b43d68346f66e2c537a0072be104eda"
+    },
+    "isolation": {
+      "host": "docker",
+      "containerDeleted": true,
+      "providerCredential": "proxy_capability_only",
+      "providerKeyInCandidateArtifacts": false,
+      "proxyHost": "host.docker.internal",
+      "proxyRequestLimit": 16,
+      "proxyAcceptedRequests": 3,
+      "proxyRejectedRequests": 0
+    },
+    "runtimeOverlay": {
+      "configurationDigest": "sha256:7646120210a9852df1403dc684377c6f8c9725b9b926e286df8806b3ff82f01c",
+      "proxyConfigDigest": "sha256:6e0fe60ddb156633b8a50a2e5b5a21d37c04758766c902f8944f8b57600a8b2e",
+      "agentNetwork": "allowlist",
+      "allowedHosts": ["host.docker.internal"]
+    },
+    "execution": {
+      "resultState": "executed",
+      "nativeReward": 1,
+      "nativeTrialId": "c418fec1-d420-41ee-86cb-b85082a4c30b",
+      "nativeTrialName": "candidate-task__CbNVjc5",
+      "nativeTaskName": "openboa/task-ab70d4f6912bc3dc06925ee4",
+      "nativeAgentName": "codex",
+      "nativeAgentVersion": "0.147.0",
+      "nativeEnvironmentType": "docker",
+      "nativeEnvironmentDelete": true,
+      "verifierEnvironmentMode": "separate"
+    },
+    "artifacts": [
+      {
+        "path": "codex.txt",
+        "bytes": 3016,
+        "digest": "sha256:72cebd0ed999476be40fa08819d9891fea1fb37501ccd29a5f2f5f2a48994970"
+      },
+      {
+        "path": "rollout-2026-08-16T06-57-33-01a0095c-8429-7942-a1bf-0800292c2f40.jsonl",
+        "bytes": 44737,
+        "digest": "sha256:ed008a1fe4bd269ac0efd642fceeb2437102faeb343cf65e163d9705a67f43d8"
+      },
+      {
+        "path": "trajectory.json",
+        "bytes": 14714,
+        "digest": "sha256:10dcbc6c62d315ce4ead875f419d0eeb1b34b7da2aefb7f04ae2a8e62eea2011"
+      },
+      {
+        "path": "answer.txt",
+        "bytes": 1273,
+        "digest": "sha256:481c9d420138943a41c3ce97209dd7dabb312ad4b2d8452fb62c15e97d2bd11d"
+      },
+      {
+        "path": "manifest.json",
+        "bytes": 320,
+        "digest": "sha256:b6e48cc16b13b02d553cf1c376d28208bae12aefa34bc4e79fdd8d525b243d17"
+      }
+    ],
+    "measurement": "unmeasured"
+  },
+  {
+    "schema": "coffee-chat-eval/codex-candidate",
+    "benchmark": {
+      "repository": "https://github.com/openboa-ai/coffee-chat-bench",
+      "commit": "1bc71605964770bbd1bd96e049b8412b6ee068fc",
+      "release": "2026.8.12",
+      "bankDigest": "sha256:a7ce9ce12679f81bd212324919e39dd3eda26115dec7366c52aea8768cf790dd",
+      "projectionDigest": "sha256:b66e45ee0d09c4afad92d974e1315c8cfa85d9ca0de1a48ac08219afabd1a9c3"
+    },
+    "harness": {
+      "name": "harbor",
+      "version": "0.21.0",
+      "adapter": "harbor-codex-proxy"
+    },
+    "candidate": {
+      "model": "gpt-5.6-luna",
+      "conditionRole": "task_only",
+      "condition": "task_only"
+    },
+    "task": {
+      "caseId": "ccbench-ra-s2-artifact-01",
+      "condition": "task_only",
+      "trialId": "trial-5ca1d84af7e046225533dbaa",
+      "taskDigest": "sha256:479bd1c09bcc442f4025434f7959eebe784f020e261949c960ddd3770768f3e1",
+      "directory": "task-479bd1c09bcc442f4025434f",
+      "taskBytesDigest": "sha256:75d960eae36fa799f4950278cf79bddf9d5a742de9aff8dc7e9b9c889e58fc7d"
+    },
+    "isolation": {
+      "host": "docker",
+      "containerDeleted": true,
+      "providerCredential": "proxy_capability_only",
+      "providerKeyInCandidateArtifacts": false,
+      "proxyHost": "host.docker.internal",
+      "proxyRequestLimit": 16,
+      "proxyAcceptedRequests": 3,
+      "proxyRejectedRequests": 0
+    },
+    "runtimeOverlay": {
+      "configurationDigest": "sha256:cc63889c9935889dc850f4d5d9d803476c70c21a14e9d800cbb7426f58d652b6",
+      "proxyConfigDigest": "sha256:aa02c7858a840039fbe2023a3629990858bbff83d7d1480397502882ba343be7",
+      "agentNetwork": "allowlist",
+      "allowedHosts": ["host.docker.internal"]
+    },
+    "execution": {
+      "resultState": "executed",
+      "nativeReward": 1,
+      "nativeTrialId": "34ba946f-29a5-4dd5-8324-2832f1123b25",
+      "nativeTrialName": "candidate-task__CiaA7sj",
+      "nativeTaskName": "openboa/task-479bd1c09bcc442f4025434f",
+      "nativeAgentName": "codex",
+      "nativeAgentVersion": "0.147.0",
+      "nativeEnvironmentType": "docker",
+      "nativeEnvironmentDelete": true,
+      "verifierEnvironmentMode": "separate"
+    },
+    "artifacts": [
+      {
+        "path": "codex.txt",
+        "bytes": 2705,
+        "digest": "sha256:e3c7484056b2a291e100ee0e8f6a3cdbeb5fe38e59e6f73e8acf435ea2065eff"
+      },
+      {
+        "path": "rollout-2026-08-16T07-07-14-01a00965-644d-7482-bc0a-b74e0037364e.jsonl",
+        "bytes": 44289,
+        "digest": "sha256:3ed1934911971c9c5e884ceb2b0b2cdcb91c1b2bb6e8296d5fe3524c863fbdc6"
+      },
+      {
+        "path": "trajectory.json",
+        "bytes": 14683,
+        "digest": "sha256:28174044591b67da6dbba8a20dc7e5896ef048583dbd6cabbae97f685e282128"
+      },
+      {
+        "path": "answer.txt",
+        "bytes": 1584,
+        "digest": "sha256:ba3ec0ec9de8900732d0b9e83c919efeda7a8360aa56f9363ce81c29187fd838"
+      },
+      {
+        "path": "manifest.json",
+        "bytes": 320,
+        "digest": "sha256:b6e48cc16b13b02d553cf1c376d28208bae12aefa34bc4e79fdd8d525b243d17"
+      }
+    ],
+    "measurement": "unmeasured"
+  },
+  {
+    "schema": "coffee-chat-eval/codex-candidate",
+    "benchmark": {
+      "repository": "https://github.com/openboa-ai/coffee-chat-bench",
+      "commit": "1bc71605964770bbd1bd96e049b8412b6ee068fc",
+      "release": "2026.8.12",
+      "bankDigest": "sha256:a7ce9ce12679f81bd212324919e39dd3eda26115dec7366c52aea8768cf790dd",
+      "projectionDigest": "sha256:b66e45ee0d09c4afad92d974e1315c8cfa85d9ca0de1a48ac08219afabd1a9c3"
+    },
+    "harness": {
+      "name": "harbor",
+      "version": "0.21.0",
+      "adapter": "harbor-codex-proxy"
+    },
+    "candidate": {
+      "model": "gpt-5.6-luna",
+      "conditionRole": "direct_context",
+      "condition": "diagnostic_target_a"
+    },
+    "task": {
+      "caseId": "ccbench-ra-s2-artifact-01",
+      "condition": "diagnostic_target_a",
+      "trialId": "trial-812203a3cde05aef2ed73a45",
+      "taskDigest": "sha256:9672fe946324e973d7ef607e2438422f8a09a806dfce8c7ab54e5b0f8e1335ae",
+      "directory": "task-9672fe946324e973d7ef607e",
+      "taskBytesDigest": "sha256:14de79ba34ef9e7392e6f6088e940186f249cbecfcd9838c27f4b629906d5d37"
+    },
+    "isolation": {
+      "host": "docker",
+      "containerDeleted": true,
+      "providerCredential": "proxy_capability_only",
+      "providerKeyInCandidateArtifacts": false,
+      "proxyHost": "host.docker.internal",
+      "proxyRequestLimit": 16,
+      "proxyAcceptedRequests": 3,
+      "proxyRejectedRequests": 0
+    },
+    "runtimeOverlay": {
+      "configurationDigest": "sha256:55cfba93fd1852026bad4202d0fc456e9265f313f2e333f12a4a3a060811f648",
+      "proxyConfigDigest": "sha256:c80ea584412263c16b6443d7845cd8878a055c2c663d1c78770dfe4c3257b520",
+      "agentNetwork": "allowlist",
+      "allowedHosts": ["host.docker.internal"]
+    },
+    "execution": {
+      "resultState": "executed",
+      "nativeReward": 1,
+      "nativeTrialId": "c22b95a3-ad89-4592-9125-01c449800d6a",
+      "nativeTrialName": "candidate-task__no7ZV6h",
+      "nativeTaskName": "openboa/task-9672fe946324e973d7ef607e",
+      "nativeAgentName": "codex",
+      "nativeAgentVersion": "0.147.0",
+      "nativeEnvironmentType": "docker",
+      "nativeEnvironmentDelete": true,
+      "verifierEnvironmentMode": "separate"
+    },
+    "artifacts": [
+      {
+        "path": "codex.txt",
+        "bytes": 2755,
+        "digest": "sha256:2b1fa542177ce54cd0a1614b5a39594dcafe1b70b3b025bd39ed95da5865a678"
+      },
+      {
+        "path": "rollout-2026-08-16T07-07-14-01a00965-61b1-7743-9993-b4a8ce1d585b.jsonl",
+        "bytes": 45511,
+        "digest": "sha256:f2d2ed8961693a1276b20517940c14a0eb65a2593911d026555026a1389cc92b"
+      },
+      {
+        "path": "trajectory.json",
+        "bytes": 14975,
+        "digest": "sha256:18089dd5785a61994813534c92e7759c783c0829cf05748a38fc51c84b3ebd6e"
+      },
+      {
+        "path": "answer.txt",
+        "bytes": 1504,
+        "digest": "sha256:ce22b72e82c483ad9ce36599f0207a8c3871b372443810a8dafc041ef8ccfd13"
+      },
+      {
+        "path": "manifest.json",
+        "bytes": 320,
+        "digest": "sha256:b6e48cc16b13b02d553cf1c376d28208bae12aefa34bc4e79fdd8d525b243d17"
+      }
+    ],
+    "measurement": "unmeasured"
+  },
+  {
+    "schema": "coffee-chat-eval/codex-candidate",
+    "benchmark": {
+      "repository": "https://github.com/openboa-ai/coffee-chat-bench",
+      "commit": "1bc71605964770bbd1bd96e049b8412b6ee068fc",
+      "release": "2026.8.12",
+      "bankDigest": "sha256:a7ce9ce12679f81bd212324919e39dd3eda26115dec7366c52aea8768cf790dd",
+      "projectionDigest": "sha256:b66e45ee0d09c4afad92d974e1315c8cfa85d9ca0de1a48ac08219afabd1a9c3"
+    },
+    "harness": {
+      "name": "harbor",
+      "version": "0.21.0",
+      "adapter": "harbor-codex-proxy"
+    },
+    "candidate": {
+      "model": "gpt-5.6-luna",
+      "conditionRole": "task_only",
+      "condition": "task_only"
+    },
+    "task": {
+      "caseId": "ccbench-ra-s2-dialogue-01",
+      "condition": "task_only",
+      "trialId": "trial-0cd78170456748bf57fb3125",
+      "taskDigest": "sha256:33b37e83b99fb3722da10cdcab3cd89ce9bef95e5f6150e064548ddae445d7e7",
+      "directory": "task-33b37e83b99fb3722da10cdc",
+      "taskBytesDigest": "sha256:ac956a94a03e9a9492f1be0277fda8aacdeb358bec8154639a4d45768d026a2e"
+    },
+    "isolation": {
+      "host": "docker",
+      "containerDeleted": true,
+      "providerCredential": "proxy_capability_only",
+      "providerKeyInCandidateArtifacts": false,
+      "proxyHost": "host.docker.internal",
+      "proxyRequestLimit": 16,
+      "proxyAcceptedRequests": 3,
+      "proxyRejectedRequests": 0
+    },
+    "runtimeOverlay": {
+      "configurationDigest": "sha256:9a0b2f9fb47dec04a27d94f1a330f5ebd9a2af8f3964b2722ecb13c5d5761c03",
+      "proxyConfigDigest": "sha256:9c4bc9d33014dedf449df6b2501719cb2ce94be5c1c9161edf36f1f7756b008f",
+      "agentNetwork": "allowlist",
+      "allowedHosts": ["host.docker.internal"]
+    },
+    "execution": {
+      "resultState": "executed",
+      "nativeReward": 1,
+      "nativeTrialId": "d196fe82-58dd-472a-a983-8a9c0737faf5",
+      "nativeTrialName": "candidate-task__LpJEt8r",
+      "nativeTaskName": "openboa/task-33b37e83b99fb3722da10cdc",
+      "nativeAgentName": "codex",
+      "nativeAgentVersion": "0.147.0",
+      "nativeEnvironmentType": "docker",
+      "nativeEnvironmentDelete": true,
+      "verifierEnvironmentMode": "separate"
+    },
+    "artifacts": [
+      {
+        "path": "codex.txt",
+        "bytes": 1926,
+        "digest": "sha256:b509a053d8bdd92fe37536c0673b1b238bc695052941b229aaaf6205e9926bee"
+      },
+      {
+        "path": "rollout-2026-08-16T07-03-21-01a00961-d483-7a73-ac20-a7d8c6a327f2.jsonl",
+        "bytes": 44233,
+        "digest": "sha256:1fce7b91a37af3778cf3789fc1ce947167420a0207ab9ebe059ad6e1711b517f"
+      },
+      {
+        "path": "trajectory.json",
+        "bytes": 14418,
+        "digest": "sha256:e146480b428a6cedd42f5efd994c20d30077586cc10660754725711cfe4670b8"
+      },
+      {
+        "path": "answer.txt",
+        "bytes": 1872,
+        "digest": "sha256:95042aaab3597c483b31c85002d20f7ab91559460499a5eeb1c88ddb92362e50"
+      },
+      {
+        "path": "manifest.json",
+        "bytes": 320,
+        "digest": "sha256:b6e48cc16b13b02d553cf1c376d28208bae12aefa34bc4e79fdd8d525b243d17"
+      }
+    ],
+    "measurement": "unmeasured"
+  },
+  {
+    "schema": "coffee-chat-eval/codex-candidate",
+    "benchmark": {
+      "repository": "https://github.com/openboa-ai/coffee-chat-bench",
+      "commit": "1bc71605964770bbd1bd96e049b8412b6ee068fc",
+      "release": "2026.8.12",
+      "bankDigest": "sha256:a7ce9ce12679f81bd212324919e39dd3eda26115dec7366c52aea8768cf790dd",
+      "projectionDigest": "sha256:b66e45ee0d09c4afad92d974e1315c8cfa85d9ca0de1a48ac08219afabd1a9c3"
+    },
+    "harness": {
+      "name": "harbor",
+      "version": "0.21.0",
+      "adapter": "harbor-codex-proxy"
+    },
+    "candidate": {
+      "model": "gpt-5.6-luna",
+      "conditionRole": "direct_context",
+      "condition": "diagnostic_target_a"
+    },
+    "task": {
+      "caseId": "ccbench-ra-s2-dialogue-01",
+      "condition": "diagnostic_target_a",
+      "trialId": "trial-857e234e854d40242d2e88ea",
+      "taskDigest": "sha256:a657c35bd0e2bddefaecd6c5f3b51b61d32b202b5d71b91c9a89c80c78c0b565",
+      "directory": "task-a657c35bd0e2bddefaecd6c5",
+      "taskBytesDigest": "sha256:6d0a2d279725846674500928544545117f193f82baf06adb4bbd55624add40d8"
+    },
+    "isolation": {
+      "host": "docker",
+      "containerDeleted": true,
+      "providerCredential": "proxy_capability_only",
+      "providerKeyInCandidateArtifacts": false,
+      "proxyHost": "host.docker.internal",
+      "proxyRequestLimit": 16,
+      "proxyAcceptedRequests": 2,
+      "proxyRejectedRequests": 0
+    },
+    "runtimeOverlay": {
+      "configurationDigest": "sha256:195506d19ad3e59c8df9c59dfdcffd42cbeeb24703ef8889d8b0042ef3802510",
+      "proxyConfigDigest": "sha256:edcd88e6e92849093ede289ee365240d46ca5cfef5f7f50509952fa9d767a68f",
+      "agentNetwork": "allowlist",
+      "allowedHosts": ["host.docker.internal"]
+    },
+    "execution": {
+      "resultState": "executed",
+      "nativeReward": 1,
+      "nativeTrialId": "5aba6743-4d7a-40f8-bd19-e3fcf6b4e018",
+      "nativeTrialName": "candidate-task__BXbm5an",
+      "nativeTaskName": "openboa/task-a657c35bd0e2bddefaecd6c5",
+      "nativeAgentName": "codex",
+      "nativeAgentVersion": "0.147.0",
+      "nativeEnvironmentType": "docker",
+      "nativeEnvironmentDelete": true,
+      "verifierEnvironmentMode": "separate"
+    },
+    "artifacts": [
+      {
+        "path": "codex.txt",
+        "bytes": 3585,
+        "digest": "sha256:e0cb6e724a7afb63d23eb8c987f99238ee2999ac030e9fc67a6101a3ac4be991"
+      },
+      {
+        "path": "rollout-2026-08-16T07-03-21-01a00961-d497-7961-9b75-08262751304c.jsonl",
+        "bytes": 43913,
+        "digest": "sha256:b550a36990b1c47105a89f7053cee9870c512ab06bbc03bc96bd1ea5c90fbfbf"
+      },
+      {
+        "path": "trajectory.json",
+        "bytes": 15006,
+        "digest": "sha256:b219647562653c198143e92f191a1f2771efb85154c9088b7334bf81e617d0e4"
+      },
+      {
+        "path": "answer.txt",
+        "bytes": 1819,
+        "digest": "sha256:6fd2d3ec65b28b97bcc618e4524d550b2e80f0ab387079c3fb04bcdab9bbd34d"
+      },
+      {
+        "path": "manifest.json",
+        "bytes": 320,
+        "digest": "sha256:b6e48cc16b13b02d553cf1c376d28208bae12aefa34bc4e79fdd8d525b243d17"
+      }
+    ],
+    "measurement": "unmeasured"
+  },
+  {
+    "schema": "coffee-chat-eval/codex-candidate",
+    "benchmark": {
+      "repository": "https://github.com/openboa-ai/coffee-chat-bench",
+      "commit": "1bc71605964770bbd1bd96e049b8412b6ee068fc",
+      "release": "2026.8.12",
+      "bankDigest": "sha256:a7ce9ce12679f81bd212324919e39dd3eda26115dec7366c52aea8768cf790dd",
+      "projectionDigest": "sha256:b66e45ee0d09c4afad92d974e1315c8cfa85d9ca0de1a48ac08219afabd1a9c3"
+    },
+    "harness": {
+      "name": "harbor",
+      "version": "0.21.0",
+      "adapter": "harbor-codex-proxy"
+    },
+    "candidate": {
+      "model": "gpt-5.6-luna",
+      "conditionRole": "task_only",
+      "condition": "task_only"
+    },
+    "task": {
+      "caseId": "ccbench-ra-s3-artifact-01",
+      "condition": "task_only",
+      "trialId": "trial-ce31d47d2dcc5a4ec05f7ce1",
+      "taskDigest": "sha256:cc8350f6e024650bde4e7f58470793897d6a452aafe70a7d7b9c72de048813b8",
+      "directory": "task-cc8350f6e024650bde4e7f58",
+      "taskBytesDigest": "sha256:906096f17d11318607d452d79fda7705518f0e1733ffc8b961029237ba761af8"
+    },
+    "isolation": {
+      "host": "docker",
+      "containerDeleted": true,
+      "providerCredential": "proxy_capability_only",
+      "providerKeyInCandidateArtifacts": false,
+      "proxyHost": "host.docker.internal",
+      "proxyRequestLimit": 16,
+      "proxyAcceptedRequests": 4,
+      "proxyRejectedRequests": 0
+    },
+    "runtimeOverlay": {
+      "configurationDigest": "sha256:28698431470132ca4b141584e74d953afa00e4d9c8ae6c433f8f4fc07eff0ee3",
+      "proxyConfigDigest": "sha256:f2f9034c0f3ff7cef08e41f6483a90a21e247c4fc2901ba076f4c26bf790531e",
+      "agentNetwork": "allowlist",
+      "allowedHosts": ["host.docker.internal"]
+    },
+    "execution": {
+      "resultState": "executed",
+      "nativeReward": 1,
+      "nativeTrialId": "17b4852c-a225-4f3d-8ae8-93427f1711e0",
+      "nativeTrialName": "candidate-task__CZEkEA9",
+      "nativeTaskName": "openboa/task-cc8350f6e024650bde4e7f58",
+      "nativeAgentName": "codex",
+      "nativeAgentVersion": "0.147.0",
+      "nativeEnvironmentType": "docker",
+      "nativeEnvironmentDelete": true,
+      "verifierEnvironmentMode": "separate"
+    },
+    "artifacts": [
+      {
+        "path": "codex.txt",
+        "bytes": 2633,
+        "digest": "sha256:8d76fded2b78a7dc999e64f6cef51c04253b92adff5572eea753be0c47620933"
+      },
+      {
+        "path": "rollout-2026-08-16T07-14-18-01a0096b-d9dd-7e21-a740-eb97d4e50657.jsonl",
+        "bytes": 51777,
+        "digest": "sha256:0c6678e2eb8864e189795d147737f2dc5c3efe7637a8b2e693bda1b85b4bd0bf"
+      },
+      {
+        "path": "trajectory.json",
+        "bytes": 20868,
+        "digest": "sha256:12170caacc4484c58fc54c0e1f7a182cefa2c8b7d2cbd35dd72c849f456195d4"
+      },
+      {
+        "path": "answer.txt",
+        "bytes": 4028,
+        "digest": "sha256:4cde36f18cea7b9c9abf0ef54e117fd5a5f331f0cfffef25b02397212c21de2d"
+      },
+      {
+        "path": "manifest.json",
+        "bytes": 320,
+        "digest": "sha256:b6e48cc16b13b02d553cf1c376d28208bae12aefa34bc4e79fdd8d525b243d17"
+      }
+    ],
+    "measurement": "unmeasured"
+  },
+  {
+    "schema": "coffee-chat-eval/codex-candidate",
+    "benchmark": {
+      "repository": "https://github.com/openboa-ai/coffee-chat-bench",
+      "commit": "1bc71605964770bbd1bd96e049b8412b6ee068fc",
+      "release": "2026.8.12",
+      "bankDigest": "sha256:a7ce9ce12679f81bd212324919e39dd3eda26115dec7366c52aea8768cf790dd",
+      "projectionDigest": "sha256:b66e45ee0d09c4afad92d974e1315c8cfa85d9ca0de1a48ac08219afabd1a9c3"
+    },
+    "harness": {
+      "name": "harbor",
+      "version": "0.21.0",
+      "adapter": "harbor-codex-proxy"
+    },
+    "candidate": {
+      "model": "gpt-5.6-luna",
+      "conditionRole": "direct_context",
+      "condition": "diagnostic_target_a"
+    },
+    "task": {
+      "caseId": "ccbench-ra-s3-artifact-01",
+      "condition": "diagnostic_target_a",
+      "trialId": "trial-62ceca95163357904ff2c12e",
+      "taskDigest": "sha256:6d16ba27cf63ac2f74c7e2c784cce011eed775bb0464e32ba87eefa836817564",
+      "directory": "task-6d16ba27cf63ac2f74c7e2c7",
+      "taskBytesDigest": "sha256:782126f1c669a1a162cd0761461a9b7dbc33da6c7c39aa87946bbf46a1ea8dcd"
+    },
+    "isolation": {
+      "host": "docker",
+      "containerDeleted": true,
+      "providerCredential": "proxy_capability_only",
+      "providerKeyInCandidateArtifacts": false,
+      "proxyHost": "host.docker.internal",
+      "proxyRequestLimit": 16,
+      "proxyAcceptedRequests": 3,
+      "proxyRejectedRequests": 0
+    },
+    "runtimeOverlay": {
+      "configurationDigest": "sha256:cad575638399d42d4337531ec462eb28ad0f3e2307fdcc6c16b6ddd0107bed74",
+      "proxyConfigDigest": "sha256:f2c8df9d940d6d5dddbfa8d4c3b4660f73fead5204af69b095d321c60c00b14a",
+      "agentNetwork": "allowlist",
+      "allowedHosts": ["host.docker.internal"]
+    },
+    "execution": {
+      "resultState": "executed",
+      "nativeReward": 1,
+      "nativeTrialId": "50efb80d-98c1-4724-8793-56530fbf3bf3",
+      "nativeTrialName": "candidate-task__4dCYeeR",
+      "nativeTaskName": "openboa/task-6d16ba27cf63ac2f74c7e2c7",
+      "nativeAgentName": "codex",
+      "nativeAgentVersion": "0.147.0",
+      "nativeEnvironmentType": "docker",
+      "nativeEnvironmentDelete": true,
+      "verifierEnvironmentMode": "separate"
+    },
+    "artifacts": [
+      {
+        "path": "codex.txt",
+        "bytes": 3158,
+        "digest": "sha256:41c196c14b95c46d7dbcb4dbbb3c21154e50347bca8bbdbb695ca0ee0a8347cf"
+      },
+      {
+        "path": "rollout-2026-08-16T07-14-18-01a0096b-dcef-7be3-8a70-3a1304de23f1.jsonl",
+        "bytes": 50039,
+        "digest": "sha256:914afdca480ba7d8c410bcaa3572ff35270a780be7a5958ff5de5d0d76d1b330"
+      },
+      {
+        "path": "trajectory.json",
+        "bytes": 20262,
+        "digest": "sha256:460a051b9c1ffe8a95162206597b5120336b5926b987119f997ce9906b4fdb16"
+      },
+      {
+        "path": "answer.txt",
+        "bytes": 3748,
+        "digest": "sha256:2dd0a03e98b982e5465817c3ce8b431b13b63d2c9503833ab62f5bd677f0c30c"
+      },
+      {
+        "path": "manifest.json",
+        "bytes": 320,
+        "digest": "sha256:b6e48cc16b13b02d553cf1c376d28208bae12aefa34bc4e79fdd8d525b243d17"
+      }
+    ],
+    "measurement": "unmeasured"
+  },
+  {
+    "schema": "coffee-chat-eval/codex-candidate",
+    "benchmark": {
+      "repository": "https://github.com/openboa-ai/coffee-chat-bench",
+      "commit": "1bc71605964770bbd1bd96e049b8412b6ee068fc",
+      "release": "2026.8.12",
+      "bankDigest": "sha256:a7ce9ce12679f81bd212324919e39dd3eda26115dec7366c52aea8768cf790dd",
+      "projectionDigest": "sha256:b66e45ee0d09c4afad92d974e1315c8cfa85d9ca0de1a48ac08219afabd1a9c3"
+    },
+    "harness": {
+      "name": "harbor",
+      "version": "0.21.0",
+      "adapter": "harbor-codex-proxy"
+    },
+    "candidate": {
+      "model": "gpt-5.6-luna",
+      "conditionRole": "task_only",
+      "condition": "task_only"
+    },
+    "task": {
+      "caseId": "ccbench-ra-s3-dialogue-01",
+      "condition": "task_only",
+      "trialId": "trial-a4255dbdd7044a21299d8fc7",
+      "taskDigest": "sha256:4bdaccb186c77a9aa931d4d0c2c2ec431e9c5ac9b07f51720193424fd0e09f5b",
+      "directory": "task-4bdaccb186c77a9aa931d4d0",
+      "taskBytesDigest": "sha256:1dccda2d5cdc923ce3a9a00193de404e7ce797fc57203fa31dd2490dc9dc06bd"
+    },
+    "isolation": {
+      "host": "docker",
+      "containerDeleted": true,
+      "providerCredential": "proxy_capability_only",
+      "providerKeyInCandidateArtifacts": false,
+      "proxyHost": "host.docker.internal",
+      "proxyRequestLimit": 16,
+      "proxyAcceptedRequests": 3,
+      "proxyRejectedRequests": 0
+    },
+    "runtimeOverlay": {
+      "configurationDigest": "sha256:e966b1f1820f30c3a1f7dc5eb5db6b6934494a4132582229d198b874a0209426",
+      "proxyConfigDigest": "sha256:ecbaa90b98a87cdefa3fbc88cfd86230d17028fdc623a79f432afa80def0746b",
+      "agentNetwork": "allowlist",
+      "allowedHosts": ["host.docker.internal"]
+    },
+    "execution": {
+      "resultState": "executed",
+      "nativeReward": 1,
+      "nativeTrialId": "26f1fd9c-8c42-47ec-b163-6d4887c618c2",
+      "nativeTrialName": "candidate-task__ubbWSCb",
+      "nativeTaskName": "openboa/task-4bdaccb186c77a9aa931d4d0",
+      "nativeAgentName": "codex",
+      "nativeAgentVersion": "0.147.0",
+      "nativeEnvironmentType": "docker",
+      "nativeEnvironmentDelete": true,
+      "verifierEnvironmentMode": "separate"
+    },
+    "artifacts": [
+      {
+        "path": "codex.txt",
+        "bytes": 2899,
+        "digest": "sha256:705eeb1b2463eafdd99d1dafcb0a484a7b9527f97c25cfddd211e76d31067049"
+      },
+      {
+        "path": "rollout-2026-08-16T07-10-49-01a00968-a8c7-76f2-a1f6-27c112f6281f.jsonl",
+        "bytes": 45248,
+        "digest": "sha256:4e9806be8095eca287c6de3dc54e37447365a8b6d43d87e7fcf52f7d50e2a46c"
+      },
+      {
+        "path": "trajectory.json",
+        "bytes": 15647,
+        "digest": "sha256:9cb11c4ced5d51b0851c6e78a00ba8c4296c363dbe20f68e6180c9004a8faad0"
+      },
+      {
+        "path": "answer.txt",
+        "bytes": 1987,
+        "digest": "sha256:201a9ded3d1e3da47d64d0ca67d31365766e9a6019f840930c1e75123613f66a"
+      },
+      {
+        "path": "manifest.json",
+        "bytes": 320,
+        "digest": "sha256:b6e48cc16b13b02d553cf1c376d28208bae12aefa34bc4e79fdd8d525b243d17"
+      }
+    ],
+    "measurement": "unmeasured"
+  },
+  {
+    "schema": "coffee-chat-eval/codex-candidate",
+    "benchmark": {
+      "repository": "https://github.com/openboa-ai/coffee-chat-bench",
+      "commit": "1bc71605964770bbd1bd96e049b8412b6ee068fc",
+      "release": "2026.8.12",
+      "bankDigest": "sha256:a7ce9ce12679f81bd212324919e39dd3eda26115dec7366c52aea8768cf790dd",
+      "projectionDigest": "sha256:b66e45ee0d09c4afad92d974e1315c8cfa85d9ca0de1a48ac08219afabd1a9c3"
+    },
+    "harness": {
+      "name": "harbor",
+      "version": "0.21.0",
+      "adapter": "harbor-codex-proxy"
+    },
+    "candidate": {
+      "model": "gpt-5.6-luna",
+      "conditionRole": "direct_context",
+      "condition": "diagnostic_target_a"
+    },
+    "task": {
+      "caseId": "ccbench-ra-s3-dialogue-01",
+      "condition": "diagnostic_target_a",
+      "trialId": "trial-eddb0d2cbbfc6011da630c39",
+      "taskDigest": "sha256:35595524cd5ff06a1d11b1dc641475e11ba200400e883330f85bf6f0a04aa05a",
+      "directory": "task-35595524cd5ff06a1d11b1dc",
+      "taskBytesDigest": "sha256:11dc7ea87638afe6198ff7539e9b6b8b43760ab2f5ce37b0930aadff41b087e6"
+    },
+    "isolation": {
+      "host": "docker",
+      "containerDeleted": true,
+      "providerCredential": "proxy_capability_only",
+      "providerKeyInCandidateArtifacts": false,
+      "proxyHost": "host.docker.internal",
+      "proxyRequestLimit": 16,
+      "proxyAcceptedRequests": 3,
+      "proxyRejectedRequests": 0
+    },
+    "runtimeOverlay": {
+      "configurationDigest": "sha256:38ba1f8f587293386ee5d0152a8503f73c760b1808be7dab08dc81400e49e72a",
+      "proxyConfigDigest": "sha256:3dae731c4eb592c7255a12c0e6581225d904a6b79f83e96d894dcf59006ae56e",
+      "agentNetwork": "allowlist",
+      "allowedHosts": ["host.docker.internal"]
+    },
+    "execution": {
+      "resultState": "executed",
+      "nativeReward": 1,
+      "nativeTrialId": "936af685-ca32-4f13-9c83-1d71aa4e0f6c",
+      "nativeTrialName": "candidate-task__fdCV4FH",
+      "nativeTaskName": "openboa/task-35595524cd5ff06a1d11b1dc",
+      "nativeAgentName": "codex",
+      "nativeAgentVersion": "0.147.0",
+      "nativeEnvironmentType": "docker",
+      "nativeEnvironmentDelete": true,
+      "verifierEnvironmentMode": "separate"
+    },
+    "artifacts": [
+      {
+        "path": "codex.txt",
+        "bytes": 2075,
+        "digest": "sha256:883af112d9c76915804c6cb0c9a2233c9b8f34189088fb3afe87293d200a587a"
+      },
+      {
+        "path": "rollout-2026-08-16T07-10-49-01a00968-a967-7f71-88b8-9e4bba19d94d.jsonl",
+        "bytes": 45526,
+        "digest": "sha256:0217c624d928415497b5d4dcbabc792d02e9909d9b56f00868f8a845d205a04a"
+      },
+      {
+        "path": "trajectory.json",
+        "bytes": 15346,
+        "digest": "sha256:7daa570a8363f71b63c52d59df1fba9277c420a3e9c2aa79440103a04b879417"
+      },
+      {
+        "path": "answer.txt",
+        "bytes": 1985,
+        "digest": "sha256:f5245a8504d9984e33a333d1ba9b0dad1378727258be58304f42b67a3c761fe8"
+      },
+      {
+        "path": "manifest.json",
+        "bytes": 320,
+        "digest": "sha256:b6e48cc16b13b02d553cf1c376d28208bae12aefa34bc4e79fdd8d525b243d17"
+      }
+    ],
+    "measurement": "unmeasured"
+  },
+  {
+    "schema": "coffee-chat-eval/codex-candidate",
+    "benchmark": {
+      "repository": "https://github.com/openboa-ai/coffee-chat-bench",
+      "commit": "1bc71605964770bbd1bd96e049b8412b6ee068fc",
+      "release": "2026.8.12",
+      "bankDigest": "sha256:a7ce9ce12679f81bd212324919e39dd3eda26115dec7366c52aea8768cf790dd",
+      "projectionDigest": "sha256:b66e45ee0d09c4afad92d974e1315c8cfa85d9ca0de1a48ac08219afabd1a9c3"
+    },
+    "harness": {
+      "name": "harbor",
+      "version": "0.21.0",
+      "adapter": "harbor-codex-proxy"
+    },
+    "candidate": {
+      "model": "gpt-5.6-luna",
+      "conditionRole": "task_only",
+      "condition": "task_only"
+    },
+    "task": {
+      "caseId": "ccbench-rb-s1-artifact-01",
+      "condition": "task_only",
+      "trialId": "trial-1d0801f726a9e24e4e6a3341",
+      "taskDigest": "sha256:2c09445c1bb54b440e33925777180239e329dd55bb96c2f58c002c1d9ea9f0a7",
+      "directory": "task-2c09445c1bb54b440e339257",
+      "taskBytesDigest": "sha256:42e6a5b5b6e6307fe5777a2e05c55d5d1c5ca97675598eb582b0b84c1e5f134e"
+    },
+    "isolation": {
+      "host": "docker",
+      "containerDeleted": true,
+      "providerCredential": "proxy_capability_only",
+      "providerKeyInCandidateArtifacts": false,
+      "proxyHost": "host.docker.internal",
+      "proxyRequestLimit": 16,
+      "proxyAcceptedRequests": 2,
+      "proxyRejectedRequests": 0
+    },
+    "runtimeOverlay": {
+      "configurationDigest": "sha256:6313790d90ed7a7a5d92c1b9b54efc325852f0b0a745e678311137b0c419fd20",
+      "proxyConfigDigest": "sha256:30688e027c4772b52fb9c43cda10f1b9cd2dcaade9705652067034452f37ab91",
+      "agentNetwork": "allowlist",
+      "allowedHosts": ["host.docker.internal"]
+    },
+    "execution": {
+      "resultState": "executed",
+      "nativeReward": 1,
+      "nativeTrialId": "d50c13f0-1916-4711-8b24-cd7bca532162",
+      "nativeTrialName": "candidate-task__PFTVz82",
+      "nativeTaskName": "openboa/task-2c09445c1bb54b440e339257",
+      "nativeAgentName": "codex",
+      "nativeAgentVersion": "0.147.0",
+      "nativeEnvironmentType": "docker",
+      "nativeEnvironmentDelete": true,
+      "verifierEnvironmentMode": "separate"
+    },
+    "artifacts": [
+      {
+        "path": "codex.txt",
+        "bytes": 3586,
+        "digest": "sha256:d8fc8292424ff5aea764fe9a462d8c1e8d71fb85c82e44150a6bf923e02ff8fd"
+      },
+      {
+        "path": "rollout-2026-08-16T07-21-20-01a00972-4c1c-79e2-85c4-1732f9eea1b7.jsonl",
+        "bytes": 45530,
+        "digest": "sha256:a6aa49c8410694c71ec5ae3c811a4a5e4e5323e17277a365c4a94c14085045c9"
+      },
+      {
+        "path": "trajectory.json",
+        "bytes": 14837,
+        "digest": "sha256:ea7cbc0b4373ef5d4266fed0ba2a4d39526c5f696fb698916f22890729934c9e"
+      },
+      {
+        "path": "answer.txt",
+        "bytes": 1718,
+        "digest": "sha256:64376a3444abdb64f9bcdc1815915b28d9a30890cbcb025dbaa69cec7a6a11aa"
+      },
+      {
+        "path": "manifest.json",
+        "bytes": 320,
+        "digest": "sha256:b6e48cc16b13b02d553cf1c376d28208bae12aefa34bc4e79fdd8d525b243d17"
+      }
+    ],
+    "measurement": "unmeasured"
+  },
+  {
+    "schema": "coffee-chat-eval/codex-candidate",
+    "benchmark": {
+      "repository": "https://github.com/openboa-ai/coffee-chat-bench",
+      "commit": "1bc71605964770bbd1bd96e049b8412b6ee068fc",
+      "release": "2026.8.12",
+      "bankDigest": "sha256:a7ce9ce12679f81bd212324919e39dd3eda26115dec7366c52aea8768cf790dd",
+      "projectionDigest": "sha256:b66e45ee0d09c4afad92d974e1315c8cfa85d9ca0de1a48ac08219afabd1a9c3"
+    },
+    "harness": {
+      "name": "harbor",
+      "version": "0.21.0",
+      "adapter": "harbor-codex-proxy"
+    },
+    "candidate": {
+      "model": "gpt-5.6-luna",
+      "conditionRole": "direct_context",
+      "condition": "diagnostic_target_a"
+    },
+    "task": {
+      "caseId": "ccbench-rb-s1-artifact-01",
+      "condition": "diagnostic_target_a",
+      "trialId": "trial-62e6eccfc598100e2ee6c2dc",
+      "taskDigest": "sha256:3df08e67803051ad7f59f982587a05d4ed7d26829afa3b2094080e7c5e1bae25",
+      "directory": "task-3df08e67803051ad7f59f982",
+      "taskBytesDigest": "sha256:4b957cf1b4a73e1910a7e87aea41f39f1dcb6852f5087a35ce8ec9069fc63282"
+    },
+    "isolation": {
+      "host": "docker",
+      "containerDeleted": true,
+      "providerCredential": "proxy_capability_only",
+      "providerKeyInCandidateArtifacts": false,
+      "proxyHost": "host.docker.internal",
+      "proxyRequestLimit": 16,
+      "proxyAcceptedRequests": 2,
+      "proxyRejectedRequests": 0
+    },
+    "runtimeOverlay": {
+      "configurationDigest": "sha256:1789273481d6d6b8fc368020192169607388b795097adc044a66e2c93ec3d0b7",
+      "proxyConfigDigest": "sha256:19016338b394bf8c6e45a067a10fcc23070986b5b691613dfbab6ff9af6ebfab",
+      "agentNetwork": "allowlist",
+      "allowedHosts": ["host.docker.internal"]
+    },
+    "execution": {
+      "resultState": "executed",
+      "nativeReward": 1,
+      "nativeTrialId": "f0188911-1c3d-446f-a10d-8ff77cedb000",
+      "nativeTrialName": "candidate-task__DASAxYM",
+      "nativeTaskName": "openboa/task-3df08e67803051ad7f59f982",
+      "nativeAgentName": "codex",
+      "nativeAgentVersion": "0.147.0",
+      "nativeEnvironmentType": "docker",
+      "nativeEnvironmentDelete": true,
+      "verifierEnvironmentMode": "separate"
+    },
+    "artifacts": [
+      {
+        "path": "codex.txt",
+        "bytes": 2121,
+        "digest": "sha256:a27b8a039cef3b645db2eaed741ab24fd8cee69b66a753feb4dee4f05ccba0ac"
+      },
+      {
+        "path": "rollout-2026-08-16T07-21-21-01a00972-4f9c-7d82-b7f5-e9a32c9852db.jsonl",
+        "bytes": 44748,
+        "digest": "sha256:da2c758d16ccc361aa8340d0e8e9ff17618963a965ddc7d2efe7454a39af45bb"
+      },
+      {
+        "path": "trajectory.json",
+        "bytes": 14540,
+        "digest": "sha256:21566632b54b1e307ded7361ce077d34e8adb225ff24edc9a820feb90320238c"
+      },
+      {
+        "path": "answer.txt",
+        "bytes": 2051,
+        "digest": "sha256:7d955257558015d45a4f2b17558f1535bd36ed3d0883e2223fd9195569a09a9d"
+      },
+      {
+        "path": "manifest.json",
+        "bytes": 320,
+        "digest": "sha256:b6e48cc16b13b02d553cf1c376d28208bae12aefa34bc4e79fdd8d525b243d17"
+      }
+    ],
+    "measurement": "unmeasured"
+  },
+  {
+    "schema": "coffee-chat-eval/codex-candidate",
+    "benchmark": {
+      "repository": "https://github.com/openboa-ai/coffee-chat-bench",
+      "commit": "1bc71605964770bbd1bd96e049b8412b6ee068fc",
+      "release": "2026.8.12",
+      "bankDigest": "sha256:a7ce9ce12679f81bd212324919e39dd3eda26115dec7366c52aea8768cf790dd",
+      "projectionDigest": "sha256:b66e45ee0d09c4afad92d974e1315c8cfa85d9ca0de1a48ac08219afabd1a9c3"
+    },
+    "harness": {
+      "name": "harbor",
+      "version": "0.21.0",
+      "adapter": "harbor-codex-proxy"
+    },
+    "candidate": {
+      "model": "gpt-5.6-luna",
+      "conditionRole": "task_only",
+      "condition": "task_only"
+    },
+    "task": {
+      "caseId": "ccbench-rb-s1-dialogue-01",
+      "condition": "task_only",
+      "trialId": "trial-99d58f863c34bc39e9ab64ae",
+      "taskDigest": "sha256:248182fc92265c3053978669ba8e27d974439ba408f8d559b287250c522baa92",
+      "directory": "task-248182fc92265c3053978669",
+      "taskBytesDigest": "sha256:439d83c5068c021db5a51b678167a2fcaa01d25afc4576a60f0ead21663cfa00"
+    },
+    "isolation": {
+      "host": "docker",
+      "containerDeleted": true,
+      "providerCredential": "proxy_capability_only",
+      "providerKeyInCandidateArtifacts": false,
+      "proxyHost": "host.docker.internal",
+      "proxyRequestLimit": 16,
+      "proxyAcceptedRequests": 3,
+      "proxyRejectedRequests": 0
+    },
+    "runtimeOverlay": {
+      "configurationDigest": "sha256:c1ae0f21a2ca0b6ce8862f5765b14ef3c134dcc209f511bf0d33f5820167c173",
+      "proxyConfigDigest": "sha256:a18a1c271834f195e97200615244c99545e8173498cff4ea266e68cd394277ef",
+      "agentNetwork": "allowlist",
+      "allowedHosts": ["host.docker.internal"]
+    },
+    "execution": {
+      "resultState": "executed",
+      "nativeReward": 1,
+      "nativeTrialId": "cf5d604f-08f0-4aea-914a-8ba9fc1666df",
+      "nativeTrialName": "candidate-task__gYQGuHJ",
+      "nativeTaskName": "openboa/task-248182fc92265c3053978669",
+      "nativeAgentName": "codex",
+      "nativeAgentVersion": "0.147.0",
+      "nativeEnvironmentType": "docker",
+      "nativeEnvironmentDelete": true,
+      "verifierEnvironmentMode": "separate"
+    },
+    "artifacts": [
+      {
+        "path": "codex.txt",
+        "bytes": 1892,
+        "digest": "sha256:71536eef84fbba7c7ea2d66f7d67d2547ebb0ec7d8451157f61c47159fd030aa"
+      },
+      {
+        "path": "rollout-2026-08-16T07-17-53-01a0096f-2133-7cb0-864b-98404566f96b.jsonl",
+        "bytes": 44119,
+        "digest": "sha256:7101354fdf4150a81854c32a3ba46eb03196a539921f8d8d8fbcf367ff6b2613"
+      },
+      {
+        "path": "trajectory.json",
+        "bytes": 14091,
+        "digest": "sha256:6d354424f09f925b4591566925a8aa7c70cd04bff34aef9b2e59d92f4e964542"
+      },
+      {
+        "path": "answer.txt",
+        "bytes": 1559,
+        "digest": "sha256:fef0a403bfdbb6396a9260cc7fe1cf00471f36e67e41570db5033a154a60fac5"
+      },
+      {
+        "path": "manifest.json",
+        "bytes": 320,
+        "digest": "sha256:b6e48cc16b13b02d553cf1c376d28208bae12aefa34bc4e79fdd8d525b243d17"
+      }
+    ],
+    "measurement": "unmeasured"
+  },
+  {
+    "schema": "coffee-chat-eval/codex-candidate",
+    "benchmark": {
+      "repository": "https://github.com/openboa-ai/coffee-chat-bench",
+      "commit": "1bc71605964770bbd1bd96e049b8412b6ee068fc",
+      "release": "2026.8.12",
+      "bankDigest": "sha256:a7ce9ce12679f81bd212324919e39dd3eda26115dec7366c52aea8768cf790dd",
+      "projectionDigest": "sha256:b66e45ee0d09c4afad92d974e1315c8cfa85d9ca0de1a48ac08219afabd1a9c3"
+    },
+    "harness": {
+      "name": "harbor",
+      "version": "0.21.0",
+      "adapter": "harbor-codex-proxy"
+    },
+    "candidate": {
+      "model": "gpt-5.6-luna",
+      "conditionRole": "direct_context",
+      "condition": "diagnostic_target_a"
+    },
+    "task": {
+      "caseId": "ccbench-rb-s1-dialogue-01",
+      "condition": "diagnostic_target_a",
+      "trialId": "trial-72f2cc411fa7bc31b565dd77",
+      "taskDigest": "sha256:76b4f244c78d07f516dc6a423dbb172ceadad5c3f923f4d6a02d34ed292bf1a3",
+      "directory": "task-76b4f244c78d07f516dc6a42",
+      "taskBytesDigest": "sha256:6a8c5379fc4b2d077df8aa0eefcb3d0f273f8ffe2e89b85beabef181e32626f9"
+    },
+    "isolation": {
+      "host": "docker",
+      "containerDeleted": true,
+      "providerCredential": "proxy_capability_only",
+      "providerKeyInCandidateArtifacts": false,
+      "proxyHost": "host.docker.internal",
+      "proxyRequestLimit": 16,
+      "proxyAcceptedRequests": 3,
+      "proxyRejectedRequests": 0
+    },
+    "runtimeOverlay": {
+      "configurationDigest": "sha256:ba744dddc9b81b3cb148e4876383e8d530f109272d0353122cfce73217bb74aa",
+      "proxyConfigDigest": "sha256:b6dbf52f76abe151e8c88d8744661003ac5f9521d1e3687f682285fb754caf9b",
+      "agentNetwork": "allowlist",
+      "allowedHosts": ["host.docker.internal"]
+    },
+    "execution": {
+      "resultState": "executed",
+      "nativeReward": 1,
+      "nativeTrialId": "0fa81d02-7820-4f07-85dd-14a4671514cd",
+      "nativeTrialName": "candidate-task__EyMio8g",
+      "nativeTaskName": "openboa/task-76b4f244c78d07f516dc6a42",
+      "nativeAgentName": "codex",
+      "nativeAgentVersion": "0.147.0",
+      "nativeEnvironmentType": "docker",
+      "nativeEnvironmentDelete": true,
+      "verifierEnvironmentMode": "separate"
+    },
+    "artifacts": [
+      {
+        "path": "codex.txt",
+        "bytes": 3413,
+        "digest": "sha256:4d6480dd0156f2edba0d2828d5c3805b71ef845738c00f3c63c39d2cacd871aa"
+      },
+      {
+        "path": "rollout-2026-08-16T07-17-47-01a0096f-0a43-72f2-8e5f-c649eba28c8c.jsonl",
+        "bytes": 46495,
+        "digest": "sha256:aedc438db38ed3d7efffa6ce812c6bcf758b342fa5782f325952760a50356bea"
+      },
+      {
+        "path": "trajectory.json",
+        "bytes": 16105,
+        "digest": "sha256:3f2889c604707fe8673914348a4c09255adf3571c5989dc588e564d0519b024f"
+      },
+      {
+        "path": "answer.txt",
+        "bytes": 1607,
+        "digest": "sha256:65d7c129d5999264b761d0964da60328a0389ca8459ad249e8da001a70f0200b"
+      },
+      {
+        "path": "manifest.json",
+        "bytes": 320,
+        "digest": "sha256:b6e48cc16b13b02d553cf1c376d28208bae12aefa34bc4e79fdd8d525b243d17"
+      }
+    ],
+    "measurement": "unmeasured"
+  },
+  {
+    "schema": "coffee-chat-eval/codex-candidate",
+    "benchmark": {
+      "repository": "https://github.com/openboa-ai/coffee-chat-bench",
+      "commit": "1bc71605964770bbd1bd96e049b8412b6ee068fc",
+      "release": "2026.8.12",
+      "bankDigest": "sha256:a7ce9ce12679f81bd212324919e39dd3eda26115dec7366c52aea8768cf790dd",
+      "projectionDigest": "sha256:b66e45ee0d09c4afad92d974e1315c8cfa85d9ca0de1a48ac08219afabd1a9c3"
+    },
+    "harness": {
+      "name": "harbor",
+      "version": "0.21.0",
+      "adapter": "harbor-codex-proxy"
+    },
+    "candidate": {
+      "model": "gpt-5.6-luna",
+      "conditionRole": "task_only",
+      "condition": "task_only"
+    },
+    "task": {
+      "caseId": "ccbench-rb-s2-artifact-01",
+      "condition": "task_only",
+      "trialId": "trial-ac70bceab43a5cf9d94eaebd",
+      "taskDigest": "sha256:91cfd5fb5948e4db38e4e6edc137be86a33a652101293f99fb0a0138dc75f557",
+      "directory": "task-91cfd5fb5948e4db38e4e6ed",
+      "taskBytesDigest": "sha256:ab108771f1c3c0b3f1acde557a61f292b55f32e09dea862c4f87438e1ad84e05"
+    },
+    "isolation": {
+      "host": "docker",
+      "containerDeleted": true,
+      "providerCredential": "proxy_capability_only",
+      "providerKeyInCandidateArtifacts": false,
+      "proxyHost": "host.docker.internal",
+      "proxyRequestLimit": 16,
+      "proxyAcceptedRequests": 2,
+      "proxyRejectedRequests": 0
+    },
+    "runtimeOverlay": {
+      "configurationDigest": "sha256:bdd98d276dd92f8690d2cdb87ee032b2da7f501140956c539798888b67976b80",
+      "proxyConfigDigest": "sha256:a0c0b7079843ef89a831dfc728716740e23ada804c7e87313002b12cfa08e31e",
+      "agentNetwork": "allowlist",
+      "allowedHosts": ["host.docker.internal"]
+    },
+    "execution": {
+      "resultState": "executed",
+      "nativeReward": 1,
+      "nativeTrialId": "39a44f41-02a2-4faf-9c1f-8df0c4036f5c",
+      "nativeTrialName": "candidate-task__6XKodbR",
+      "nativeTaskName": "openboa/task-91cfd5fb5948e4db38e4e6ed",
+      "nativeAgentName": "codex",
+      "nativeAgentVersion": "0.147.0",
+      "nativeEnvironmentType": "docker",
+      "nativeEnvironmentDelete": true,
+      "verifierEnvironmentMode": "separate"
+    },
+    "artifacts": [
+      {
+        "path": "codex.txt",
+        "bytes": 1998,
+        "digest": "sha256:ef4e92efe5afb19e83a301b16c8982de6839a90a1f3fdac1095b0f19d51d29a8"
+      },
+      {
+        "path": "rollout-2026-08-16T07-28-17-01a00978-a752-7591-883a-904810603f58.jsonl",
+        "bytes": 43724,
+        "digest": "sha256:219ddd5a9d787dd79cd0f718b78936b09931a9cc740b75de4d0409ea2fa3230d"
+      },
+      {
+        "path": "trajectory.json",
+        "bytes": 13879,
+        "digest": "sha256:68edab81889524e983fe237b7bfc2de314c3fb04973a43730b0ad30d9328d0ee"
+      },
+      {
+        "path": "answer.txt",
+        "bytes": 2038,
+        "digest": "sha256:d6a25e5188c2211f3346d8f168a7f0f24ec172a1ca4dd4103ed26a11232a0238"
+      },
+      {
+        "path": "manifest.json",
+        "bytes": 320,
+        "digest": "sha256:b6e48cc16b13b02d553cf1c376d28208bae12aefa34bc4e79fdd8d525b243d17"
+      }
+    ],
+    "measurement": "unmeasured"
+  },
+  {
+    "schema": "coffee-chat-eval/codex-candidate",
+    "benchmark": {
+      "repository": "https://github.com/openboa-ai/coffee-chat-bench",
+      "commit": "1bc71605964770bbd1bd96e049b8412b6ee068fc",
+      "release": "2026.8.12",
+      "bankDigest": "sha256:a7ce9ce12679f81bd212324919e39dd3eda26115dec7366c52aea8768cf790dd",
+      "projectionDigest": "sha256:b66e45ee0d09c4afad92d974e1315c8cfa85d9ca0de1a48ac08219afabd1a9c3"
+    },
+    "harness": {
+      "name": "harbor",
+      "version": "0.21.0",
+      "adapter": "harbor-codex-proxy"
+    },
+    "candidate": {
+      "model": "gpt-5.6-luna",
+      "conditionRole": "direct_context",
+      "condition": "diagnostic_target_a"
+    },
+    "task": {
+      "caseId": "ccbench-rb-s2-artifact-01",
+      "condition": "diagnostic_target_a",
+      "trialId": "trial-498424534600e9e4bfec5e2c",
+      "taskDigest": "sha256:a66630afe542bd1c0983dbaf0e83f10de184a1959d6859634702ec6b607df46e",
+      "directory": "task-a66630afe542bd1c0983dbaf",
+      "taskBytesDigest": "sha256:27ea2d7f4655fb412e9cf59bf5a2c2d9e26a931965dafc13c16bff273ad8588f"
+    },
+    "isolation": {
+      "host": "docker",
+      "containerDeleted": true,
+      "providerCredential": "proxy_capability_only",
+      "providerKeyInCandidateArtifacts": false,
+      "proxyHost": "host.docker.internal",
+      "proxyRequestLimit": 16,
+      "proxyAcceptedRequests": 2,
+      "proxyRejectedRequests": 0
+    },
+    "runtimeOverlay": {
+      "configurationDigest": "sha256:1411c304a977af31f1eab64ae32b0a70992313f0d2dba666510bd787b40fe760",
+      "proxyConfigDigest": "sha256:f1695ba805a869b0eb65f7845dc10d31f8952f8c73194de52a980ffa319b1182",
+      "agentNetwork": "allowlist",
+      "allowedHosts": ["host.docker.internal"]
+    },
+    "execution": {
+      "resultState": "executed",
+      "nativeReward": 1,
+      "nativeTrialId": "a519cd52-324e-4fe0-8163-d6e2769e0117",
+      "nativeTrialName": "candidate-task__BLVqvxp",
+      "nativeTaskName": "openboa/task-a66630afe542bd1c0983dbaf",
+      "nativeAgentName": "codex",
+      "nativeAgentVersion": "0.147.0",
+      "nativeEnvironmentType": "docker",
+      "nativeEnvironmentDelete": true,
+      "verifierEnvironmentMode": "separate"
+    },
+    "artifacts": [
+      {
+        "path": "codex.txt",
+        "bytes": 3857,
+        "digest": "sha256:9e2109de9ba3e7d59bfe32ef996ca25c87ed1a756fa41f6a021393bf975dc035"
+      },
+      {
+        "path": "rollout-2026-08-16T07-28-17-01a00978-a6b7-7f72-815b-b60a778d4cfe.jsonl",
+        "bytes": 44651,
+        "digest": "sha256:d0e765498f1be67a00b144a66bc28f06910c9089bc745631098a6a14cea73df5"
+      },
+      {
+        "path": "trajectory.json",
+        "bytes": 16081,
+        "digest": "sha256:451c0b399d65bd50d893e27779de8f6acff6d06fb181c6366cf3797e81127bcd"
+      },
+      {
+        "path": "answer.txt",
+        "bytes": 2097,
+        "digest": "sha256:6b63cedbf10e1efef30a3d7267015de9f88cee0020b9bd29ee614f7af59cad2c"
+      },
+      {
+        "path": "manifest.json",
+        "bytes": 320,
+        "digest": "sha256:b6e48cc16b13b02d553cf1c376d28208bae12aefa34bc4e79fdd8d525b243d17"
+      }
+    ],
+    "measurement": "unmeasured"
+  },
+  {
+    "schema": "coffee-chat-eval/codex-candidate",
+    "benchmark": {
+      "repository": "https://github.com/openboa-ai/coffee-chat-bench",
+      "commit": "1bc71605964770bbd1bd96e049b8412b6ee068fc",
+      "release": "2026.8.12",
+      "bankDigest": "sha256:a7ce9ce12679f81bd212324919e39dd3eda26115dec7366c52aea8768cf790dd",
+      "projectionDigest": "sha256:b66e45ee0d09c4afad92d974e1315c8cfa85d9ca0de1a48ac08219afabd1a9c3"
+    },
+    "harness": {
+      "name": "harbor",
+      "version": "0.21.0",
+      "adapter": "harbor-codex-proxy"
+    },
+    "candidate": {
+      "model": "gpt-5.6-luna",
+      "conditionRole": "task_only",
+      "condition": "task_only"
+    },
+    "task": {
+      "caseId": "ccbench-rb-s2-dialogue-01",
+      "condition": "task_only",
+      "trialId": "trial-2c62dea0bfab728e9d3a00ac",
+      "taskDigest": "sha256:425858dc6961ff9d7e544dfa97f62e27e15f1dfe81d83cffa7905d4a6e6f50fa",
+      "directory": "task-425858dc6961ff9d7e544dfa",
+      "taskBytesDigest": "sha256:4e0a8ee6d52e2961dbbc9765f0dff58215cf50e2f7c924438c3ceb155c4ae9a7"
+    },
+    "isolation": {
+      "host": "docker",
+      "containerDeleted": true,
+      "providerCredential": "proxy_capability_only",
+      "providerKeyInCandidateArtifacts": false,
+      "proxyHost": "host.docker.internal",
+      "proxyRequestLimit": 16,
+      "proxyAcceptedRequests": 3,
+      "proxyRejectedRequests": 0
+    },
+    "runtimeOverlay": {
+      "configurationDigest": "sha256:7cc3a619b2555cb1de2b892f8a02470c37f43dde1c4934b767ac68bec641d5f2",
+      "proxyConfigDigest": "sha256:59ad5a48d8bd836fcf1200452c9a1f056f539aa707e9903163eaf9311c927d8a",
+      "agentNetwork": "allowlist",
+      "allowedHosts": ["host.docker.internal"]
+    },
+    "execution": {
+      "resultState": "executed",
+      "nativeReward": 1,
+      "nativeTrialId": "283e4547-33ec-436e-8bc2-2b0a8785312b",
+      "nativeTrialName": "candidate-task__uTd2qig",
+      "nativeTaskName": "openboa/task-425858dc6961ff9d7e544dfa",
+      "nativeAgentName": "codex",
+      "nativeAgentVersion": "0.147.0",
+      "nativeEnvironmentType": "docker",
+      "nativeEnvironmentDelete": true,
+      "verifierEnvironmentMode": "separate"
+    },
+    "artifacts": [
+      {
+        "path": "codex.txt",
+        "bytes": 2968,
+        "digest": "sha256:4ffea7366b9af42eede8e00957207dee98f7ad6d9ba9fd7c6e17b9bcc10e9150"
+      },
+      {
+        "path": "rollout-2026-08-16T07-24-47-01a00975-7525-7f83-ad3c-9f4196fcecec.jsonl",
+        "bytes": 44885,
+        "digest": "sha256:5b9076d711982a03012d840bba08b21f84b9a1c6c5fb20a4b01bff70643efd61"
+      },
+      {
+        "path": "trajectory.json",
+        "bytes": 14959,
+        "digest": "sha256:4ee85b07dfe34525ba94ef3011550e12b026e19a1d47bb55e5314934fc381239"
+      },
+      {
+        "path": "answer.txt",
+        "bytes": 1360,
+        "digest": "sha256:0a48a1bc2bc78562abed0aada48d7382431faae3ce96de669f85eb7c02ae29f0"
+      },
+      {
+        "path": "manifest.json",
+        "bytes": 320,
+        "digest": "sha256:b6e48cc16b13b02d553cf1c376d28208bae12aefa34bc4e79fdd8d525b243d17"
+      }
+    ],
+    "measurement": "unmeasured"
+  },
+  {
+    "schema": "coffee-chat-eval/codex-candidate",
+    "benchmark": {
+      "repository": "https://github.com/openboa-ai/coffee-chat-bench",
+      "commit": "1bc71605964770bbd1bd96e049b8412b6ee068fc",
+      "release": "2026.8.12",
+      "bankDigest": "sha256:a7ce9ce12679f81bd212324919e39dd3eda26115dec7366c52aea8768cf790dd",
+      "projectionDigest": "sha256:b66e45ee0d09c4afad92d974e1315c8cfa85d9ca0de1a48ac08219afabd1a9c3"
+    },
+    "harness": {
+      "name": "harbor",
+      "version": "0.21.0",
+      "adapter": "harbor-codex-proxy"
+    },
+    "candidate": {
+      "model": "gpt-5.6-luna",
+      "conditionRole": "direct_context",
+      "condition": "diagnostic_target_a"
+    },
+    "task": {
+      "caseId": "ccbench-rb-s2-dialogue-01",
+      "condition": "diagnostic_target_a",
+      "trialId": "trial-a117afb1418bc24926f41bd3",
+      "taskDigest": "sha256:0d47012d3b04b89755522d5443020d8224441f9e16c3f93e169766553c7b8458",
+      "directory": "task-0d47012d3b04b89755522d54",
+      "taskBytesDigest": "sha256:0209ca9a0cc9064ce24a651d831cef0d31f54922940fe62095c63b5919441165"
+    },
+    "isolation": {
+      "host": "docker",
+      "containerDeleted": true,
+      "providerCredential": "proxy_capability_only",
+      "providerKeyInCandidateArtifacts": false,
+      "proxyHost": "host.docker.internal",
+      "proxyRequestLimit": 16,
+      "proxyAcceptedRequests": 3,
+      "proxyRejectedRequests": 0
+    },
+    "runtimeOverlay": {
+      "configurationDigest": "sha256:1c208addb320e2066426b6206075d4109ddef50331d6129b9f534bae3de30777",
+      "proxyConfigDigest": "sha256:36537e96f9eeff2e62f86cc1591c43e9b98182af3b092b4473110137c83704f5",
+      "agentNetwork": "allowlist",
+      "allowedHosts": ["host.docker.internal"]
+    },
+    "execution": {
+      "resultState": "executed",
+      "nativeReward": 1,
+      "nativeTrialId": "c37e8ef3-24fe-4a79-a657-16a16c3326fe",
+      "nativeTrialName": "candidate-task__JaBmiLU",
+      "nativeTaskName": "openboa/task-0d47012d3b04b89755522d54",
+      "nativeAgentName": "codex",
+      "nativeAgentVersion": "0.147.0",
+      "nativeEnvironmentType": "docker",
+      "nativeEnvironmentDelete": true,
+      "verifierEnvironmentMode": "separate"
+    },
+    "artifacts": [
+      {
+        "path": "codex.txt",
+        "bytes": 3060,
+        "digest": "sha256:082513df0243345dbba9269134216adab7fe87c7a84569880c7c64cc4be115df"
+      },
+      {
+        "path": "rollout-2026-08-16T07-24-45-01a00975-6bb6-73b0-835d-9ede7762d141.jsonl",
+        "bytes": 45869,
+        "digest": "sha256:3b82a69f67e0230fe33971b9a91084ba892f07f047ac729089d61850185d5436"
+      },
+      {
+        "path": "trajectory.json",
+        "bytes": 15088,
+        "digest": "sha256:560da182e72511a483078e321249fbbaf4b03d46d67f960f1568bc628e38383b"
+      },
+      {
+        "path": "answer.txt",
+        "bytes": 1173,
+        "digest": "sha256:99a79ff711057c4c6942f45129a29a9902d4526f2d3c38484d09263d2484efd3"
+      },
+      {
+        "path": "manifest.json",
+        "bytes": 320,
+        "digest": "sha256:b6e48cc16b13b02d553cf1c376d28208bae12aefa34bc4e79fdd8d525b243d17"
+      }
+    ],
+    "measurement": "unmeasured"
+  },
+  {
+    "schema": "coffee-chat-eval/codex-candidate",
+    "benchmark": {
+      "repository": "https://github.com/openboa-ai/coffee-chat-bench",
+      "commit": "1bc71605964770bbd1bd96e049b8412b6ee068fc",
+      "release": "2026.8.12",
+      "bankDigest": "sha256:a7ce9ce12679f81bd212324919e39dd3eda26115dec7366c52aea8768cf790dd",
+      "projectionDigest": "sha256:b66e45ee0d09c4afad92d974e1315c8cfa85d9ca0de1a48ac08219afabd1a9c3"
+    },
+    "harness": {
+      "name": "harbor",
+      "version": "0.21.0",
+      "adapter": "harbor-codex-proxy"
+    },
+    "candidate": {
+      "model": "gpt-5.6-luna",
+      "conditionRole": "task_only",
+      "condition": "task_only"
+    },
+    "task": {
+      "caseId": "ccbench-rb-s3-artifact-01",
+      "condition": "task_only",
+      "trialId": "trial-f8f10ba304d4cd6b687be3e4",
+      "taskDigest": "sha256:ba7beff8a4b0ba650ebbaed7c6b79cee1e7903ad06746cbf1939b9488cdb8d0a",
+      "directory": "task-ba7beff8a4b0ba650ebbaed7",
+      "taskBytesDigest": "sha256:c55dcaaec9c28396f882b84b1a9e792b18392d82db203c10354c4cf858755bf5"
+    },
+    "isolation": {
+      "host": "docker",
+      "containerDeleted": true,
+      "providerCredential": "proxy_capability_only",
+      "providerKeyInCandidateArtifacts": false,
+      "proxyHost": "host.docker.internal",
+      "proxyRequestLimit": 16,
+      "proxyAcceptedRequests": 3,
+      "proxyRejectedRequests": 0
+    },
+    "runtimeOverlay": {
+      "configurationDigest": "sha256:ccc66fe01e1ad8eecb6c519c6cf058560964b1b4557251fdd8fabb9e25083904",
+      "proxyConfigDigest": "sha256:9ba6aff548e6c86b6674a8e812d6f13b4e6c604417178cd280a47d75c791d09b",
+      "agentNetwork": "allowlist",
+      "allowedHosts": ["host.docker.internal"]
+    },
+    "execution": {
+      "resultState": "executed",
+      "nativeReward": 1,
+      "nativeTrialId": "888ecfdb-2a98-4adf-a506-5c5c847087d0",
+      "nativeTrialName": "candidate-task__QLb9wDe",
+      "nativeTaskName": "openboa/task-ba7beff8a4b0ba650ebbaed7",
+      "nativeAgentName": "codex",
+      "nativeAgentVersion": "0.147.0",
+      "nativeEnvironmentType": "docker",
+      "nativeEnvironmentDelete": true,
+      "verifierEnvironmentMode": "separate"
+    },
+    "artifacts": [
+      {
+        "path": "codex.txt",
+        "bytes": 3772,
+        "digest": "sha256:57076711053f45df01a0dacad0133abff96f822cf3fcce9b9a98d0dcd99230ca"
+      },
+      {
+        "path": "rollout-2026-08-16T07-35-09-01a0097e-f1bf-7e62-9b15-e520d499dd39.jsonl",
+        "bytes": 46650,
+        "digest": "sha256:fc980bdceff3bfb22672d02427b67d2301b0aff86b8329b1e5d8c6ccdd1792a3"
+      },
+      {
+        "path": "trajectory.json",
+        "bytes": 16874,
+        "digest": "sha256:5a970d7aa5d4f18fccc58d94e122c7ff3a3373e4e4085e26b25f1cf86ae6e42a"
+      },
+      {
+        "path": "answer.txt",
+        "bytes": 2021,
+        "digest": "sha256:3673b5b6bca452fc0196fb67db0fc152e9eb798e9ad7488700188930f39161b1"
+      },
+      {
+        "path": "manifest.json",
+        "bytes": 320,
+        "digest": "sha256:b6e48cc16b13b02d553cf1c376d28208bae12aefa34bc4e79fdd8d525b243d17"
+      }
+    ],
+    "measurement": "unmeasured"
+  },
+  {
+    "schema": "coffee-chat-eval/codex-candidate",
+    "benchmark": {
+      "repository": "https://github.com/openboa-ai/coffee-chat-bench",
+      "commit": "1bc71605964770bbd1bd96e049b8412b6ee068fc",
+      "release": "2026.8.12",
+      "bankDigest": "sha256:a7ce9ce12679f81bd212324919e39dd3eda26115dec7366c52aea8768cf790dd",
+      "projectionDigest": "sha256:b66e45ee0d09c4afad92d974e1315c8cfa85d9ca0de1a48ac08219afabd1a9c3"
+    },
+    "harness": {
+      "name": "harbor",
+      "version": "0.21.0",
+      "adapter": "harbor-codex-proxy"
+    },
+    "candidate": {
+      "model": "gpt-5.6-luna",
+      "conditionRole": "direct_context",
+      "condition": "diagnostic_target_a"
+    },
+    "task": {
+      "caseId": "ccbench-rb-s3-artifact-01",
+      "condition": "diagnostic_target_a",
+      "trialId": "trial-52a7d6b38687a81b5a6e04c8",
+      "taskDigest": "sha256:3c151dc7718ce953307bcd6b17086ca32796c8113e636af1fc5b95f8736ad2cc",
+      "directory": "task-3c151dc7718ce953307bcd6b",
+      "taskBytesDigest": "sha256:e01da056bd3bc8ea126dfb86e180ec5b7ec43d597d6d1162793385ba9b72ecff"
+    },
+    "isolation": {
+      "host": "docker",
+      "containerDeleted": true,
+      "providerCredential": "proxy_capability_only",
+      "providerKeyInCandidateArtifacts": false,
+      "proxyHost": "host.docker.internal",
+      "proxyRequestLimit": 16,
+      "proxyAcceptedRequests": 3,
+      "proxyRejectedRequests": 0
+    },
+    "runtimeOverlay": {
+      "configurationDigest": "sha256:f03f56421b4ded9c8d0668b44ecb89e603780e5004640d844616a80a33d0bb9c",
+      "proxyConfigDigest": "sha256:304e7937daeef2e70da4d1b0e6ac5e854ca1aed6ad623648e9e66d31bee54ae3",
+      "agentNetwork": "allowlist",
+      "allowedHosts": ["host.docker.internal"]
+    },
+    "execution": {
+      "resultState": "executed",
+      "nativeReward": 1,
+      "nativeTrialId": "dd29e1a8-0d2f-46f3-ad44-ef6e9f3d8f12",
+      "nativeTrialName": "candidate-task__Bt3vhTm",
+      "nativeTaskName": "openboa/task-3c151dc7718ce953307bcd6b",
+      "nativeAgentName": "codex",
+      "nativeAgentVersion": "0.147.0",
+      "nativeEnvironmentType": "docker",
+      "nativeEnvironmentDelete": true,
+      "verifierEnvironmentMode": "separate"
+    },
+    "artifacts": [
+      {
+        "path": "codex.txt",
+        "bytes": 1977,
+        "digest": "sha256:e78360c0c6e5a5e4d582cd96f1d30bc57fae51da9cb56bfd8d2b538bc897d8ec"
+      },
+      {
+        "path": "rollout-2026-08-16T07-35-09-01a0097e-f382-7a63-acfb-cd13abf026c5.jsonl",
+        "bytes": 47094,
+        "digest": "sha256:5e23e7ce29011f0385bb8db67a8bf2a8ade2f7643441eca190423b0f19794ffe"
+      },
+      {
+        "path": "trajectory.json",
+        "bytes": 16683,
+        "digest": "sha256:3014db9dec1052fb7cbb39083066c70c8e780d615b6d7417e08bbdf673fd9ca9"
+      },
+      {
+        "path": "answer.txt",
+        "bytes": 2616,
+        "digest": "sha256:ee159e077ef1cf3cd63a46c2e8a0fe2f38733aadf7ef0884b83d66cd477bb291"
+      },
+      {
+        "path": "manifest.json",
+        "bytes": 320,
+        "digest": "sha256:b6e48cc16b13b02d553cf1c376d28208bae12aefa34bc4e79fdd8d525b243d17"
+      }
+    ],
+    "measurement": "unmeasured"
+  },
+  {
+    "schema": "coffee-chat-eval/codex-candidate",
+    "benchmark": {
+      "repository": "https://github.com/openboa-ai/coffee-chat-bench",
+      "commit": "1bc71605964770bbd1bd96e049b8412b6ee068fc",
+      "release": "2026.8.12",
+      "bankDigest": "sha256:a7ce9ce12679f81bd212324919e39dd3eda26115dec7366c52aea8768cf790dd",
+      "projectionDigest": "sha256:b66e45ee0d09c4afad92d974e1315c8cfa85d9ca0de1a48ac08219afabd1a9c3"
+    },
+    "harness": {
+      "name": "harbor",
+      "version": "0.21.0",
+      "adapter": "harbor-codex-proxy"
+    },
+    "candidate": {
+      "model": "gpt-5.6-luna",
+      "conditionRole": "task_only",
+      "condition": "task_only"
+    },
+    "task": {
+      "caseId": "ccbench-rb-s3-dialogue-01",
+      "condition": "task_only",
+      "trialId": "trial-9658c78672f6a91ed31706ac",
+      "taskDigest": "sha256:69d4b567ffff3c0fc86549cf493823002f4b2cfbe5a95696ab08a81bb9e5e47e",
+      "directory": "task-69d4b567ffff3c0fc86549cf",
+      "taskBytesDigest": "sha256:6e23858de9e86fd20993bc060129aae15a9d3403f4e8b812e49e9ddeb11f0a70"
+    },
+    "isolation": {
+      "host": "docker",
+      "containerDeleted": true,
+      "providerCredential": "proxy_capability_only",
+      "providerKeyInCandidateArtifacts": false,
+      "proxyHost": "host.docker.internal",
+      "proxyRequestLimit": 16,
+      "proxyAcceptedRequests": 3,
+      "proxyRejectedRequests": 0
+    },
+    "runtimeOverlay": {
+      "configurationDigest": "sha256:5c35860777fc1265c36aede0fb98cfa929642fa8fc301fe528d38bf9e187b704",
+      "proxyConfigDigest": "sha256:41cab0d4d5ae1c0ecc9122d34fc4b8492f103a7f9405b7748e53830b97596be2",
+      "agentNetwork": "allowlist",
+      "allowedHosts": ["host.docker.internal"]
+    },
+    "execution": {
+      "resultState": "executed",
+      "nativeReward": 1,
+      "nativeTrialId": "c722f75b-8e8c-4711-8a52-32ef16e98eea",
+      "nativeTrialName": "candidate-task__c4KbddH",
+      "nativeTaskName": "openboa/task-69d4b567ffff3c0fc86549cf",
+      "nativeAgentName": "codex",
+      "nativeAgentVersion": "0.147.0",
+      "nativeEnvironmentType": "docker",
+      "nativeEnvironmentDelete": true,
+      "verifierEnvironmentMode": "separate"
+    },
+    "artifacts": [
+      {
+        "path": "codex.txt",
+        "bytes": 2934,
+        "digest": "sha256:b3266f737244d6daad3a5a2b1fec74dbe1ac93ed50e0b7c23685db3941e80fd6"
+      },
+      {
+        "path": "rollout-2026-08-16T07-31-48-01a0097b-e062-7ef0-9108-16db5a1d0983.jsonl",
+        "bytes": 45288,
+        "digest": "sha256:b2100ea0b2ac4a87264860e518ec0c095b339f7fe14be1678b648944f079d852"
+      },
+      {
+        "path": "trajectory.json",
+        "bytes": 15464,
+        "digest": "sha256:000965578185c5facb5a2c7d8e19b6d0639697ebf11895103124cbbe5b3840b3"
+      },
+      {
+        "path": "answer.txt",
+        "bytes": 1478,
+        "digest": "sha256:cf8a8c539843ef4198bff12e68329fa197de6cf22e56a25690299cb01bddd7d8"
+      },
+      {
+        "path": "manifest.json",
+        "bytes": 320,
+        "digest": "sha256:b6e48cc16b13b02d553cf1c376d28208bae12aefa34bc4e79fdd8d525b243d17"
+      }
+    ],
+    "measurement": "unmeasured"
+  },
+  {
+    "schema": "coffee-chat-eval/codex-candidate",
+    "benchmark": {
+      "repository": "https://github.com/openboa-ai/coffee-chat-bench",
+      "commit": "1bc71605964770bbd1bd96e049b8412b6ee068fc",
+      "release": "2026.8.12",
+      "bankDigest": "sha256:a7ce9ce12679f81bd212324919e39dd3eda26115dec7366c52aea8768cf790dd",
+      "projectionDigest": "sha256:b66e45ee0d09c4afad92d974e1315c8cfa85d9ca0de1a48ac08219afabd1a9c3"
+    },
+    "harness": {
+      "name": "harbor",
+      "version": "0.21.0",
+      "adapter": "harbor-codex-proxy"
+    },
+    "candidate": {
+      "model": "gpt-5.6-luna",
+      "conditionRole": "direct_context",
+      "condition": "diagnostic_target_a"
+    },
+    "task": {
+      "caseId": "ccbench-rb-s3-dialogue-01",
+      "condition": "diagnostic_target_a",
+      "trialId": "trial-41140a88f815014e1370211e",
+      "taskDigest": "sha256:43b148657f2c38d218a1ce4c6756fe385931559113441c36282d1bd75588187d",
+      "directory": "task-43b148657f2c38d218a1ce4c",
+      "taskBytesDigest": "sha256:8c6087d0c821994a2c5eec5443a4576b8674799a5e16dad5581eefef4a4a7051"
+    },
+    "isolation": {
+      "host": "docker",
+      "containerDeleted": true,
+      "providerCredential": "proxy_capability_only",
+      "providerKeyInCandidateArtifacts": false,
+      "proxyHost": "host.docker.internal",
+      "proxyRequestLimit": 16,
+      "proxyAcceptedRequests": 3,
+      "proxyRejectedRequests": 0
+    },
+    "runtimeOverlay": {
+      "configurationDigest": "sha256:a626bc52ed6eab4e8415e65b87ecd02595bf7d9ec4e063e15785e25848067f6d",
+      "proxyConfigDigest": "sha256:643132e77a2fffa99be8e0e76063d1bc8f414fa80c3aae3a0ad8b4e9d5d25145",
+      "agentNetwork": "allowlist",
+      "allowedHosts": ["host.docker.internal"]
+    },
+    "execution": {
+      "resultState": "executed",
+      "nativeReward": 1,
+      "nativeTrialId": "2ac7d195-219a-43e8-a0be-cb2f9d368dd4",
+      "nativeTrialName": "candidate-task__Yjy5GPm",
+      "nativeTaskName": "openboa/task-43b148657f2c38d218a1ce4c",
+      "nativeAgentName": "codex",
+      "nativeAgentVersion": "0.147.0",
+      "nativeEnvironmentType": "docker",
+      "nativeEnvironmentDelete": true,
+      "verifierEnvironmentMode": "separate"
+    },
+    "artifacts": [
+      {
+        "path": "codex.txt",
+        "bytes": 1752,
+        "digest": "sha256:ffab64f688dc562d68f270583c26e0d4f5c1fd3be62e97269e1facd2100867da"
+      },
+      {
+        "path": "rollout-2026-08-16T07-31-47-01a0097b-dc05-7112-9c76-d6cc9beb85a6.jsonl",
+        "bytes": 45066,
+        "digest": "sha256:2989df4e275ed9d46864905e6f38c89ffdd39300de820df72cc297bbee7176e0"
+      },
+      {
+        "path": "trajectory.json",
+        "bytes": 14422,
+        "digest": "sha256:614fe0954ca25254493ad32e8cb467aa33d2305973d1ba02377938d193bf54cf"
+      },
+      {
+        "path": "answer.txt",
+        "bytes": 1355,
+        "digest": "sha256:b420aac617de2e5b6d0a8466c25e20edcfb2e7131745cca3c8a6089a26c69295"
+      },
+      {
+        "path": "manifest.json",
+        "bytes": 320,
+        "digest": "sha256:b6e48cc16b13b02d553cf1c376d28208bae12aefa34bc4e79fdd8d525b243d17"
+      }
+    ],
+    "measurement": "unmeasured"
+  },
+  {
+    "schema": "coffee-chat-eval/codex-candidate",
+    "benchmark": {
+      "repository": "https://github.com/openboa-ai/coffee-chat-bench",
+      "commit": "1bc71605964770bbd1bd96e049b8412b6ee068fc",
+      "release": "2026.8.12",
+      "bankDigest": "sha256:a7ce9ce12679f81bd212324919e39dd3eda26115dec7366c52aea8768cf790dd",
+      "projectionDigest": "sha256:b66e45ee0d09c4afad92d974e1315c8cfa85d9ca0de1a48ac08219afabd1a9c3"
+    },
+    "harness": {
+      "name": "harbor",
+      "version": "0.21.0",
+      "adapter": "harbor-codex-proxy"
+    },
+    "candidate": {
+      "model": "gpt-5.6-terra",
+      "conditionRole": "task_only",
+      "condition": "task_only"
+    },
+    "task": {
+      "caseId": "ccbench-ra-s1-artifact-01",
+      "condition": "task_only",
+      "trialId": "trial-62556c8e9ed4f546aa318ad8",
+      "taskDigest": "sha256:0a13899f1a739889835bc7c0d6c59a756de84c139656034ebe511d3aede4e54c",
+      "directory": "task-0a13899f1a739889835bc7c0",
+      "taskBytesDigest": "sha256:f7f6ebdbb212ff0791bc3d1ae92657d438fd3cb03ae1ab58e79a37296903d54e"
+    },
+    "isolation": {
+      "host": "docker",
+      "containerDeleted": true,
+      "providerCredential": "proxy_capability_only",
+      "providerKeyInCandidateArtifacts": false,
+      "proxyHost": "host.docker.internal",
+      "proxyRequestLimit": 16,
+      "proxyAcceptedRequests": 5,
+      "proxyRejectedRequests": 0
+    },
+    "runtimeOverlay": {
+      "configurationDigest": "sha256:a338d10f2351f4d9e08c5fa086e9f8ad124cacb55f1f982d54845b9f646ecd5f",
+      "proxyConfigDigest": "sha256:0d4bcec8ed37b1c2ca57dacd368315c9712cd8e9514102b8d691640f1a7301f4",
+      "agentNetwork": "allowlist",
+      "allowedHosts": ["host.docker.internal"]
+    },
+    "execution": {
+      "resultState": "executed",
+      "nativeReward": 1,
+      "nativeTrialId": "aec28992-ce42-4d6b-9e72-909112c3bef4",
+      "nativeTrialName": "candidate-task__gvBwGZs",
+      "nativeTaskName": "openboa/task-0a13899f1a739889835bc7c0",
+      "nativeAgentName": "codex",
+      "nativeAgentVersion": "0.147.0",
+      "nativeEnvironmentType": "docker",
+      "nativeEnvironmentDelete": true,
+      "verifierEnvironmentMode": "separate"
+    },
+    "artifacts": [
+      {
+        "path": "codex.txt",
+        "bytes": 4317,
+        "digest": "sha256:7ec52adc06f7f5186a22bcaf36bf490f870fc5cd5688d9ae84340919ee2d93b7"
+      },
+      {
+        "path": "rollout-2026-08-16T07-11-33-01a00969-5663-7903-ae9f-c1a72efafbae.jsonl",
+        "bytes": 52846,
+        "digest": "sha256:4acd2fb6d7cdd4559f80af3b910d57860cf03d1c1d5b7d76ac4632375cb62cd5"
+      },
+      {
+        "path": "trajectory.json",
+        "bytes": 23013,
+        "digest": "sha256:04f2bfdab4c5f609f1a70da6fbdc54babdca0a6d92c901d548ab002082ae2527"
+      },
+      {
+        "path": "answer.txt",
+        "bytes": 2103,
+        "digest": "sha256:7a29f1208cdd97e4afc0477a11137b56a40e822ae57e9c167d2fe8e9dcc74147"
+      },
+      {
+        "path": "manifest.json",
+        "bytes": 320,
+        "digest": "sha256:b6e48cc16b13b02d553cf1c376d28208bae12aefa34bc4e79fdd8d525b243d17"
+      }
+    ],
+    "measurement": "unmeasured"
+  },
+  {
+    "schema": "coffee-chat-eval/codex-candidate",
+    "benchmark": {
+      "repository": "https://github.com/openboa-ai/coffee-chat-bench",
+      "commit": "1bc71605964770bbd1bd96e049b8412b6ee068fc",
+      "release": "2026.8.12",
+      "bankDigest": "sha256:a7ce9ce12679f81bd212324919e39dd3eda26115dec7366c52aea8768cf790dd",
+      "projectionDigest": "sha256:b66e45ee0d09c4afad92d974e1315c8cfa85d9ca0de1a48ac08219afabd1a9c3"
+    },
+    "harness": {
+      "name": "harbor",
+      "version": "0.21.0",
+      "adapter": "harbor-codex-proxy"
+    },
+    "candidate": {
+      "model": "gpt-5.6-terra",
+      "conditionRole": "direct_context",
+      "condition": "diagnostic_target_a"
+    },
+    "task": {
+      "caseId": "ccbench-ra-s1-artifact-01",
+      "condition": "diagnostic_target_a",
+      "trialId": "trial-1dc7ca1e546b3af45cc1472c",
+      "taskDigest": "sha256:4a2374559b76929dc0004480f82a2db3d2f3776474cf2ea49322254585d85beb",
+      "directory": "task-4a2374559b76929dc0004480",
+      "taskBytesDigest": "sha256:3a5a4a49c76ca44be2a436ba6ad2c9e5b634a8d233459faf759ad8770e433641"
+    },
+    "isolation": {
+      "host": "docker",
+      "containerDeleted": true,
+      "providerCredential": "proxy_capability_only",
+      "providerKeyInCandidateArtifacts": false,
+      "proxyHost": "host.docker.internal",
+      "proxyRequestLimit": 16,
+      "proxyAcceptedRequests": 5,
+      "proxyRejectedRequests": 0
+    },
+    "runtimeOverlay": {
+      "configurationDigest": "sha256:82f527a72f24be5683f422e23fc180feff4654c01f6557696e63abbbd8d1fd5b",
+      "proxyConfigDigest": "sha256:56faac69adbfad30c73a27be643a0cfed9badafb66bbe4e52173001b80565659",
+      "agentNetwork": "allowlist",
+      "allowedHosts": ["host.docker.internal"]
+    },
+    "execution": {
+      "resultState": "executed",
+      "nativeReward": 1,
+      "nativeTrialId": "edc394e4-20e7-46f2-a72a-ac10264d3e9b",
+      "nativeTrialName": "candidate-task__dXzLvH2",
+      "nativeTaskName": "openboa/task-4a2374559b76929dc0004480",
+      "nativeAgentName": "codex",
+      "nativeAgentVersion": "0.147.0",
+      "nativeEnvironmentType": "docker",
+      "nativeEnvironmentDelete": true,
+      "verifierEnvironmentMode": "separate"
+    },
+    "artifacts": [
+      {
+        "path": "codex.txt",
+        "bytes": 3230,
+        "digest": "sha256:f73964feaadea94ea732fb0b8c99828c5540fac7a816b41fbb7a62b5cfd377dd"
+      },
+      {
+        "path": "rollout-2026-08-16T07-11-34-01a00969-5a93-7ca1-9600-2c4035563ded.jsonl",
+        "bytes": 52754,
+        "digest": "sha256:c580359b9e0ca5aa72edf595f3900fafb127e7e026c165d0546845ac7a103582"
+      },
+      {
+        "path": "trajectory.json",
+        "bytes": 22531,
+        "digest": "sha256:2e60c252ba7afa78915f6b65f9311ad7c3808427e640bf6e5182c3f37d5b967f"
+      },
+      {
+        "path": "answer.txt",
+        "bytes": 2183,
+        "digest": "sha256:086b2866897a97826cb6ea90e4281a1a95dbc996cbed461078a6dbdd186cba7f"
+      },
+      {
+        "path": "manifest.json",
+        "bytes": 320,
+        "digest": "sha256:b6e48cc16b13b02d553cf1c376d28208bae12aefa34bc4e79fdd8d525b243d17"
+      }
+    ],
+    "measurement": "unmeasured"
+  },
+  {
+    "schema": "coffee-chat-eval/codex-candidate",
+    "benchmark": {
+      "repository": "https://github.com/openboa-ai/coffee-chat-bench",
+      "commit": "1bc71605964770bbd1bd96e049b8412b6ee068fc",
+      "release": "2026.8.12",
+      "bankDigest": "sha256:a7ce9ce12679f81bd212324919e39dd3eda26115dec7366c52aea8768cf790dd",
+      "projectionDigest": "sha256:b66e45ee0d09c4afad92d974e1315c8cfa85d9ca0de1a48ac08219afabd1a9c3"
+    },
+    "harness": {
+      "name": "harbor",
+      "version": "0.21.0",
+      "adapter": "harbor-codex-proxy"
+    },
+    "candidate": {
+      "model": "gpt-5.6-terra",
+      "conditionRole": "task_only",
+      "condition": "task_only"
+    },
+    "task": {
+      "caseId": "ccbench-ra-s1-dialogue-01",
+      "condition": "task_only",
+      "trialId": "trial-0e0c88968b582eaa23ded7d4",
+      "taskDigest": "sha256:a0dab4674f08645cd16c41700980a4d8329bdecbb36706f4c66cc1fec0a91cb0",
+      "directory": "task-a0dab4674f08645cd16c4170",
+      "taskBytesDigest": "sha256:1bce346260d6f21dcfb677029f66f2b61666f4e4133bc28bf9bf5243e5d4c3c5"
+    },
+    "isolation": {
+      "host": "docker",
+      "containerDeleted": true,
+      "providerCredential": "proxy_capability_only",
+      "providerKeyInCandidateArtifacts": false,
+      "proxyHost": "host.docker.internal",
+      "proxyRequestLimit": 16,
+      "proxyAcceptedRequests": 5,
+      "proxyRejectedRequests": 0
+    },
+    "runtimeOverlay": {
+      "configurationDigest": "sha256:8268dcf7efd6445b95b6aee5334c13d484c60db44dc14c1c96846c87c9cf4c48",
+      "proxyConfigDigest": "sha256:8b7b5b741519204ea296d39fea400b48ecfb9ba1a4f6f5b8c85caada96ca6ceb",
+      "agentNetwork": "allowlist",
+      "allowedHosts": ["host.docker.internal"]
+    },
+    "execution": {
+      "resultState": "executed",
+      "nativeReward": 1,
+      "nativeTrialId": "a5249c1e-fec9-4579-82c7-d0e8094cbee9",
+      "nativeTrialName": "candidate-task__urwb2s5",
+      "nativeTaskName": "openboa/task-a0dab4674f08645cd16c4170",
+      "nativeAgentName": "codex",
+      "nativeAgentVersion": "0.147.0",
+      "nativeEnvironmentType": "docker",
+      "nativeEnvironmentDelete": true,
+      "verifierEnvironmentMode": "separate"
+    },
+    "artifacts": [
+      {
+        "path": "codex.txt",
+        "bytes": 4070,
+        "digest": "sha256:425fc632f9b79f748aaf037f507d426d601c132d1d6926dfb4b2b4f084aa9110"
+      },
+      {
+        "path": "rollout-2026-08-16T07-08-07-01a00966-30f5-7092-b46d-da11bb116c80.jsonl",
+        "bytes": 50609,
+        "digest": "sha256:0c8959c06791ea3c0680fa3f5fdef8342bf59d2ad16da37230544356c90e912a"
+      },
+      {
+        "path": "trajectory.json",
+        "bytes": 21007,
+        "digest": "sha256:645a9677fc6b045c42b161358ae793503b3f7d3967c0eb58a795d9a131c79ed8"
+      },
+      {
+        "path": "answer.txt",
+        "bytes": 1326,
+        "digest": "sha256:861e7c2db79498d61ce7862ab9c64a77e6974ee2d9a6e38f052c05090c4ae974"
+      },
+      {
+        "path": "manifest.json",
+        "bytes": 320,
+        "digest": "sha256:b6e48cc16b13b02d553cf1c376d28208bae12aefa34bc4e79fdd8d525b243d17"
+      }
+    ],
+    "measurement": "unmeasured"
+  },
+  {
+    "schema": "coffee-chat-eval/codex-candidate",
+    "benchmark": {
+      "repository": "https://github.com/openboa-ai/coffee-chat-bench",
+      "commit": "1bc71605964770bbd1bd96e049b8412b6ee068fc",
+      "release": "2026.8.12",
+      "bankDigest": "sha256:a7ce9ce12679f81bd212324919e39dd3eda26115dec7366c52aea8768cf790dd",
+      "projectionDigest": "sha256:b66e45ee0d09c4afad92d974e1315c8cfa85d9ca0de1a48ac08219afabd1a9c3"
+    },
+    "harness": {
+      "name": "harbor",
+      "version": "0.21.0",
+      "adapter": "harbor-codex-proxy"
+    },
+    "candidate": {
+      "model": "gpt-5.6-terra",
+      "conditionRole": "direct_context",
+      "condition": "diagnostic_target_a"
+    },
+    "task": {
+      "caseId": "ccbench-ra-s1-dialogue-01",
+      "condition": "diagnostic_target_a",
+      "trialId": "trial-5671ef75c17c5e55cc059385",
+      "taskDigest": "sha256:ab70d4f6912bc3dc06925ee4ea09adbdec5e9e58847235842f9ff7941b408cbe",
+      "directory": "task-ab70d4f6912bc3dc06925ee4",
+      "taskBytesDigest": "sha256:6632ad2a1ebf68187dd760ce9f88f0e65b43d68346f66e2c537a0072be104eda"
+    },
+    "isolation": {
+      "host": "docker",
+      "containerDeleted": true,
+      "providerCredential": "proxy_capability_only",
+      "providerKeyInCandidateArtifacts": false,
+      "proxyHost": "host.docker.internal",
+      "proxyRequestLimit": 16,
+      "proxyAcceptedRequests": 5,
+      "proxyRejectedRequests": 0
+    },
+    "runtimeOverlay": {
+      "configurationDigest": "sha256:7646120210a9852df1403dc684377c6f8c9725b9b926e286df8806b3ff82f01c",
+      "proxyConfigDigest": "sha256:477150ae91a272b85eb205b7e66652368dd552a426429c636b76fdee6bc3befe",
+      "agentNetwork": "allowlist",
+      "allowedHosts": ["host.docker.internal"]
+    },
+    "execution": {
+      "resultState": "executed",
+      "nativeReward": 1,
+      "nativeTrialId": "4f1ebe25-3bda-4c01-bc43-0b160911ef7b",
+      "nativeTrialName": "candidate-task__VnpFsXy",
+      "nativeTaskName": "openboa/task-ab70d4f6912bc3dc06925ee4",
+      "nativeAgentName": "codex",
+      "nativeAgentVersion": "0.147.0",
+      "nativeEnvironmentType": "docker",
+      "nativeEnvironmentDelete": true,
+      "verifierEnvironmentMode": "separate"
+    },
+    "artifacts": [
+      {
+        "path": "codex.txt",
+        "bytes": 4305,
+        "digest": "sha256:717b868e2994b7130b23c07860d5b53e11aa14bf83f14a87c40ea64e2c985f75"
+      },
+      {
+        "path": "rollout-2026-08-16T07-08-07-01a00966-3206-7bb0-b038-1161719f21b4.jsonl",
+        "bytes": 53181,
+        "digest": "sha256:186aeb8c06995975bd0c32cdd67156581e66c2f8270601dfcfb078336b41cef4"
+      },
+      {
+        "path": "trajectory.json",
+        "bytes": 21910,
+        "digest": "sha256:80c772fe2e3c03a481bae096d4a7e71fd40f6a54900f2022ce01d289ef09df18"
+      },
+      {
+        "path": "answer.txt",
+        "bytes": 1453,
+        "digest": "sha256:318148545851020f30980a8ef6938d830889fa7ccf1ff71ad0477ec236f76f0f"
+      },
+      {
+        "path": "manifest.json",
+        "bytes": 320,
+        "digest": "sha256:b6e48cc16b13b02d553cf1c376d28208bae12aefa34bc4e79fdd8d525b243d17"
+      }
+    ],
+    "measurement": "unmeasured"
+  },
+  {
+    "schema": "coffee-chat-eval/codex-candidate",
+    "benchmark": {
+      "repository": "https://github.com/openboa-ai/coffee-chat-bench",
+      "commit": "1bc71605964770bbd1bd96e049b8412b6ee068fc",
+      "release": "2026.8.12",
+      "bankDigest": "sha256:a7ce9ce12679f81bd212324919e39dd3eda26115dec7366c52aea8768cf790dd",
+      "projectionDigest": "sha256:b66e45ee0d09c4afad92d974e1315c8cfa85d9ca0de1a48ac08219afabd1a9c3"
+    },
+    "harness": {
+      "name": "harbor",
+      "version": "0.21.0",
+      "adapter": "harbor-codex-proxy"
+    },
+    "candidate": {
+      "model": "gpt-5.6-terra",
+      "conditionRole": "task_only",
+      "condition": "task_only"
+    },
+    "task": {
+      "caseId": "ccbench-ra-s2-artifact-01",
+      "condition": "task_only",
+      "trialId": "trial-5ca1d84af7e046225533dbaa",
+      "taskDigest": "sha256:479bd1c09bcc442f4025434f7959eebe784f020e261949c960ddd3770768f3e1",
+      "directory": "task-479bd1c09bcc442f4025434f",
+      "taskBytesDigest": "sha256:75d960eae36fa799f4950278cf79bddf9d5a742de9aff8dc7e9b9c889e58fc7d"
+    },
+    "isolation": {
+      "host": "docker",
+      "containerDeleted": true,
+      "providerCredential": "proxy_capability_only",
+      "providerKeyInCandidateArtifacts": false,
+      "proxyHost": "host.docker.internal",
+      "proxyRequestLimit": 16,
+      "proxyAcceptedRequests": 4,
+      "proxyRejectedRequests": 0
+    },
+    "runtimeOverlay": {
+      "configurationDigest": "sha256:cc63889c9935889dc850f4d5d9d803476c70c21a14e9d800cbb7426f58d652b6",
+      "proxyConfigDigest": "sha256:64d1c2e026c0116a0f754d1c8976fc6ad4a5959b14e9f40e67dce1366b6dae9b",
+      "agentNetwork": "allowlist",
+      "allowedHosts": ["host.docker.internal"]
+    },
+    "execution": {
+      "resultState": "executed",
+      "nativeReward": 1,
+      "nativeTrialId": "35217c73-a79c-43c9-8e8b-6e3e798ed764",
+      "nativeTrialName": "candidate-task__Bz4PwkU",
+      "nativeTaskName": "openboa/task-479bd1c09bcc442f4025434f",
+      "nativeAgentName": "codex",
+      "nativeAgentVersion": "0.147.0",
+      "nativeEnvironmentType": "docker",
+      "nativeEnvironmentDelete": true,
+      "verifierEnvironmentMode": "separate"
+    },
+    "artifacts": [
+      {
+        "path": "codex.txt",
+        "bytes": 2494,
+        "digest": "sha256:108e2a6e18da822083a2f823b60c1b78e978c8ee2d90b9a0439ba71dee4c20f6"
+      },
+      {
+        "path": "rollout-2026-08-16T07-18-25-01a0096f-9e96-7ed0-87cd-a855c034e090.jsonl",
+        "bytes": 48562,
+        "digest": "sha256:9ce5b8daf9aecf3cb5a72ea731b2492032a2f95f21197d790632e2c341060761"
+      },
+      {
+        "path": "trajectory.json",
+        "bytes": 20362,
+        "digest": "sha256:b1acc589a880968e251029af08b4a114ce47b4b9328974f3e742f2dd9afac21a"
+      },
+      {
+        "path": "answer.txt",
+        "bytes": 2411,
+        "digest": "sha256:c10ed4020c80acef8440e4c589a4556ee3e82e0d0ff5cf749030c488a087fc7e"
+      },
+      {
+        "path": "manifest.json",
+        "bytes": 320,
+        "digest": "sha256:b6e48cc16b13b02d553cf1c376d28208bae12aefa34bc4e79fdd8d525b243d17"
+      }
+    ],
+    "measurement": "unmeasured"
+  },
+  {
+    "schema": "coffee-chat-eval/codex-candidate",
+    "benchmark": {
+      "repository": "https://github.com/openboa-ai/coffee-chat-bench",
+      "commit": "1bc71605964770bbd1bd96e049b8412b6ee068fc",
+      "release": "2026.8.12",
+      "bankDigest": "sha256:a7ce9ce12679f81bd212324919e39dd3eda26115dec7366c52aea8768cf790dd",
+      "projectionDigest": "sha256:b66e45ee0d09c4afad92d974e1315c8cfa85d9ca0de1a48ac08219afabd1a9c3"
+    },
+    "harness": {
+      "name": "harbor",
+      "version": "0.21.0",
+      "adapter": "harbor-codex-proxy"
+    },
+    "candidate": {
+      "model": "gpt-5.6-terra",
+      "conditionRole": "direct_context",
+      "condition": "diagnostic_target_a"
+    },
+    "task": {
+      "caseId": "ccbench-ra-s2-artifact-01",
+      "condition": "diagnostic_target_a",
+      "trialId": "trial-812203a3cde05aef2ed73a45",
+      "taskDigest": "sha256:9672fe946324e973d7ef607e2438422f8a09a806dfce8c7ab54e5b0f8e1335ae",
+      "directory": "task-9672fe946324e973d7ef607e",
+      "taskBytesDigest": "sha256:14de79ba34ef9e7392e6f6088e940186f249cbecfcd9838c27f4b629906d5d37"
+    },
+    "isolation": {
+      "host": "docker",
+      "containerDeleted": true,
+      "providerCredential": "proxy_capability_only",
+      "providerKeyInCandidateArtifacts": false,
+      "proxyHost": "host.docker.internal",
+      "proxyRequestLimit": 16,
+      "proxyAcceptedRequests": 4,
+      "proxyRejectedRequests": 0
+    },
+    "runtimeOverlay": {
+      "configurationDigest": "sha256:55cfba93fd1852026bad4202d0fc456e9265f313f2e333f12a4a3a060811f648",
+      "proxyConfigDigest": "sha256:77009e37d14adfd86cfb306c04be9b1aeba61b2703355a9f4450b2a5df678761",
+      "agentNetwork": "allowlist",
+      "allowedHosts": ["host.docker.internal"]
+    },
+    "execution": {
+      "resultState": "executed",
+      "nativeReward": 1,
+      "nativeTrialId": "839a9061-422d-4c16-8004-e2095b6c5824",
+      "nativeTrialName": "candidate-task__amG24rf",
+      "nativeTaskName": "openboa/task-9672fe946324e973d7ef607e",
+      "nativeAgentName": "codex",
+      "nativeAgentVersion": "0.147.0",
+      "nativeEnvironmentType": "docker",
+      "nativeEnvironmentDelete": true,
+      "verifierEnvironmentMode": "separate"
+    },
+    "artifacts": [
+      {
+        "path": "codex.txt",
+        "bytes": 2441,
+        "digest": "sha256:2a4ddd192fc479ee27c978abc8827e1b1a2f01cdc29c8e7af5849ca017b81718"
+      },
+      {
+        "path": "rollout-2026-08-16T07-18-26-01a0096f-a544-7a51-b258-43e6a1212fa4.jsonl",
+        "bytes": 50441,
+        "digest": "sha256:dc8a283e4d8191d544e09d3aff09ec2e828a99af7c09fd72fe62415b53b3043f"
+      },
+      {
+        "path": "trajectory.json",
+        "bytes": 20437,
+        "digest": "sha256:5821a28a5757aa6b586992314198d69e0076a36062feb7a29b2fe7afdd7c517b"
+      },
+      {
+        "path": "answer.txt",
+        "bytes": 2266,
+        "digest": "sha256:50f81d85fd90e9f89a2f012198fdae941177e480ec1d254fa20d07a94cb6bf83"
+      },
+      {
+        "path": "manifest.json",
+        "bytes": 320,
+        "digest": "sha256:b6e48cc16b13b02d553cf1c376d28208bae12aefa34bc4e79fdd8d525b243d17"
+      }
+    ],
+    "measurement": "unmeasured"
+  },
+  {
+    "schema": "coffee-chat-eval/codex-candidate",
+    "benchmark": {
+      "repository": "https://github.com/openboa-ai/coffee-chat-bench",
+      "commit": "1bc71605964770bbd1bd96e049b8412b6ee068fc",
+      "release": "2026.8.12",
+      "bankDigest": "sha256:a7ce9ce12679f81bd212324919e39dd3eda26115dec7366c52aea8768cf790dd",
+      "projectionDigest": "sha256:b66e45ee0d09c4afad92d974e1315c8cfa85d9ca0de1a48ac08219afabd1a9c3"
+    },
+    "harness": {
+      "name": "harbor",
+      "version": "0.21.0",
+      "adapter": "harbor-codex-proxy"
+    },
+    "candidate": {
+      "model": "gpt-5.6-terra",
+      "conditionRole": "task_only",
+      "condition": "task_only"
+    },
+    "task": {
+      "caseId": "ccbench-ra-s2-dialogue-01",
+      "condition": "task_only",
+      "trialId": "trial-0cd78170456748bf57fb3125",
+      "taskDigest": "sha256:33b37e83b99fb3722da10cdcab3cd89ce9bef95e5f6150e064548ddae445d7e7",
+      "directory": "task-33b37e83b99fb3722da10cdc",
+      "taskBytesDigest": "sha256:ac956a94a03e9a9492f1be0277fda8aacdeb358bec8154639a4d45768d026a2e"
+    },
+    "isolation": {
+      "host": "docker",
+      "containerDeleted": true,
+      "providerCredential": "proxy_capability_only",
+      "providerKeyInCandidateArtifacts": false,
+      "proxyHost": "host.docker.internal",
+      "proxyRequestLimit": 16,
+      "proxyAcceptedRequests": 4,
+      "proxyRejectedRequests": 0
+    },
+    "runtimeOverlay": {
+      "configurationDigest": "sha256:9a0b2f9fb47dec04a27d94f1a330f5ebd9a2af8f3964b2722ecb13c5d5761c03",
+      "proxyConfigDigest": "sha256:13730e1b816202f6ef35be01e07817bb299564e8ae289c501596f644951f7407",
+      "agentNetwork": "allowlist",
+      "allowedHosts": ["host.docker.internal"]
+    },
+    "execution": {
+      "resultState": "executed",
+      "nativeReward": 1,
+      "nativeTrialId": "7cfdde60-a2fd-460a-9f97-4ca823feac28",
+      "nativeTrialName": "candidate-task__EaRBFpG",
+      "nativeTaskName": "openboa/task-33b37e83b99fb3722da10cdc",
+      "nativeAgentName": "codex",
+      "nativeAgentVersion": "0.147.0",
+      "nativeEnvironmentType": "docker",
+      "nativeEnvironmentDelete": true,
+      "verifierEnvironmentMode": "separate"
+    },
+    "artifacts": [
+      {
+        "path": "codex.txt",
+        "bytes": 3042,
+        "digest": "sha256:2dcd30859eee9f3bc77f4d8e6de74cbb3007428314bae081e7bec66cd623d0ae"
+      },
+      {
+        "path": "rollout-2026-08-16T07-14-58-01a0096c-7849-7f02-bc15-cb90dd271d81.jsonl",
+        "bytes": 49978,
+        "digest": "sha256:e1326e14b55093b8218c106cea673a21202cffaafc6738d255a36a7e1c6dbc9a"
+      },
+      {
+        "path": "trajectory.json",
+        "bytes": 18628,
+        "digest": "sha256:3ac60539173cd20a527c5ca9bae9697fdb6085926b03f167d73554d6cb658e8c"
+      },
+      {
+        "path": "answer.txt",
+        "bytes": 1316,
+        "digest": "sha256:8764dd31850763ab60135abef503184ed2aea725129ef05992031623715b5162"
+      },
+      {
+        "path": "manifest.json",
+        "bytes": 320,
+        "digest": "sha256:b6e48cc16b13b02d553cf1c376d28208bae12aefa34bc4e79fdd8d525b243d17"
+      }
+    ],
+    "measurement": "unmeasured"
+  },
+  {
+    "schema": "coffee-chat-eval/codex-candidate",
+    "benchmark": {
+      "repository": "https://github.com/openboa-ai/coffee-chat-bench",
+      "commit": "1bc71605964770bbd1bd96e049b8412b6ee068fc",
+      "release": "2026.8.12",
+      "bankDigest": "sha256:a7ce9ce12679f81bd212324919e39dd3eda26115dec7366c52aea8768cf790dd",
+      "projectionDigest": "sha256:b66e45ee0d09c4afad92d974e1315c8cfa85d9ca0de1a48ac08219afabd1a9c3"
+    },
+    "harness": {
+      "name": "harbor",
+      "version": "0.21.0",
+      "adapter": "harbor-codex-proxy"
+    },
+    "candidate": {
+      "model": "gpt-5.6-terra",
+      "conditionRole": "direct_context",
+      "condition": "diagnostic_target_a"
+    },
+    "task": {
+      "caseId": "ccbench-ra-s2-dialogue-01",
+      "condition": "diagnostic_target_a",
+      "trialId": "trial-857e234e854d40242d2e88ea",
+      "taskDigest": "sha256:a657c35bd0e2bddefaecd6c5f3b51b61d32b202b5d71b91c9a89c80c78c0b565",
+      "directory": "task-a657c35bd0e2bddefaecd6c5",
+      "taskBytesDigest": "sha256:6d0a2d279725846674500928544545117f193f82baf06adb4bbd55624add40d8"
+    },
+    "isolation": {
+      "host": "docker",
+      "containerDeleted": true,
+      "providerCredential": "proxy_capability_only",
+      "providerKeyInCandidateArtifacts": false,
+      "proxyHost": "host.docker.internal",
+      "proxyRequestLimit": 16,
+      "proxyAcceptedRequests": 5,
+      "proxyRejectedRequests": 0
+    },
+    "runtimeOverlay": {
+      "configurationDigest": "sha256:195506d19ad3e59c8df9c59dfdcffd42cbeeb24703ef8889d8b0042ef3802510",
+      "proxyConfigDigest": "sha256:0ee768f6f5438f9127752bbc044ef6149716db7ad72b20a86cbeab9a56be582e",
+      "agentNetwork": "allowlist",
+      "allowedHosts": ["host.docker.internal"]
+    },
+    "execution": {
+      "resultState": "executed",
+      "nativeReward": 1,
+      "nativeTrialId": "0343141a-f102-4800-9d9e-0f3392356aeb",
+      "nativeTrialName": "candidate-task__Kw9zSbr",
+      "nativeTaskName": "openboa/task-a657c35bd0e2bddefaecd6c5",
+      "nativeAgentName": "codex",
+      "nativeAgentVersion": "0.147.0",
+      "nativeEnvironmentType": "docker",
+      "nativeEnvironmentDelete": true,
+      "verifierEnvironmentMode": "separate"
+    },
+    "artifacts": [
+      {
+        "path": "codex.txt",
+        "bytes": 4189,
+        "digest": "sha256:d791583853591faa40c5a2812300811cf8ce24652c13ebda246a6bceaaf906a3"
+      },
+      {
+        "path": "rollout-2026-08-16T07-14-56-01a0096c-7114-7df0-b639-c0bf11008775.jsonl",
+        "bytes": 52565,
+        "digest": "sha256:6b613c021ab2cc692282902da82f13d9985de22bba4812ed82a08f3fe80ed8ae"
+      },
+      {
+        "path": "trajectory.json",
+        "bytes": 21747,
+        "digest": "sha256:d1c2a51ceec6320a8e3a3e778df2374b929d712847084ed0648db11763a84c15"
+      },
+      {
+        "path": "answer.txt",
+        "bytes": 1431,
+        "digest": "sha256:1e079c82e78f9b4e82c55650054b6c42bce7d37c5deb0e8541a0c1aaec96ddb4"
+      },
+      {
+        "path": "manifest.json",
+        "bytes": 320,
+        "digest": "sha256:b6e48cc16b13b02d553cf1c376d28208bae12aefa34bc4e79fdd8d525b243d17"
+      }
+    ],
+    "measurement": "unmeasured"
+  },
+  {
+    "schema": "coffee-chat-eval/codex-candidate",
+    "benchmark": {
+      "repository": "https://github.com/openboa-ai/coffee-chat-bench",
+      "commit": "1bc71605964770bbd1bd96e049b8412b6ee068fc",
+      "release": "2026.8.12",
+      "bankDigest": "sha256:a7ce9ce12679f81bd212324919e39dd3eda26115dec7366c52aea8768cf790dd",
+      "projectionDigest": "sha256:b66e45ee0d09c4afad92d974e1315c8cfa85d9ca0de1a48ac08219afabd1a9c3"
+    },
+    "harness": {
+      "name": "harbor",
+      "version": "0.21.0",
+      "adapter": "harbor-codex-proxy"
+    },
+    "candidate": {
+      "model": "gpt-5.6-terra",
+      "conditionRole": "task_only",
+      "condition": "task_only"
+    },
+    "task": {
+      "caseId": "ccbench-ra-s3-artifact-01",
+      "condition": "task_only",
+      "trialId": "trial-ce31d47d2dcc5a4ec05f7ce1",
+      "taskDigest": "sha256:cc8350f6e024650bde4e7f58470793897d6a452aafe70a7d7b9c72de048813b8",
+      "directory": "task-cc8350f6e024650bde4e7f58",
+      "taskBytesDigest": "sha256:906096f17d11318607d452d79fda7705518f0e1733ffc8b961029237ba761af8"
+    },
+    "isolation": {
+      "host": "docker",
+      "containerDeleted": true,
+      "providerCredential": "proxy_capability_only",
+      "providerKeyInCandidateArtifacts": false,
+      "proxyHost": "host.docker.internal",
+      "proxyRequestLimit": 16,
+      "proxyAcceptedRequests": 4,
+      "proxyRejectedRequests": 0
+    },
+    "runtimeOverlay": {
+      "configurationDigest": "sha256:28698431470132ca4b141584e74d953afa00e4d9c8ae6c433f8f4fc07eff0ee3",
+      "proxyConfigDigest": "sha256:3f65f0d9b780ef81b0d341b00abc477e69a4a788ad22de9ac0d3492d27fc7f00",
+      "agentNetwork": "allowlist",
+      "allowedHosts": ["host.docker.internal"]
+    },
+    "execution": {
+      "resultState": "executed",
+      "nativeReward": 1,
+      "nativeTrialId": "b4e70a09-485a-40ec-a2ce-d97929894005",
+      "nativeTrialName": "candidate-task__vC3uS4g",
+      "nativeTaskName": "openboa/task-cc8350f6e024650bde4e7f58",
+      "nativeAgentName": "codex",
+      "nativeAgentVersion": "0.147.0",
+      "nativeEnvironmentType": "docker",
+      "nativeEnvironmentDelete": true,
+      "verifierEnvironmentMode": "separate"
+    },
+    "artifacts": [
+      {
+        "path": "codex.txt",
+        "bytes": 7189,
+        "digest": "sha256:708130cdb540f06248d79bb5d9aaa3a0aada0043fc41983e3c8ed5d7eff1aec6"
+      },
+      {
+        "path": "rollout-2026-08-16T07-25-17-01a00975-ea92-7901-baa3-d0fa442e8105.jsonl",
+        "bytes": 57923,
+        "digest": "sha256:a139809910b896c3afd1ed9e30cff5b7b5737e251642dcd84de7d674fe3142b8"
+      },
+      {
+        "path": "trajectory.json",
+        "bytes": 29848,
+        "digest": "sha256:775fffab835d0befff2052fd3035a5a332f8fa1faaf0900622d054532c048599"
+      },
+      {
+        "path": "answer.txt",
+        "bytes": 4689,
+        "digest": "sha256:504ab3a71b79916afca4af174c33ffce0c57c159b6c124e4cdc616d6fba171d4"
+      },
+      {
+        "path": "manifest.json",
+        "bytes": 320,
+        "digest": "sha256:b6e48cc16b13b02d553cf1c376d28208bae12aefa34bc4e79fdd8d525b243d17"
+      }
+    ],
+    "measurement": "unmeasured"
+  },
+  {
+    "schema": "coffee-chat-eval/codex-candidate",
+    "benchmark": {
+      "repository": "https://github.com/openboa-ai/coffee-chat-bench",
+      "commit": "1bc71605964770bbd1bd96e049b8412b6ee068fc",
+      "release": "2026.8.12",
+      "bankDigest": "sha256:a7ce9ce12679f81bd212324919e39dd3eda26115dec7366c52aea8768cf790dd",
+      "projectionDigest": "sha256:b66e45ee0d09c4afad92d974e1315c8cfa85d9ca0de1a48ac08219afabd1a9c3"
+    },
+    "harness": {
+      "name": "harbor",
+      "version": "0.21.0",
+      "adapter": "harbor-codex-proxy"
+    },
+    "candidate": {
+      "model": "gpt-5.6-terra",
+      "conditionRole": "direct_context",
+      "condition": "diagnostic_target_a"
+    },
+    "task": {
+      "caseId": "ccbench-ra-s3-artifact-01",
+      "condition": "diagnostic_target_a",
+      "trialId": "trial-62ceca95163357904ff2c12e",
+      "taskDigest": "sha256:6d16ba27cf63ac2f74c7e2c784cce011eed775bb0464e32ba87eefa836817564",
+      "directory": "task-6d16ba27cf63ac2f74c7e2c7",
+      "taskBytesDigest": "sha256:782126f1c669a1a162cd0761461a9b7dbc33da6c7c39aa87946bbf46a1ea8dcd"
+    },
+    "isolation": {
+      "host": "docker",
+      "containerDeleted": true,
+      "providerCredential": "proxy_capability_only",
+      "providerKeyInCandidateArtifacts": false,
+      "proxyHost": "host.docker.internal",
+      "proxyRequestLimit": 16,
+      "proxyAcceptedRequests": 5,
+      "proxyRejectedRequests": 0
+    },
+    "runtimeOverlay": {
+      "configurationDigest": "sha256:cad575638399d42d4337531ec462eb28ad0f3e2307fdcc6c16b6ddd0107bed74",
+      "proxyConfigDigest": "sha256:6b0c3f2cb57fdc8622823ef69e963b4bbdbe933112e71de0c5de1d6537049c81",
+      "agentNetwork": "allowlist",
+      "allowedHosts": ["host.docker.internal"]
+    },
+    "execution": {
+      "resultState": "executed",
+      "nativeReward": 1,
+      "nativeTrialId": "556908ab-7963-4ccb-afd9-f626e02ceffc",
+      "nativeTrialName": "candidate-task__BRvheJm",
+      "nativeTaskName": "openboa/task-6d16ba27cf63ac2f74c7e2c7",
+      "nativeAgentName": "codex",
+      "nativeAgentVersion": "0.147.0",
+      "nativeEnvironmentType": "docker",
+      "nativeEnvironmentDelete": true,
+      "verifierEnvironmentMode": "separate"
+    },
+    "artifacts": [
+      {
+        "path": "codex.txt",
+        "bytes": 3058,
+        "digest": "sha256:c1a34ae7a501bf1a4393d91b9040fede54fb6793842afc63775cae905bb3d906"
+      },
+      {
+        "path": "rollout-2026-08-16T07-25-16-01a00975-e6ea-70e1-9253-4b0889919bd7.jsonl",
+        "bytes": 59183,
+        "digest": "sha256:409e257a5b3f79e2c67c7b511e60b46bd860e1b35d5669e005cbe7f4ad53c79e"
+      },
+      {
+        "path": "trajectory.json",
+        "bytes": 25970,
+        "digest": "sha256:fcb32c9146fecc668d60bddc8115dfefcfbd551aa39cd0076325b38fa39643a2"
+      },
+      {
+        "path": "answer.txt",
+        "bytes": 4035,
+        "digest": "sha256:6454b70b4209552839ff46ad7b34938e877b7dddab89a481b478ab6b25458f7e"
+      },
+      {
+        "path": "manifest.json",
+        "bytes": 320,
+        "digest": "sha256:b6e48cc16b13b02d553cf1c376d28208bae12aefa34bc4e79fdd8d525b243d17"
+      }
+    ],
+    "measurement": "unmeasured"
+  },
+  {
+    "schema": "coffee-chat-eval/codex-candidate",
+    "benchmark": {
+      "repository": "https://github.com/openboa-ai/coffee-chat-bench",
+      "commit": "1bc71605964770bbd1bd96e049b8412b6ee068fc",
+      "release": "2026.8.12",
+      "bankDigest": "sha256:a7ce9ce12679f81bd212324919e39dd3eda26115dec7366c52aea8768cf790dd",
+      "projectionDigest": "sha256:b66e45ee0d09c4afad92d974e1315c8cfa85d9ca0de1a48ac08219afabd1a9c3"
+    },
+    "harness": {
+      "name": "harbor",
+      "version": "0.21.0",
+      "adapter": "harbor-codex-proxy"
+    },
+    "candidate": {
+      "model": "gpt-5.6-terra",
+      "conditionRole": "task_only",
+      "condition": "task_only"
+    },
+    "task": {
+      "caseId": "ccbench-ra-s3-dialogue-01",
+      "condition": "task_only",
+      "trialId": "trial-a4255dbdd7044a21299d8fc7",
+      "taskDigest": "sha256:4bdaccb186c77a9aa931d4d0c2c2ec431e9c5ac9b07f51720193424fd0e09f5b",
+      "directory": "task-4bdaccb186c77a9aa931d4d0",
+      "taskBytesDigest": "sha256:1dccda2d5cdc923ce3a9a00193de404e7ce797fc57203fa31dd2490dc9dc06bd"
+    },
+    "isolation": {
+      "host": "docker",
+      "containerDeleted": true,
+      "providerCredential": "proxy_capability_only",
+      "providerKeyInCandidateArtifacts": false,
+      "proxyHost": "host.docker.internal",
+      "proxyRequestLimit": 16,
+      "proxyAcceptedRequests": 5,
+      "proxyRejectedRequests": 0
+    },
+    "runtimeOverlay": {
+      "configurationDigest": "sha256:e966b1f1820f30c3a1f7dc5eb5db6b6934494a4132582229d198b874a0209426",
+      "proxyConfigDigest": "sha256:2d925e6366551f685a46900835c9db376552f93400f95fb1c16f9df5e151cdcb",
+      "agentNetwork": "allowlist",
+      "allowedHosts": ["host.docker.internal"]
+    },
+    "execution": {
+      "resultState": "executed",
+      "nativeReward": 1,
+      "nativeTrialId": "29f38e8e-5a7e-47d2-b923-e955de737ef0",
+      "nativeTrialName": "candidate-task__NEMuKcz",
+      "nativeTaskName": "openboa/task-4bdaccb186c77a9aa931d4d0",
+      "nativeAgentName": "codex",
+      "nativeAgentVersion": "0.147.0",
+      "nativeEnvironmentType": "docker",
+      "nativeEnvironmentDelete": true,
+      "verifierEnvironmentMode": "separate"
+    },
+    "artifacts": [
+      {
+        "path": "codex.txt",
+        "bytes": 3068,
+        "digest": "sha256:617f4ecc8704fa4f1465cc84cc75075591a255015a51b04f6ff8afb5631c264c"
+      },
+      {
+        "path": "rollout-2026-08-16T07-21-52-01a00972-c793-7092-9f09-3c5e296ba326.jsonl",
+        "bytes": 52804,
+        "digest": "sha256:4ccda2072cbe30ca16bcce429ccca886298552316b0bf5980dba1fa761a08968"
+      },
+      {
+        "path": "trajectory.json",
+        "bytes": 21436,
+        "digest": "sha256:08b0f3ddff789f0d2c55ad6d35619a15d6b563c0f2662beb6b9ca0107cd761ed"
+      },
+      {
+        "path": "answer.txt",
+        "bytes": 2018,
+        "digest": "sha256:9fcdcc5d2f1c71da9b2268b3bb7e8971cc59b82a67b60188d804c19c6142d88f"
+      },
+      {
+        "path": "manifest.json",
+        "bytes": 320,
+        "digest": "sha256:b6e48cc16b13b02d553cf1c376d28208bae12aefa34bc4e79fdd8d525b243d17"
+      }
+    ],
+    "measurement": "unmeasured"
+  },
+  {
+    "schema": "coffee-chat-eval/codex-candidate",
+    "benchmark": {
+      "repository": "https://github.com/openboa-ai/coffee-chat-bench",
+      "commit": "1bc71605964770bbd1bd96e049b8412b6ee068fc",
+      "release": "2026.8.12",
+      "bankDigest": "sha256:a7ce9ce12679f81bd212324919e39dd3eda26115dec7366c52aea8768cf790dd",
+      "projectionDigest": "sha256:b66e45ee0d09c4afad92d974e1315c8cfa85d9ca0de1a48ac08219afabd1a9c3"
+    },
+    "harness": {
+      "name": "harbor",
+      "version": "0.21.0",
+      "adapter": "harbor-codex-proxy"
+    },
+    "candidate": {
+      "model": "gpt-5.6-terra",
+      "conditionRole": "direct_context",
+      "condition": "diagnostic_target_a"
+    },
+    "task": {
+      "caseId": "ccbench-ra-s3-dialogue-01",
+      "condition": "diagnostic_target_a",
+      "trialId": "trial-eddb0d2cbbfc6011da630c39",
+      "taskDigest": "sha256:35595524cd5ff06a1d11b1dc641475e11ba200400e883330f85bf6f0a04aa05a",
+      "directory": "task-35595524cd5ff06a1d11b1dc",
+      "taskBytesDigest": "sha256:11dc7ea87638afe6198ff7539e9b6b8b43760ab2f5ce37b0930aadff41b087e6"
+    },
+    "isolation": {
+      "host": "docker",
+      "containerDeleted": true,
+      "providerCredential": "proxy_capability_only",
+      "providerKeyInCandidateArtifacts": false,
+      "proxyHost": "host.docker.internal",
+      "proxyRequestLimit": 16,
+      "proxyAcceptedRequests": 4,
+      "proxyRejectedRequests": 0
+    },
+    "runtimeOverlay": {
+      "configurationDigest": "sha256:38ba1f8f587293386ee5d0152a8503f73c760b1808be7dab08dc81400e49e72a",
+      "proxyConfigDigest": "sha256:6a0556d0c57be021ac9863da39e7de03893b169e6b642614ab14c06dd5059ca5",
+      "agentNetwork": "allowlist",
+      "allowedHosts": ["host.docker.internal"]
+    },
+    "execution": {
+      "resultState": "executed",
+      "nativeReward": 1,
+      "nativeTrialId": "d44be5fd-0e07-4497-9f39-9b92128a23f8",
+      "nativeTrialName": "candidate-task__BSR5mu7",
+      "nativeTaskName": "openboa/task-35595524cd5ff06a1d11b1dc",
+      "nativeAgentName": "codex",
+      "nativeAgentVersion": "0.147.0",
+      "nativeEnvironmentType": "docker",
+      "nativeEnvironmentDelete": true,
+      "verifierEnvironmentMode": "separate"
+    },
+    "artifacts": [
+      {
+        "path": "codex.txt",
+        "bytes": 4365,
+        "digest": "sha256:7332a16a8e808bc5378aefb92bb0b24ad5d4569cc7cd4c0c2faa149d28f8c16d"
+      },
+      {
+        "path": "rollout-2026-08-16T07-21-50-01a00972-bf49-79a2-a546-eb9023678c70.jsonl",
+        "bytes": 50404,
+        "digest": "sha256:5b6efce654107d22f38b19cd6b9e1990363e916409d4bcfd138a1e2e13bcd5e3"
+      },
+      {
+        "path": "trajectory.json",
+        "bytes": 21904,
+        "digest": "sha256:efbbc517f3eb0e559526678f97eddb24cab5ca044ef0274f668a08afada30762"
+      },
+      {
+        "path": "answer.txt",
+        "bytes": 2049,
+        "digest": "sha256:3c90bed746c5f26721ce09221d39e0b3f19d5bf530d53571af38abca4e856509"
+      },
+      {
+        "path": "manifest.json",
+        "bytes": 320,
+        "digest": "sha256:b6e48cc16b13b02d553cf1c376d28208bae12aefa34bc4e79fdd8d525b243d17"
+      }
+    ],
+    "measurement": "unmeasured"
+  },
+  {
+    "schema": "coffee-chat-eval/codex-candidate",
+    "benchmark": {
+      "repository": "https://github.com/openboa-ai/coffee-chat-bench",
+      "commit": "1bc71605964770bbd1bd96e049b8412b6ee068fc",
+      "release": "2026.8.12",
+      "bankDigest": "sha256:a7ce9ce12679f81bd212324919e39dd3eda26115dec7366c52aea8768cf790dd",
+      "projectionDigest": "sha256:b66e45ee0d09c4afad92d974e1315c8cfa85d9ca0de1a48ac08219afabd1a9c3"
+    },
+    "harness": {
+      "name": "harbor",
+      "version": "0.21.0",
+      "adapter": "harbor-codex-proxy"
+    },
+    "candidate": {
+      "model": "gpt-5.6-terra",
+      "conditionRole": "task_only",
+      "condition": "task_only"
+    },
+    "task": {
+      "caseId": "ccbench-rb-s1-artifact-01",
+      "condition": "task_only",
+      "trialId": "trial-1d0801f726a9e24e4e6a3341",
+      "taskDigest": "sha256:2c09445c1bb54b440e33925777180239e329dd55bb96c2f58c002c1d9ea9f0a7",
+      "directory": "task-2c09445c1bb54b440e339257",
+      "taskBytesDigest": "sha256:42e6a5b5b6e6307fe5777a2e05c55d5d1c5ca97675598eb582b0b84c1e5f134e"
+    },
+    "isolation": {
+      "host": "docker",
+      "containerDeleted": true,
+      "providerCredential": "proxy_capability_only",
+      "providerKeyInCandidateArtifacts": false,
+      "proxyHost": "host.docker.internal",
+      "proxyRequestLimit": 16,
+      "proxyAcceptedRequests": 5,
+      "proxyRejectedRequests": 0
+    },
+    "runtimeOverlay": {
+      "configurationDigest": "sha256:6313790d90ed7a7a5d92c1b9b54efc325852f0b0a745e678311137b0c419fd20",
+      "proxyConfigDigest": "sha256:cc60b2441e65aabc12ea56cdcb1e2f78d8fb1a85a2472bdea2f21d050376cedb",
+      "agentNetwork": "allowlist",
+      "allowedHosts": ["host.docker.internal"]
+    },
+    "execution": {
+      "resultState": "executed",
+      "nativeReward": 1,
+      "nativeTrialId": "53144e0b-77dc-4ea2-a234-b64bf019eec3",
+      "nativeTrialName": "candidate-task__CRoAzBS",
+      "nativeTaskName": "openboa/task-2c09445c1bb54b440e339257",
+      "nativeAgentName": "codex",
+      "nativeAgentVersion": "0.147.0",
+      "nativeEnvironmentType": "docker",
+      "nativeEnvironmentDelete": true,
+      "verifierEnvironmentMode": "separate"
+    },
+    "artifacts": [
+      {
+        "path": "codex.txt",
+        "bytes": 3230,
+        "digest": "sha256:75574c4dafe8a3264f4b0dbbdd47c36064d20074db6b5e2d83ab1b647ec66d1a"
+      },
+      {
+        "path": "rollout-2026-08-16T07-32-25-01a0097c-7100-7341-bb8b-bb25318d61f7.jsonl",
+        "bytes": 58609,
+        "digest": "sha256:57a2205e984380493e21552dd2deb90654a9594190ef252a651a098d1fa4d565"
+      },
+      {
+        "path": "trajectory.json",
+        "bytes": 23834,
+        "digest": "sha256:de32fb68098b30782349a897d22ad39b544821dd367311cb0c1ccb6d4d75ab0f"
+      },
+      {
+        "path": "answer.txt",
+        "bytes": 2963,
+        "digest": "sha256:f8eb48faee12fc508cbd467ba4f1f25d8d31d5113188cb4d8bae1a7e2aaf262b"
+      },
+      {
+        "path": "manifest.json",
+        "bytes": 320,
+        "digest": "sha256:b6e48cc16b13b02d553cf1c376d28208bae12aefa34bc4e79fdd8d525b243d17"
+      }
+    ],
+    "measurement": "unmeasured"
+  },
+  {
+    "schema": "coffee-chat-eval/codex-candidate",
+    "benchmark": {
+      "repository": "https://github.com/openboa-ai/coffee-chat-bench",
+      "commit": "1bc71605964770bbd1bd96e049b8412b6ee068fc",
+      "release": "2026.8.12",
+      "bankDigest": "sha256:a7ce9ce12679f81bd212324919e39dd3eda26115dec7366c52aea8768cf790dd",
+      "projectionDigest": "sha256:b66e45ee0d09c4afad92d974e1315c8cfa85d9ca0de1a48ac08219afabd1a9c3"
+    },
+    "harness": {
+      "name": "harbor",
+      "version": "0.21.0",
+      "adapter": "harbor-codex-proxy"
+    },
+    "candidate": {
+      "model": "gpt-5.6-terra",
+      "conditionRole": "direct_context",
+      "condition": "diagnostic_target_a"
+    },
+    "task": {
+      "caseId": "ccbench-rb-s1-artifact-01",
+      "condition": "diagnostic_target_a",
+      "trialId": "trial-62e6eccfc598100e2ee6c2dc",
+      "taskDigest": "sha256:3df08e67803051ad7f59f982587a05d4ed7d26829afa3b2094080e7c5e1bae25",
+      "directory": "task-3df08e67803051ad7f59f982",
+      "taskBytesDigest": "sha256:4b957cf1b4a73e1910a7e87aea41f39f1dcb6852f5087a35ce8ec9069fc63282"
+    },
+    "isolation": {
+      "host": "docker",
+      "containerDeleted": true,
+      "providerCredential": "proxy_capability_only",
+      "providerKeyInCandidateArtifacts": false,
+      "proxyHost": "host.docker.internal",
+      "proxyRequestLimit": 16,
+      "proxyAcceptedRequests": 3,
+      "proxyRejectedRequests": 0
+    },
+    "runtimeOverlay": {
+      "configurationDigest": "sha256:1789273481d6d6b8fc368020192169607388b795097adc044a66e2c93ec3d0b7",
+      "proxyConfigDigest": "sha256:9375529ebe1f008fb7e479250221aaff777930642fd15fe5d7eaf86d5dee14e7",
+      "agentNetwork": "allowlist",
+      "allowedHosts": ["host.docker.internal"]
+    },
+    "execution": {
+      "resultState": "executed",
+      "nativeReward": 1,
+      "nativeTrialId": "42c061ac-c696-47fb-9c8b-9e9ed63dad93",
+      "nativeTrialName": "candidate-task__55kRUVq",
+      "nativeTaskName": "openboa/task-3df08e67803051ad7f59f982",
+      "nativeAgentName": "codex",
+      "nativeAgentVersion": "0.147.0",
+      "nativeEnvironmentType": "docker",
+      "nativeEnvironmentDelete": true,
+      "verifierEnvironmentMode": "separate"
+    },
+    "artifacts": [
+      {
+        "path": "codex.txt",
+        "bytes": 1893,
+        "digest": "sha256:ea9b7c98e9a79096a680a95f7fc9a5a07a37c9866a8ce98fc8ba8460007f30a1"
+      },
+      {
+        "path": "rollout-2026-08-16T07-32-23-01a0097c-6a5b-7731-9a8e-67d3e4c66347.jsonl",
+        "bytes": 49679,
+        "digest": "sha256:0ab9cd0c0fde7995321a32e4536696f42a81f3c9fa5f105396e232729522c2c6"
+      },
+      {
+        "path": "trajectory.json",
+        "bytes": 19266,
+        "digest": "sha256:e822577504a7498e37a4fb32d29e8be9c6655c9f42e39dff26f87eedabae225e"
+      },
+      {
+        "path": "answer.txt",
+        "bytes": 2466,
+        "digest": "sha256:cf62b9a4244ce0eb5f55bd17f27dd0e02f3372132639a2eca8a6c0f3a85d63b2"
+      },
+      {
+        "path": "manifest.json",
+        "bytes": 320,
+        "digest": "sha256:b6e48cc16b13b02d553cf1c376d28208bae12aefa34bc4e79fdd8d525b243d17"
+      }
+    ],
+    "measurement": "unmeasured"
+  },
+  {
+    "schema": "coffee-chat-eval/codex-candidate",
+    "benchmark": {
+      "repository": "https://github.com/openboa-ai/coffee-chat-bench",
+      "commit": "1bc71605964770bbd1bd96e049b8412b6ee068fc",
+      "release": "2026.8.12",
+      "bankDigest": "sha256:a7ce9ce12679f81bd212324919e39dd3eda26115dec7366c52aea8768cf790dd",
+      "projectionDigest": "sha256:b66e45ee0d09c4afad92d974e1315c8cfa85d9ca0de1a48ac08219afabd1a9c3"
+    },
+    "harness": {
+      "name": "harbor",
+      "version": "0.21.0",
+      "adapter": "harbor-codex-proxy"
+    },
+    "candidate": {
+      "model": "gpt-5.6-terra",
+      "conditionRole": "task_only",
+      "condition": "task_only"
+    },
+    "task": {
+      "caseId": "ccbench-rb-s1-dialogue-01",
+      "condition": "task_only",
+      "trialId": "trial-99d58f863c34bc39e9ab64ae",
+      "taskDigest": "sha256:248182fc92265c3053978669ba8e27d974439ba408f8d559b287250c522baa92",
+      "directory": "task-248182fc92265c3053978669",
+      "taskBytesDigest": "sha256:439d83c5068c021db5a51b678167a2fcaa01d25afc4576a60f0ead21663cfa00"
+    },
+    "isolation": {
+      "host": "docker",
+      "containerDeleted": true,
+      "providerCredential": "proxy_capability_only",
+      "providerKeyInCandidateArtifacts": false,
+      "proxyHost": "host.docker.internal",
+      "proxyRequestLimit": 16,
+      "proxyAcceptedRequests": 5,
+      "proxyRejectedRequests": 0
+    },
+    "runtimeOverlay": {
+      "configurationDigest": "sha256:c1ae0f21a2ca0b6ce8862f5765b14ef3c134dcc209f511bf0d33f5820167c173",
+      "proxyConfigDigest": "sha256:382ebba361fa1dacebc64c42404007e833cba6f84da4a17e731f180edd5385ce",
+      "agentNetwork": "allowlist",
+      "allowedHosts": ["host.docker.internal"]
+    },
+    "execution": {
+      "resultState": "executed",
+      "nativeReward": 1,
+      "nativeTrialId": "889a395e-bb41-4e6f-ac88-fb79921ee66c",
+      "nativeTrialName": "candidate-task__YoCKyfi",
+      "nativeTaskName": "openboa/task-248182fc92265c3053978669",
+      "nativeAgentName": "codex",
+      "nativeAgentVersion": "0.147.0",
+      "nativeEnvironmentType": "docker",
+      "nativeEnvironmentDelete": true,
+      "verifierEnvironmentMode": "separate"
+    },
+    "artifacts": [
+      {
+        "path": "codex.txt",
+        "bytes": 2852,
+        "digest": "sha256:85d95eadeeeb40964cb3aa236bdeada01cd99eb3dcc5ab797d9e37a5c8095c76"
+      },
+      {
+        "path": "rollout-2026-08-16T07-28-57-01a00979-4426-7b60-9132-07ad696725a5.jsonl",
+        "bytes": 53313,
+        "digest": "sha256:17a6fc4490e1249217c63f2d7871fe2726ea7c692ab9ed8e5c8c7b0aa1532544"
+      },
+      {
+        "path": "trajectory.json",
+        "bytes": 20418,
+        "digest": "sha256:25af8a23b6e7e68e1ac69e8c555b6b52865d89a442805193839cbb7e850f1c6b"
+      },
+      {
+        "path": "answer.txt",
+        "bytes": 1470,
+        "digest": "sha256:9396dc63f2ea54daecc2ae855d999f1021b128fd1a3f27e6ab51d5ea195a3f0c"
+      },
+      {
+        "path": "manifest.json",
+        "bytes": 320,
+        "digest": "sha256:b6e48cc16b13b02d553cf1c376d28208bae12aefa34bc4e79fdd8d525b243d17"
+      }
+    ],
+    "measurement": "unmeasured"
+  },
+  {
+    "schema": "coffee-chat-eval/codex-candidate",
+    "benchmark": {
+      "repository": "https://github.com/openboa-ai/coffee-chat-bench",
+      "commit": "1bc71605964770bbd1bd96e049b8412b6ee068fc",
+      "release": "2026.8.12",
+      "bankDigest": "sha256:a7ce9ce12679f81bd212324919e39dd3eda26115dec7366c52aea8768cf790dd",
+      "projectionDigest": "sha256:b66e45ee0d09c4afad92d974e1315c8cfa85d9ca0de1a48ac08219afabd1a9c3"
+    },
+    "harness": {
+      "name": "harbor",
+      "version": "0.21.0",
+      "adapter": "harbor-codex-proxy"
+    },
+    "candidate": {
+      "model": "gpt-5.6-terra",
+      "conditionRole": "direct_context",
+      "condition": "diagnostic_target_a"
+    },
+    "task": {
+      "caseId": "ccbench-rb-s1-dialogue-01",
+      "condition": "diagnostic_target_a",
+      "trialId": "trial-72f2cc411fa7bc31b565dd77",
+      "taskDigest": "sha256:76b4f244c78d07f516dc6a423dbb172ceadad5c3f923f4d6a02d34ed292bf1a3",
+      "directory": "task-76b4f244c78d07f516dc6a42",
+      "taskBytesDigest": "sha256:6a8c5379fc4b2d077df8aa0eefcb3d0f273f8ffe2e89b85beabef181e32626f9"
+    },
+    "isolation": {
+      "host": "docker",
+      "containerDeleted": true,
+      "providerCredential": "proxy_capability_only",
+      "providerKeyInCandidateArtifacts": false,
+      "proxyHost": "host.docker.internal",
+      "proxyRequestLimit": 16,
+      "proxyAcceptedRequests": 3,
+      "proxyRejectedRequests": 0
+    },
+    "runtimeOverlay": {
+      "configurationDigest": "sha256:ba744dddc9b81b3cb148e4876383e8d530f109272d0353122cfce73217bb74aa",
+      "proxyConfigDigest": "sha256:a71aedcd8d1a47d2a220daa7e8019e7dd46b45006be11655be76530b472292dc",
+      "agentNetwork": "allowlist",
+      "allowedHosts": ["host.docker.internal"]
+    },
+    "execution": {
+      "resultState": "executed",
+      "nativeReward": 1,
+      "nativeTrialId": "e9fbe6cb-5d70-45f6-afde-85aafb64cb5e",
+      "nativeTrialName": "candidate-task__Tk8USzv",
+      "nativeTaskName": "openboa/task-76b4f244c78d07f516dc6a42",
+      "nativeAgentName": "codex",
+      "nativeAgentVersion": "0.147.0",
+      "nativeEnvironmentType": "docker",
+      "nativeEnvironmentDelete": true,
+      "verifierEnvironmentMode": "separate"
+    },
+    "artifacts": [
+      {
+        "path": "codex.txt",
+        "bytes": 1881,
+        "digest": "sha256:66047399fafe81112a132dc0e709fa77909fd3eb2070152f0157cb265375f392"
+      },
+      {
+        "path": "rollout-2026-08-16T07-28-56-01a00979-3ecf-7e83-921b-5a037e678272.jsonl",
+        "bytes": 48705,
+        "digest": "sha256:c5ce69fae6ab8be1a05e2b70f54a743b492d3d0c33bf2af18dd51ee5f8318425"
+      },
+      {
+        "path": "trajectory.json",
+        "bytes": 18024,
+        "digest": "sha256:5772cbc5e22f5762a265e9a3a41bc536a2645974e7066c1fb0437d9e5ce66c80"
+      },
+      {
+        "path": "answer.txt",
+        "bytes": 1885,
+        "digest": "sha256:c0802ead73afd834998e59e1e4b1921fd4d1a16404702e0b2a2d9a3be37dac19"
+      },
+      {
+        "path": "manifest.json",
+        "bytes": 320,
+        "digest": "sha256:b6e48cc16b13b02d553cf1c376d28208bae12aefa34bc4e79fdd8d525b243d17"
+      }
+    ],
+    "measurement": "unmeasured"
+  },
+  {
+    "schema": "coffee-chat-eval/codex-candidate",
+    "benchmark": {
+      "repository": "https://github.com/openboa-ai/coffee-chat-bench",
+      "commit": "1bc71605964770bbd1bd96e049b8412b6ee068fc",
+      "release": "2026.8.12",
+      "bankDigest": "sha256:a7ce9ce12679f81bd212324919e39dd3eda26115dec7366c52aea8768cf790dd",
+      "projectionDigest": "sha256:b66e45ee0d09c4afad92d974e1315c8cfa85d9ca0de1a48ac08219afabd1a9c3"
+    },
+    "harness": {
+      "name": "harbor",
+      "version": "0.21.0",
+      "adapter": "harbor-codex-proxy"
+    },
+    "candidate": {
+      "model": "gpt-5.6-terra",
+      "conditionRole": "task_only",
+      "condition": "task_only"
+    },
+    "task": {
+      "caseId": "ccbench-rb-s2-artifact-01",
+      "condition": "task_only",
+      "trialId": "trial-ac70bceab43a5cf9d94eaebd",
+      "taskDigest": "sha256:91cfd5fb5948e4db38e4e6edc137be86a33a652101293f99fb0a0138dc75f557",
+      "directory": "task-91cfd5fb5948e4db38e4e6ed",
+      "taskBytesDigest": "sha256:ab108771f1c3c0b3f1acde557a61f292b55f32e09dea862c4f87438e1ad84e05"
+    },
+    "isolation": {
+      "host": "docker",
+      "containerDeleted": true,
+      "providerCredential": "proxy_capability_only",
+      "providerKeyInCandidateArtifacts": false,
+      "proxyHost": "host.docker.internal",
+      "proxyRequestLimit": 16,
+      "proxyAcceptedRequests": 4,
+      "proxyRejectedRequests": 0
+    },
+    "runtimeOverlay": {
+      "configurationDigest": "sha256:bdd98d276dd92f8690d2cdb87ee032b2da7f501140956c539798888b67976b80",
+      "proxyConfigDigest": "sha256:6bdafd7a5f17dfc16edcb6f2b7d2a1d18eb170c80852d4b67948d580755c9d4b",
+      "agentNetwork": "allowlist",
+      "allowedHosts": ["host.docker.internal"]
+    },
+    "execution": {
+      "resultState": "executed",
+      "nativeReward": 1,
+      "nativeTrialId": "656b615b-5bf2-419d-baac-18fafcd75cde",
+      "nativeTrialName": "candidate-task__xR7D7eM",
+      "nativeTaskName": "openboa/task-91cfd5fb5948e4db38e4e6ed",
+      "nativeAgentName": "codex",
+      "nativeAgentVersion": "0.147.0",
+      "nativeEnvironmentType": "docker",
+      "nativeEnvironmentDelete": true,
+      "verifierEnvironmentMode": "separate"
+    },
+    "artifacts": [
+      {
+        "path": "codex.txt",
+        "bytes": 2486,
+        "digest": "sha256:51d65397394c894110c4abe040260b6e36ef3612474755b59e0694a16ce66767"
+      },
+      {
+        "path": "rollout-2026-08-16T07-39-01-01a00982-7bf9-75f3-a907-97ce8bbe3a4b.jsonl",
+        "bytes": 49590,
+        "digest": "sha256:f0578f75a167dada8a8fc99e5b4bd599b00c57fe7d12d3daf003d589c8f4a049"
+      },
+      {
+        "path": "trajectory.json",
+        "bytes": 21145,
+        "digest": "sha256:e8404f5f7a5fe62156cea89eab34ab286eabafd69b11879767cc77d6f1c1ea74"
+      },
+      {
+        "path": "answer.txt",
+        "bytes": 2691,
+        "digest": "sha256:8909d70fa6146eb230862348c614e6c4e6eb9b46401ceb9ef2d3606133f55130"
+      },
+      {
+        "path": "manifest.json",
+        "bytes": 320,
+        "digest": "sha256:b6e48cc16b13b02d553cf1c376d28208bae12aefa34bc4e79fdd8d525b243d17"
+      }
+    ],
+    "measurement": "unmeasured"
+  },
+  {
+    "schema": "coffee-chat-eval/codex-candidate",
+    "benchmark": {
+      "repository": "https://github.com/openboa-ai/coffee-chat-bench",
+      "commit": "1bc71605964770bbd1bd96e049b8412b6ee068fc",
+      "release": "2026.8.12",
+      "bankDigest": "sha256:a7ce9ce12679f81bd212324919e39dd3eda26115dec7366c52aea8768cf790dd",
+      "projectionDigest": "sha256:b66e45ee0d09c4afad92d974e1315c8cfa85d9ca0de1a48ac08219afabd1a9c3"
+    },
+    "harness": {
+      "name": "harbor",
+      "version": "0.21.0",
+      "adapter": "harbor-codex-proxy"
+    },
+    "candidate": {
+      "model": "gpt-5.6-terra",
+      "conditionRole": "direct_context",
+      "condition": "diagnostic_target_a"
+    },
+    "task": {
+      "caseId": "ccbench-rb-s2-artifact-01",
+      "condition": "diagnostic_target_a",
+      "trialId": "trial-498424534600e9e4bfec5e2c",
+      "taskDigest": "sha256:a66630afe542bd1c0983dbaf0e83f10de184a1959d6859634702ec6b607df46e",
+      "directory": "task-a66630afe542bd1c0983dbaf",
+      "taskBytesDigest": "sha256:27ea2d7f4655fb412e9cf59bf5a2c2d9e26a931965dafc13c16bff273ad8588f"
+    },
+    "isolation": {
+      "host": "docker",
+      "containerDeleted": true,
+      "providerCredential": "proxy_capability_only",
+      "providerKeyInCandidateArtifacts": false,
+      "proxyHost": "host.docker.internal",
+      "proxyRequestLimit": 16,
+      "proxyAcceptedRequests": 5,
+      "proxyRejectedRequests": 0
+    },
+    "runtimeOverlay": {
+      "configurationDigest": "sha256:1411c304a977af31f1eab64ae32b0a70992313f0d2dba666510bd787b40fe760",
+      "proxyConfigDigest": "sha256:6b365a10577a7a66e342d4237f2969a5edc84b56d1ff8da07a3b8d135ee436cc",
+      "agentNetwork": "allowlist",
+      "allowedHosts": ["host.docker.internal"]
+    },
+    "execution": {
+      "resultState": "executed",
+      "nativeReward": 1,
+      "nativeTrialId": "0e3802e6-f8f2-4f96-a662-a88808db9f73",
+      "nativeTrialName": "candidate-task__vnuPGqD",
+      "nativeTaskName": "openboa/task-a66630afe542bd1c0983dbaf",
+      "nativeAgentName": "codex",
+      "nativeAgentVersion": "0.147.0",
+      "nativeEnvironmentType": "docker",
+      "nativeEnvironmentDelete": true,
+      "verifierEnvironmentMode": "separate"
+    },
+    "artifacts": [
+      {
+        "path": "codex.txt",
+        "bytes": 5187,
+        "digest": "sha256:114e6ddb29e4b25699c53a6fad396d50d1336a502284d698621d266e51ae7cbe"
+      },
+      {
+        "path": "rollout-2026-08-16T07-39-00-01a00982-77f6-7863-9b02-77cc3abb1e72.jsonl",
+        "bytes": 54936,
+        "digest": "sha256:bc29de676b4131b95da7b5b9319677ad90d1c394910d117a6996eea57cda9992"
+      },
+      {
+        "path": "trajectory.json",
+        "bytes": 24961,
+        "digest": "sha256:0339c25c5b1fafb7580de3641324f15ab6175c13f241a2112e68707648fa4f0c"
+      },
+      {
+        "path": "answer.txt",
+        "bytes": 2420,
+        "digest": "sha256:533798a7142e7aa723af108ba64aca893a8eb2284a76ecf46ff91476e9240ae7"
+      },
+      {
+        "path": "manifest.json",
+        "bytes": 320,
+        "digest": "sha256:b6e48cc16b13b02d553cf1c376d28208bae12aefa34bc4e79fdd8d525b243d17"
+      }
+    ],
+    "measurement": "unmeasured"
+  },
+  {
+    "schema": "coffee-chat-eval/codex-candidate",
+    "benchmark": {
+      "repository": "https://github.com/openboa-ai/coffee-chat-bench",
+      "commit": "1bc71605964770bbd1bd96e049b8412b6ee068fc",
+      "release": "2026.8.12",
+      "bankDigest": "sha256:a7ce9ce12679f81bd212324919e39dd3eda26115dec7366c52aea8768cf790dd",
+      "projectionDigest": "sha256:b66e45ee0d09c4afad92d974e1315c8cfa85d9ca0de1a48ac08219afabd1a9c3"
+    },
+    "harness": {
+      "name": "harbor",
+      "version": "0.21.0",
+      "adapter": "harbor-codex-proxy"
+    },
+    "candidate": {
+      "model": "gpt-5.6-terra",
+      "conditionRole": "task_only",
+      "condition": "task_only"
+    },
+    "task": {
+      "caseId": "ccbench-rb-s2-dialogue-01",
+      "condition": "task_only",
+      "trialId": "trial-2c62dea0bfab728e9d3a00ac",
+      "taskDigest": "sha256:425858dc6961ff9d7e544dfa97f62e27e15f1dfe81d83cffa7905d4a6e6f50fa",
+      "directory": "task-425858dc6961ff9d7e544dfa",
+      "taskBytesDigest": "sha256:4e0a8ee6d52e2961dbbc9765f0dff58215cf50e2f7c924438c3ceb155c4ae9a7"
+    },
+    "isolation": {
+      "host": "docker",
+      "containerDeleted": true,
+      "providerCredential": "proxy_capability_only",
+      "providerKeyInCandidateArtifacts": false,
+      "proxyHost": "host.docker.internal",
+      "proxyRequestLimit": 16,
+      "proxyAcceptedRequests": 3,
+      "proxyRejectedRequests": 0
+    },
+    "runtimeOverlay": {
+      "configurationDigest": "sha256:7cc3a619b2555cb1de2b892f8a02470c37f43dde1c4934b767ac68bec641d5f2",
+      "proxyConfigDigest": "sha256:8910e62f6779435994fb481057350fa03a51226f40f4417ef60d4e75acfce649",
+      "agentNetwork": "allowlist",
+      "allowedHosts": ["host.docker.internal"]
+    },
+    "execution": {
+      "resultState": "executed",
+      "nativeReward": 1,
+      "nativeTrialId": "80e84a7d-268e-4c7b-addb-3739dcad2d79",
+      "nativeTrialName": "candidate-task__JeFmueP",
+      "nativeTaskName": "openboa/task-425858dc6961ff9d7e544dfa",
+      "nativeAgentName": "codex",
+      "nativeAgentVersion": "0.147.0",
+      "nativeEnvironmentType": "docker",
+      "nativeEnvironmentDelete": true,
+      "verifierEnvironmentMode": "separate"
+    },
+    "artifacts": [
+      {
+        "path": "codex.txt",
+        "bytes": 3051,
+        "digest": "sha256:479c393237cebb4a4fb211468018bcb811e99092650675b9455a3a8b8c2f0ae2"
+      },
+      {
+        "path": "rollout-2026-08-16T07-35-53-01a0097f-9d3c-7d32-a05c-a13451c3768d.jsonl",
+        "bytes": 48407,
+        "digest": "sha256:c8a9919776ae70cbaa9b66a23a0c81b52cf270f714abcc333782cfd9ef701254"
+      },
+      {
+        "path": "trajectory.json",
+        "bytes": 17883,
+        "digest": "sha256:51447ceb21ba529586ec15e80341198d1950aa47f1d65d671fc4d9c92a340a43"
+      },
+      {
+        "path": "answer.txt",
+        "bytes": 1306,
+        "digest": "sha256:346c14204a87b6457eb7d0b75f5793141e5c62aa583f05df53cba582c95723e0"
+      },
+      {
+        "path": "manifest.json",
+        "bytes": 320,
+        "digest": "sha256:b6e48cc16b13b02d553cf1c376d28208bae12aefa34bc4e79fdd8d525b243d17"
+      }
+    ],
+    "measurement": "unmeasured"
+  },
+  {
+    "schema": "coffee-chat-eval/codex-candidate",
+    "benchmark": {
+      "repository": "https://github.com/openboa-ai/coffee-chat-bench",
+      "commit": "1bc71605964770bbd1bd96e049b8412b6ee068fc",
+      "release": "2026.8.12",
+      "bankDigest": "sha256:a7ce9ce12679f81bd212324919e39dd3eda26115dec7366c52aea8768cf790dd",
+      "projectionDigest": "sha256:b66e45ee0d09c4afad92d974e1315c8cfa85d9ca0de1a48ac08219afabd1a9c3"
+    },
+    "harness": {
+      "name": "harbor",
+      "version": "0.21.0",
+      "adapter": "harbor-codex-proxy"
+    },
+    "candidate": {
+      "model": "gpt-5.6-terra",
+      "conditionRole": "direct_context",
+      "condition": "diagnostic_target_a"
+    },
+    "task": {
+      "caseId": "ccbench-rb-s2-dialogue-01",
+      "condition": "diagnostic_target_a",
+      "trialId": "trial-a117afb1418bc24926f41bd3",
+      "taskDigest": "sha256:0d47012d3b04b89755522d5443020d8224441f9e16c3f93e169766553c7b8458",
+      "directory": "task-0d47012d3b04b89755522d54",
+      "taskBytesDigest": "sha256:0209ca9a0cc9064ce24a651d831cef0d31f54922940fe62095c63b5919441165"
+    },
+    "isolation": {
+      "host": "docker",
+      "containerDeleted": true,
+      "providerCredential": "proxy_capability_only",
+      "providerKeyInCandidateArtifacts": false,
+      "proxyHost": "host.docker.internal",
+      "proxyRequestLimit": 16,
+      "proxyAcceptedRequests": 5,
+      "proxyRejectedRequests": 0
+    },
+    "runtimeOverlay": {
+      "configurationDigest": "sha256:1c208addb320e2066426b6206075d4109ddef50331d6129b9f534bae3de30777",
+      "proxyConfigDigest": "sha256:da2916e87b947e5a82efbf07e7a9ba4eb127023e25a6dec330ea71a34b7baffd",
+      "agentNetwork": "allowlist",
+      "allowedHosts": ["host.docker.internal"]
+    },
+    "execution": {
+      "resultState": "executed",
+      "nativeReward": 1,
+      "nativeTrialId": "85097334-e10a-4a15-9601-b36696add640",
+      "nativeTrialName": "candidate-task__eqFr5fe",
+      "nativeTaskName": "openboa/task-0d47012d3b04b89755522d54",
+      "nativeAgentName": "codex",
+      "nativeAgentVersion": "0.147.0",
+      "nativeEnvironmentType": "docker",
+      "nativeEnvironmentDelete": true,
+      "verifierEnvironmentMode": "separate"
+    },
+    "artifacts": [
+      {
+        "path": "codex.txt",
+        "bytes": 2967,
+        "digest": "sha256:10ec6be1400df955a518c997f06edb7ce5370115e9a80994eb10c745973b25a4"
+      },
+      {
+        "path": "rollout-2026-08-16T07-35-53-01a0097f-9dbb-7f91-8169-d8556ab10963.jsonl",
+        "bytes": 52194,
+        "digest": "sha256:25cddcc47f7f956ff140b2f005c856530d1ba16a6aee766396395e908868738f"
+      },
+      {
+        "path": "trajectory.json",
+        "bytes": 21320,
+        "digest": "sha256:cfccceda92fea15fa7207b6b53dd3a2b46c3a323d66f2c367705ba0346b97629"
+      },
+      {
+        "path": "answer.txt",
+        "bytes": 1531,
+        "digest": "sha256:4fea6ed7277e89764d9003a83eafdc824dccaed99b960ddf64364fad87662a95"
+      },
+      {
+        "path": "manifest.json",
+        "bytes": 320,
+        "digest": "sha256:b6e48cc16b13b02d553cf1c376d28208bae12aefa34bc4e79fdd8d525b243d17"
+      }
+    ],
+    "measurement": "unmeasured"
+  },
+  {
+    "schema": "coffee-chat-eval/codex-candidate",
+    "benchmark": {
+      "repository": "https://github.com/openboa-ai/coffee-chat-bench",
+      "commit": "1bc71605964770bbd1bd96e049b8412b6ee068fc",
+      "release": "2026.8.12",
+      "bankDigest": "sha256:a7ce9ce12679f81bd212324919e39dd3eda26115dec7366c52aea8768cf790dd",
+      "projectionDigest": "sha256:b66e45ee0d09c4afad92d974e1315c8cfa85d9ca0de1a48ac08219afabd1a9c3"
+    },
+    "harness": {
+      "name": "harbor",
+      "version": "0.21.0",
+      "adapter": "harbor-codex-proxy"
+    },
+    "candidate": {
+      "model": "gpt-5.6-terra",
+      "conditionRole": "task_only",
+      "condition": "task_only"
+    },
+    "task": {
+      "caseId": "ccbench-rb-s3-artifact-01",
+      "condition": "task_only",
+      "trialId": "trial-f8f10ba304d4cd6b687be3e4",
+      "taskDigest": "sha256:ba7beff8a4b0ba650ebbaed7c6b79cee1e7903ad06746cbf1939b9488cdb8d0a",
+      "directory": "task-ba7beff8a4b0ba650ebbaed7",
+      "taskBytesDigest": "sha256:c55dcaaec9c28396f882b84b1a9e792b18392d82db203c10354c4cf858755bf5"
+    },
+    "isolation": {
+      "host": "docker",
+      "containerDeleted": true,
+      "providerCredential": "proxy_capability_only",
+      "providerKeyInCandidateArtifacts": false,
+      "proxyHost": "host.docker.internal",
+      "proxyRequestLimit": 16,
+      "proxyAcceptedRequests": 3,
+      "proxyRejectedRequests": 0
+    },
+    "runtimeOverlay": {
+      "configurationDigest": "sha256:ccc66fe01e1ad8eecb6c519c6cf058560964b1b4557251fdd8fabb9e25083904",
+      "proxyConfigDigest": "sha256:88536db57c909def2b94fab62f5475f64dd0c6f40695790c8aeba0aee7b262da",
+      "agentNetwork": "allowlist",
+      "allowedHosts": ["host.docker.internal"]
+    },
+    "execution": {
+      "resultState": "executed",
+      "nativeReward": 1,
+      "nativeTrialId": "c0fc203e-645d-4e27-ae73-15fdc502844d",
+      "nativeTrialName": "candidate-task__3PCkpeh",
+      "nativeTaskName": "openboa/task-ba7beff8a4b0ba650ebbaed7",
+      "nativeAgentName": "codex",
+      "nativeAgentVersion": "0.147.0",
+      "nativeEnvironmentType": "docker",
+      "nativeEnvironmentDelete": true,
+      "verifierEnvironmentMode": "separate"
+    },
+    "artifacts": [
+      {
+        "path": "codex.txt",
+        "bytes": 3956,
+        "digest": "sha256:34b780b6be9f56226372c83f3f834d61d0a17d60f9d725a2dbac1f51fb2baf6b"
+      },
+      {
+        "path": "rollout-2026-08-16T07-43-59-01a00987-0638-7953-a94d-41a9d817130d.jsonl",
+        "bytes": 51217,
+        "digest": "sha256:e16f3b996b83d91a75d7982cc88b301cf7cc711f4cd5b8b5b724ddecd0606441"
+      },
+      {
+        "path": "trajectory.json",
+        "bytes": 20562,
+        "digest": "sha256:f56983c59b86fe14455b93ec6b1657c2404ff125264c4b24c56b856b24616281"
+      },
+      {
+        "path": "answer.txt",
+        "bytes": 2284,
+        "digest": "sha256:84ccbea3819bb2f75545765ca7b26e2890a2fa4cefc74a57256241d19787725c"
+      },
+      {
+        "path": "manifest.json",
+        "bytes": 320,
+        "digest": "sha256:b6e48cc16b13b02d553cf1c376d28208bae12aefa34bc4e79fdd8d525b243d17"
+      }
+    ],
+    "measurement": "unmeasured"
+  },
+  {
+    "schema": "coffee-chat-eval/codex-candidate",
+    "benchmark": {
+      "repository": "https://github.com/openboa-ai/coffee-chat-bench",
+      "commit": "1bc71605964770bbd1bd96e049b8412b6ee068fc",
+      "release": "2026.8.12",
+      "bankDigest": "sha256:a7ce9ce12679f81bd212324919e39dd3eda26115dec7366c52aea8768cf790dd",
+      "projectionDigest": "sha256:b66e45ee0d09c4afad92d974e1315c8cfa85d9ca0de1a48ac08219afabd1a9c3"
+    },
+    "harness": {
+      "name": "harbor",
+      "version": "0.21.0",
+      "adapter": "harbor-codex-proxy"
+    },
+    "candidate": {
+      "model": "gpt-5.6-terra",
+      "conditionRole": "direct_context",
+      "condition": "diagnostic_target_a"
+    },
+    "task": {
+      "caseId": "ccbench-rb-s3-artifact-01",
+      "condition": "diagnostic_target_a",
+      "trialId": "trial-52a7d6b38687a81b5a6e04c8",
+      "taskDigest": "sha256:3c151dc7718ce953307bcd6b17086ca32796c8113e636af1fc5b95f8736ad2cc",
+      "directory": "task-3c151dc7718ce953307bcd6b",
+      "taskBytesDigest": "sha256:e01da056bd3bc8ea126dfb86e180ec5b7ec43d597d6d1162793385ba9b72ecff"
+    },
+    "isolation": {
+      "host": "docker",
+      "containerDeleted": true,
+      "providerCredential": "proxy_capability_only",
+      "providerKeyInCandidateArtifacts": false,
+      "proxyHost": "host.docker.internal",
+      "proxyRequestLimit": 16,
+      "proxyAcceptedRequests": 4,
+      "proxyRejectedRequests": 0
+    },
+    "runtimeOverlay": {
+      "configurationDigest": "sha256:f03f56421b4ded9c8d0668b44ecb89e603780e5004640d844616a80a33d0bb9c",
+      "proxyConfigDigest": "sha256:38aa050e2eb09df1c48ab9d4023d1c753586457aa170118dff9c7c7cb153e485",
+      "agentNetwork": "allowlist",
+      "allowedHosts": ["host.docker.internal"]
+    },
+    "execution": {
+      "resultState": "executed",
+      "nativeReward": 1,
+      "nativeTrialId": "013c079e-2c96-42f8-9891-070186f8ae5f",
+      "nativeTrialName": "candidate-task__XTGbSz7",
+      "nativeTaskName": "openboa/task-3c151dc7718ce953307bcd6b",
+      "nativeAgentName": "codex",
+      "nativeAgentVersion": "0.147.0",
+      "nativeEnvironmentType": "docker",
+      "nativeEnvironmentDelete": true,
+      "verifierEnvironmentMode": "separate"
+    },
+    "artifacts": [
+      {
+        "path": "codex.txt",
+        "bytes": 2475,
+        "digest": "sha256:77fd6b100605ce6cd23458c3350237812555df9625ebd45435b9dcfbc2235cc8"
+      },
+      {
+        "path": "rollout-2026-08-16T07-44-01-01a00987-11b3-7081-a059-9e6837354f02.jsonl",
+        "bytes": 52796,
+        "digest": "sha256:0eb894c8748682e7dc6e4b7af908b04ce2fcec7cb4e91bda51e04ded7969f4c7"
+      },
+      {
+        "path": "trajectory.json",
+        "bytes": 20359,
+        "digest": "sha256:681b5fbadd2b9cc9e253231bc1c03e62668142e029b9ab262b5030168190fddf"
+      },
+      {
+        "path": "answer.txt",
+        "bytes": 2103,
+        "digest": "sha256:d1bfd8e1ee53ad53462ee8a79713fcff7a3183f5ff6423f71b1ca92ee0401052"
+      },
+      {
+        "path": "manifest.json",
+        "bytes": 320,
+        "digest": "sha256:b6e48cc16b13b02d553cf1c376d28208bae12aefa34bc4e79fdd8d525b243d17"
+      }
+    ],
+    "measurement": "unmeasured"
+  },
+  {
+    "schema": "coffee-chat-eval/codex-candidate",
+    "benchmark": {
+      "repository": "https://github.com/openboa-ai/coffee-chat-bench",
+      "commit": "1bc71605964770bbd1bd96e049b8412b6ee068fc",
+      "release": "2026.8.12",
+      "bankDigest": "sha256:a7ce9ce12679f81bd212324919e39dd3eda26115dec7366c52aea8768cf790dd",
+      "projectionDigest": "sha256:b66e45ee0d09c4afad92d974e1315c8cfa85d9ca0de1a48ac08219afabd1a9c3"
+    },
+    "harness": {
+      "name": "harbor",
+      "version": "0.21.0",
+      "adapter": "harbor-codex-proxy"
+    },
+    "candidate": {
+      "model": "gpt-5.6-terra",
+      "conditionRole": "task_only",
+      "condition": "task_only"
+    },
+    "task": {
+      "caseId": "ccbench-rb-s3-dialogue-01",
+      "condition": "task_only",
+      "trialId": "trial-9658c78672f6a91ed31706ac",
+      "taskDigest": "sha256:69d4b567ffff3c0fc86549cf493823002f4b2cfbe5a95696ab08a81bb9e5e47e",
+      "directory": "task-69d4b567ffff3c0fc86549cf",
+      "taskBytesDigest": "sha256:6e23858de9e86fd20993bc060129aae15a9d3403f4e8b812e49e9ddeb11f0a70"
+    },
+    "isolation": {
+      "host": "docker",
+      "containerDeleted": true,
+      "providerCredential": "proxy_capability_only",
+      "providerKeyInCandidateArtifacts": false,
+      "proxyHost": "host.docker.internal",
+      "proxyRequestLimit": 16,
+      "proxyAcceptedRequests": 5,
+      "proxyRejectedRequests": 0
+    },
+    "runtimeOverlay": {
+      "configurationDigest": "sha256:5c35860777fc1265c36aede0fb98cfa929642fa8fc301fe528d38bf9e187b704",
+      "proxyConfigDigest": "sha256:37c474f6c091a831ff41f582f434a38eaf76046eff6ce5d03fe36e883d6d9ad5",
+      "agentNetwork": "allowlist",
+      "allowedHosts": ["host.docker.internal"]
+    },
+    "execution": {
+      "resultState": "executed",
+      "nativeReward": 1,
+      "nativeTrialId": "5647c76b-86cf-46a3-8c51-b64c0b886ea5",
+      "nativeTrialName": "candidate-task__cw68jyL",
+      "nativeTaskName": "openboa/task-69d4b567ffff3c0fc86549cf",
+      "nativeAgentName": "codex",
+      "nativeAgentVersion": "0.147.0",
+      "nativeEnvironmentType": "docker",
+      "nativeEnvironmentDelete": true,
+      "verifierEnvironmentMode": "separate"
+    },
+    "artifacts": [
+      {
+        "path": "codex.txt",
+        "bytes": 2924,
+        "digest": "sha256:8a73383fd345330cc3b9103f874146b60ea57e975b331483f286c81b194945ce"
+      },
+      {
+        "path": "rollout-2026-08-16T07-41-31-01a00984-c750-7db1-aafc-330a0f45abad.jsonl",
+        "bytes": 54912,
+        "digest": "sha256:b7675f93f3fa1e015647e0c6324e5eed707a959875b89d58a3c36b55627c41be"
+      },
+      {
+        "path": "trajectory.json",
+        "bytes": 21216,
+        "digest": "sha256:05a48cb4b62e4240e609d41e06370175c5482ec54543e935f895778e5049bbb9"
+      },
+      {
+        "path": "answer.txt",
+        "bytes": 1565,
+        "digest": "sha256:e92a182825857af25c9a6ce113a8c7e22690b3ac7c1a05c7550ee519c5c1db8f"
+      },
+      {
+        "path": "manifest.json",
+        "bytes": 320,
+        "digest": "sha256:b6e48cc16b13b02d553cf1c376d28208bae12aefa34bc4e79fdd8d525b243d17"
+      }
+    ],
+    "measurement": "unmeasured"
+  },
+  {
+    "schema": "coffee-chat-eval/codex-candidate",
+    "benchmark": {
+      "repository": "https://github.com/openboa-ai/coffee-chat-bench",
+      "commit": "1bc71605964770bbd1bd96e049b8412b6ee068fc",
+      "release": "2026.8.12",
+      "bankDigest": "sha256:a7ce9ce12679f81bd212324919e39dd3eda26115dec7366c52aea8768cf790dd",
+      "projectionDigest": "sha256:b66e45ee0d09c4afad92d974e1315c8cfa85d9ca0de1a48ac08219afabd1a9c3"
+    },
+    "harness": {
+      "name": "harbor",
+      "version": "0.21.0",
+      "adapter": "harbor-codex-proxy"
+    },
+    "candidate": {
+      "model": "gpt-5.6-terra",
+      "conditionRole": "direct_context",
+      "condition": "diagnostic_target_a"
+    },
+    "task": {
+      "caseId": "ccbench-rb-s3-dialogue-01",
+      "condition": "diagnostic_target_a",
+      "trialId": "trial-41140a88f815014e1370211e",
+      "taskDigest": "sha256:43b148657f2c38d218a1ce4c6756fe385931559113441c36282d1bd75588187d",
+      "directory": "task-43b148657f2c38d218a1ce4c",
+      "taskBytesDigest": "sha256:8c6087d0c821994a2c5eec5443a4576b8674799a5e16dad5581eefef4a4a7051"
+    },
+    "isolation": {
+      "host": "docker",
+      "containerDeleted": true,
+      "providerCredential": "proxy_capability_only",
+      "providerKeyInCandidateArtifacts": false,
+      "proxyHost": "host.docker.internal",
+      "proxyRequestLimit": 16,
+      "proxyAcceptedRequests": 3,
+      "proxyRejectedRequests": 0
+    },
+    "runtimeOverlay": {
+      "configurationDigest": "sha256:a626bc52ed6eab4e8415e65b87ecd02595bf7d9ec4e063e15785e25848067f6d",
+      "proxyConfigDigest": "sha256:e49d9c7078f6d3b40909738a7df5a6cdddec2b58bb39765e3cafb460b44ca25f",
+      "agentNetwork": "allowlist",
+      "allowedHosts": ["host.docker.internal"]
+    },
+    "execution": {
+      "resultState": "executed",
+      "nativeReward": 1,
+      "nativeTrialId": "aef10b25-e010-49ad-b7dd-be44b90b978e",
+      "nativeTrialName": "candidate-task__L82K5cC",
+      "nativeTaskName": "openboa/task-43b148657f2c38d218a1ce4c",
+      "nativeAgentName": "codex",
+      "nativeAgentVersion": "0.147.0",
+      "nativeEnvironmentType": "docker",
+      "nativeEnvironmentDelete": true,
+      "verifierEnvironmentMode": "separate"
+    },
+    "artifacts": [
+      {
+        "path": "codex.txt",
+        "bytes": 2004,
+        "digest": "sha256:20b41d8f06d6eb4c9c1b6a8218d0d18f15a3256520be629bf9e36213693c86ea"
+      },
+      {
+        "path": "rollout-2026-08-16T07-41-34-01a00984-cff6-7160-ac29-32dc78ff783b.jsonl",
+        "bytes": 49604,
+        "digest": "sha256:14f90694cfcebf4fb8cac6cb0a5baed590e2a9396e673c51442b975163b97921"
+      },
+      {
+        "path": "trajectory.json",
+        "bytes": 18321,
+        "digest": "sha256:9a1d9c5fb1c22cc9b2b27f7e0438a305ad8966e178d5b35ffbd104a86534e6f1"
+      },
+      {
+        "path": "answer.txt",
+        "bytes": 1702,
+        "digest": "sha256:272721f91b82c3a122f57e7e83e847a468fcd4749626e29c31176977fa471e7d"
+      },
+      {
+        "path": "manifest.json",
+        "bytes": 320,
+        "digest": "sha256:b6e48cc16b13b02d553cf1c376d28208bae12aefa34bc4e79fdd8d525b243d17"
+      }
+    ],
+    "measurement": "unmeasured"
+  }
+]

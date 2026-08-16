@@ -1,5 +1,11 @@
 export type ResultState =
-  "measured" | "unmeasured" | "skipped" | "unavailable" | "invalid" | "not_implemented";
+  | "executed"
+  | "measured"
+  | "unmeasured"
+  | "skipped"
+  | "unavailable"
+  | "invalid"
+  | "not_implemented";
 
 export type IsolationClass = "fixture" | "real";
 

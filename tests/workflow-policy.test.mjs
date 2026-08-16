@@ -86,7 +86,9 @@ test("merge policy binds the trusted aggregate and protected Environment", async
   for (const protectedPath of [
     "package.json",
     "package-lock.json",
-    "tests/fixtures/pcda-calibration/**",
+    "src/bench.ts",
+    "src/harbor.ts",
+    "src/runner.ts",
   ]) {
     assert.ok(
       mergePolicy.protected_paths.includes(protectedPath),

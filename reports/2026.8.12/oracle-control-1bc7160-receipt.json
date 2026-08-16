@@ -1,0 +1,72 @@
+[
+  {
+    "schema": "coffee-chat-eval/oracle-control",
+    "benchmark": {
+      "repository": "https://github.com/openboa-ai/coffee-chat-bench",
+      "commit": "1bc71605964770bbd1bd96e049b8412b6ee068fc",
+      "release": "2026.8.12",
+      "bankDigest": "sha256:a7ce9ce12679f81bd212324919e39dd3eda26115dec7366c52aea8768cf790dd",
+      "projectionDigest": "sha256:b66e45ee0d09c4afad92d974e1315c8cfa85d9ca0de1a48ac08219afabd1a9c3"
+    },
+    "harness": {
+      "name": "harbor",
+      "version": "0.21.0"
+    },
+    "task": {
+      "caseId": "ccbench-ra-s1-dialogue-01",
+      "condition": "task_only",
+      "trialId": "trial-0e0c88968b582eaa23ded7d4",
+      "taskDigest": "sha256:a0dab4674f08645cd16c41700980a4d8329bdecbb36706f4c66cc1fec0a91cb0",
+      "directory": "task-a0dab4674f08645cd16c4170",
+      "taskBytesDigest": "sha256:1bce346260d6f21dcfb677029f66f2b61666f4e4133bc28bf9bf5243e5d4c3c5"
+    },
+    "execution": {
+      "resultState": "executed",
+      "nativeReward": 1,
+      "nativeTrialId": "2460921a-f56d-4175-861e-96d5c1d588da",
+      "nativeTrialName": "task-a0dab4674f08645cd16c4170__asvK3bv",
+      "nativeTaskName": "openboa/task-a0dab4674f08645cd16c4170",
+      "nativeAgentName": "oracle",
+      "nativeAgentVersion": "1.0.0",
+      "nativeEnvironmentType": "docker",
+      "nativeEnvironmentDelete": true,
+      "verifierEnvironmentMode": "separate"
+    },
+    "measurement": "not_performed"
+  },
+  {
+    "schema": "coffee-chat-eval/oracle-control",
+    "benchmark": {
+      "repository": "https://github.com/openboa-ai/coffee-chat-bench",
+      "commit": "1bc71605964770bbd1bd96e049b8412b6ee068fc",
+      "release": "2026.8.12",
+      "bankDigest": "sha256:a7ce9ce12679f81bd212324919e39dd3eda26115dec7366c52aea8768cf790dd",
+      "projectionDigest": "sha256:b66e45ee0d09c4afad92d974e1315c8cfa85d9ca0de1a48ac08219afabd1a9c3"
+    },
+    "harness": {
+      "name": "harbor",
+      "version": "0.21.0"
+    },
+    "task": {
+      "caseId": "ccbench-ra-s1-dialogue-01",
+      "condition": "diagnostic_target_a",
+      "trialId": "trial-5671ef75c17c5e55cc059385",
+      "taskDigest": "sha256:ab70d4f6912bc3dc06925ee4ea09adbdec5e9e58847235842f9ff7941b408cbe",
+      "directory": "task-ab70d4f6912bc3dc06925ee4",
+      "taskBytesDigest": "sha256:6632ad2a1ebf68187dd760ce9f88f0e65b43d68346f66e2c537a0072be104eda"
+    },
+    "execution": {
+      "resultState": "executed",
+      "nativeReward": 1,
+      "nativeTrialId": "55533d4f-f4d4-4db8-942b-f90fa15c0570",
+      "nativeTrialName": "task-ab70d4f6912bc3dc06925ee4__QBmX3i2",
+      "nativeTaskName": "openboa/task-ab70d4f6912bc3dc06925ee4",
+      "nativeAgentName": "oracle",
+      "nativeAgentVersion": "1.0.0",
+      "nativeEnvironmentType": "docker",
+      "nativeEnvironmentDelete": true,
+      "verifierEnvironmentMode": "separate"
+    },
+    "measurement": "not_performed"
+  }
+]

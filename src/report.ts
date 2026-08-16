@@ -5,10 +5,10 @@ export function formatDryRunReport(registry: DryRunRegistry): string {
     .map((entry) => `- ${entry.id}: ${entry.status} (${entry.reason})`)
     .join("\n");
   return [
-    `Coffee Chat evaluator dry run`,
+    `Coffee Chat Eval contract status`,
     `CalVer: ${registry.calver}`,
     `Mode: ${registry.mode}`,
     entries,
-    `No Coffee Chat performance score is produced.`,
+    `Oracle execution is plumbing evidence; no benchmark score is produced.`,
   ].join("\n");
 }

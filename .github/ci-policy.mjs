@@ -43,20 +43,14 @@ if (existsSync(resolve(root, ".github/policy-parser/npm-shrinkwrap.json"))) {
   );
 }
 const expectedPackageScripts = {
-  "benchmark:calibrate":
-    "node --experimental-strip-types src/canary-cli.ts benchmark-calibrate",
+  "bench:oracle": "node --experimental-strip-types src/cli.ts oracle-control",
   build: "tsc --noEmit",
-  "canary:calibrate": "node --experimental-strip-types src/canary-cli.ts calibrate",
-  "canary:check":
-    "python3 -m py_compile evals/protocol-canary/tests/verify.py evals/protocol-canary/tests/resources.py evals/ifeval-smoke/tests/verify.py evals/ifeval-smoke/tests/resources.py && sh -n evals/protocol-canary/solution/solve.sh evals/protocol-canary/tests/test.sh evals/ifeval-smoke/solution/solve.sh evals/ifeval-smoke/tests/test.sh",
   "ci:policy":
     "node --test tests/workflow-policy.test.mjs && node .github/ci-policy.mjs",
   "dry-run": "node --experimental-strip-types src/cli.ts dry-run",
   format: "node node_modules/prettier/bin/prettier.cjs --write .",
   "format:check": "node node_modules/prettier/bin/prettier.cjs --check .",
   "hooks:install": "git config core.hooksPath .githooks",
-  "pcda:calibrate":
-    "node --experimental-strip-types src/pcda-cli.ts calibrate --oracle-result $PWD/tests/fixtures/pcda-calibration/oracle-result.json --noop-result $PWD/tests/fixtures/pcda-calibration/noop-result.json",
   "security:scan": "gitleaks git --redact --no-banner .",
   smoke: "node --experimental-strip-types --test tests/smoke.test.ts",
   test: "node --experimental-strip-types --test tests/*.test.*",
@@ -317,16 +311,10 @@ function validateMergePolicy() {
       "npm-shrinkwrap.json",
       "package-lock.json",
       "package.json",
-      "integrations/harbor/**",
-      "evals/**",
-      "tests/fixtures/pcda-calibration/**",
-      "src/benchmark-smoke.ts",
-      "src/canary-cli.ts",
+      "src/bench.ts",
+      "src/cli.ts",
       "src/harbor.ts",
-      "src/pcda-cli.ts",
-      "src/pcda-receipt.ts",
-      "src/pcda-resources.ts",
-      "src/protocol-canary.ts",
+      "src/resources.ts",
       "src/registry.ts",
       "src/runner.ts",
     ])
@@ -412,18 +400,12 @@ if (
 ) {
   fail("package metadata must remain exact");
 }
-if (Object.hasOwn(packageJson.scripts ?? {}, "pcda:codex")) {
-  fail("credential-bearing live PCDA command must remain absent");
-}
-for (const relativePath of [
-  "src/pcda-bench.ts",
-  "src/pcda-harbor.ts",
-  "src/pcda-runner.ts",
-]) {
-  if (existsSync(resolve(root, relativePath))) {
-    fail(`credential-bearing live PCDA module must remain absent: ${relativePath}`);
-  }
-}
+if (
+  Object.values(packageJson.scripts ?? {}).some((script) =>
+    /OPENAI_API_KEY/u.test(script),
+  )
+)
+  fail("candidate execution scripts must not receive provider credentials");
 if (Object.hasOwn(packageJson.dependencies ?? {}, "@openboa/coffee-chat")) {
   fail("the evaluator must not depend on private Coffee Chat source");
 }

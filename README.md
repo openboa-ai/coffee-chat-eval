@@ -1,79 +1,112 @@
 # Coffee Chat Eval
 
-`@openboa-ai/coffee-chat-eval` owns Coffee Chat evaluation orchestration,
-receipts, and reports. Product implementation remains in `coffee-chat`;
-candidate-independent benchmark constructs remain in `coffee-chat-bench`.
+`@openboa-ai/coffee-chat-eval` executes candidates and publishes evaluation
+receipts. It does not own Coffee Chat product behavior or benchmark semantics.
+The product lives in `coffee-chat`; the candidate-independent case bank,
+Harbor projection, judgment protocol, and metrics live in `coffee-chat-bench`.
 
-The first executable evaluator paths are credential-free Harbor Oracle/no-op
-calibrations for `protocol-canary` and a one-case IFEval execution contract.
-They prove the task/verifier plumbing without loading untrusted Plugin bytes
-into a credential-bearing Codex process. Results remain `unmeasured` and say
-nothing about Coffee Chat quality or value.
+## Current executable boundary
 
-The IFEval smoke uses one pinned official Apache-2.0 case, keeps its constraint
-metadata in the separate
-verifier, and records `executed` independently from semantic measurement. With
-the current deferred Product entrypoint its receipt is `not_implemented` and
-`measurement: not_performed`; no benchmark score is claimed.
+The first path consumes a fresh Harbor projection produced by an exact Bench
+commit. It selects one case with two candidate-visible conditions:
 
-The task is calibrated with Harbor Oracle and no-op agents. Oracle must produce
-native reward 1, no-op must produce native reward 0, and malformed verifier
-output must remain invalid rather than becoming reward 0. Required CI checks
-these implementation contracts without model calls.
+- `task_only`;
+- one explicitly chosen `diagnostic_target_a` or `diagnostic_target_b`.
 
-Run the Harbor Oracle/no-op calibration:
+Each condition runs in a fresh Harbor 0.21 Docker trial. The Oracle path proves
+task loading, artifact collection, verifier execution, cleanup, and receipt
+parsing. The Codex candidate path uses the `harbor-codex-proxy` adapter: a
+host-held OpenAI Responses proxy injects the provider key, while the candidate
+receives only a per-trial capability token and a Responses-wire Codex config.
+The candidate network overlay allows only `host.docker.internal`; setup hosts
+are separate from the agent allowlist. Native reward `1` means only that the
+structural output contract passed. It is not semantic benchmark credit, and
+candidate receipts remain `measurement: unmeasured` until the qualified Bench
+judge and validity boundary are available.
 
-```sh
-npm run canary:calibrate
-```
+Stock Harbor 0.21 Codex is explicitly `credential_isolation_unavailable`.
+That adapter writes provider authentication into candidate-readable process and
+filesystem state. Eval does not use that path. The proxy adapter keeps the
+provider key in the host boundary; its receipt records whether the key appeared
+in candidate-owned artifacts and whether the container was deleted.
 
-Run deterministic PCDA contract calibration:
+## Commands
 
-```sh
-npm run pcda:calibrate
-```
-
-PCDA currently exposes only deterministic Oracle/no-op calibration. The former
-`pcda:codex` candidate runner and staged Bench signer/judge adapter were
-removed because a manually supplied shared key remained readable to
-candidate-controlled execution. Live PCDA stays unavailable until a credential
-broker or split service keeps provider secrets outside the candidate process
-and filesystem.
-
-Run deterministic verification:
+Deterministic repository verification:
 
 ```sh
 npm ci
 npm run hooks:install
 npm run format:check
 npm run typecheck
-npm run canary:check
 npm test
 npm run dry-run
 npm run smoke
-npm run pcda:calibrate
 npm run ci:policy
 npm run security:scan
 ```
 
-Gitleaks must be installed before enabling the hook. The local hook checks
-staged changes and required CI independently scans the complete Git history.
+Manual Oracle control after producing a Bench projection:
 
-All former live candidate commands are removed. Harbor
-0.21.0 places Codex authentication in the same filesystem as candidate-controlled
-execution, so network filtering alone cannot make that boundary safe. Re-enable
-live candidate execution only behind a credential broker or split process that
-keeps provider credentials unreadable to candidate code and scans all retained
-outputs before publication.
+```sh
+npm run bench:oracle -- \
+  --projection-root /absolute/path/to/projected \
+  --case-id CASE_ID \
+  --diagnostic-target a \
+  --bench-commit FULL_40_CHARACTER_COMMIT \
+  --harbor-command /absolute/path/to/pinned/harbor \
+  --jobs-root /absolute/canonical/docker-shareable/path/new-run
+```
 
-IFEval has only this bounded execution smoke. Its full track and the other
-rights-cleared portfolio tracks remain inactive; no measured Coffee Chat result exists.
-`coffee-chat-bench` remains inactive.
+The jobs root must be new and its parent must be a canonical path visible to
+Docker Desktop. On macOS, do not use the `/tmp` symlink for Harbor log mounts;
+use a workspace path such as this repository's ignored `artifacts/` directory.
 
-GitHub-native squash merge is the only merge method. One immutable target
-wrapper delegates author admission, dependency review, raw-blob secret scanning,
-CodeQL, deterministic quality, and isolated Harbor calibration to the central
-trusted gate. Ordinary changes remain eligible for zero-review auto-merge;
-sensitive automation, security, external-execution, and verifier paths require
-the protected `coffee-security` Environment. CalVer is the only release
-identity and no compatibility layer is supported.
+Manual Codex candidate baseline (live provider call; never a CI command):
+
+```sh
+OPENAI_API_KEY=... node --experimental-strip-types src/cli.ts codex-baseline -- \
+  --projection-root /absolute/path/to/projected \
+  --case-id CASE_ID \
+  --diagnostic-target a \
+  --bench-commit FULL_40_CHARACTER_COMMIT \
+  --harbor-command /absolute/path/to/pinned/harbor \
+  --jobs-root /absolute/canonical/docker-shareable/path/new-run \
+  --model gpt-5.6-luna
+```
+
+The key is read by the host process and is never placed in the candidate
+command line or candidate task files. The checked-in initial four-trial baseline
+receipts are in
+[`reports/2026.8.12/codex-baseline-receipts.json`](reports/2026.8.12/codex-baseline-receipts.json).
+They are execution evidence only: no native reward is promoted to a semantic
+score, and no judge result is treated as qualified measurement.
+
+The completed scored release/form coverage (48 Harbor Codex trials across 12
+cases, two models, and task-only/direct-context conditions) is in
+[`reports/2026.8.12/codex-baseline-coverage-receipts.json`](reports/2026.8.12/codex-baseline-coverage-receipts.json).
+The accompanying report preserves the same unmeasured boundary.
+
+The first live judge transport probe is retained separately in
+[`reports/2026.8.12/codex-judge-probe.json`](reports/2026.8.12/codex-judge-probe.json).
+It is intentionally unqualified and unmeasured because the Bench study has no
+genuine human qualification records and the current three-model probe is not a
+qualified, complete judge set.
+
+A fresh two-condition Harbor Oracle control was rerun against the merged Bench
+main commit `1bc71605964770bbd1bd96e049b8412b6ee068fc` and is retained in
+[`reports/2026.8.12/oracle-control-1bc7160-receipt.json`](reports/2026.8.12/oracle-control-1bc7160-receipt.json).
+It confirms current-head task/projection provenance, separate verifier
+execution, Docker cleanup, and a structural reward that remains
+`measurement: not_performed`.
+
+The evaluation shape follows OpenAI's skill-evaluation pattern: define a small
+set of observable outcome, process, style, and efficiency checks; capture the
+run trace and artifacts; apply deterministic checks first; then add a
+structured rubric judge only where rules cannot establish the criterion. The
+article's 10–20 prompt suggestion is a fast regression lane, not a replacement
+for the public Bench case bank or its validity evidence.
+
+Required CI is deterministic and makes no provider or judge call. Live model
+execution and semantic measurement remain manual. CalVer is the only release
+identity; no compatibility layer is provided.
