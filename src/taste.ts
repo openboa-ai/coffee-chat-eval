@@ -1,7 +1,6 @@
 import { stableDigest } from "./identity.ts";
-import { readFileSync, writeFileSync } from "node:fs";
-import { isAbsolute, relative, resolve } from "node:path";
-import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import type {
   CandidateTransport,
   JudgeTransport,

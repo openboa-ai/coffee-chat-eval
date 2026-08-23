@@ -409,7 +409,7 @@ async function finalizeRun(input: {
   readonly source: MaterializedSourceVerification | undefined;
   readonly runRoot: string;
 }): Promise<ImmutableRunResult> {
-  const { plan, manifest } = input.input;
+  const { plan } = input.input;
   let execution = input.execution;
   try {
     assertArtifact(plan.evidenceRoot, execution.nativeEvidence);

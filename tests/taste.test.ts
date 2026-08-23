@@ -19,7 +19,6 @@ import {
   createFixtureJudgeTransport,
 } from "../src/transports.ts";
 import { putEvidence } from "../src/evidence.ts";
-import { stableDigest } from "../src/identity.ts";
 
 test("Coffee Chat Taste inventory keeps the 32 x 3 x (13+8) plan explicit", () => {
   assert.equal(TASTE_FAMILY_COUNT, 32);

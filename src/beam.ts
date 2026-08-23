@@ -1,5 +1,5 @@
 import { stableDigest } from "./identity.ts";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { createHash } from "node:crypto";
 import {
@@ -11,11 +11,7 @@ import {
 } from "./eval-core.ts";
 import type { Sha256Digest } from "./types.ts";
 import { fileURLToPath } from "node:url";
-import {
-  BEAM_RUNTIME_LOCK,
-  requireRuntimePython,
-  runtimePythonForSource,
-} from "./python-runtime.ts";
+import { BEAM_RUNTIME_LOCK, requireRuntimePython } from "./python-runtime.ts";
 
 export type BeamProfile = "fixture" | "smoke" | "pilot" | "score";
 

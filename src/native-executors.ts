@@ -5,19 +5,6 @@ import { createTasteTrackExecutor } from "./taste.ts";
 import { createBeamTrackExecutor } from "./beam.ts";
 import { createAgentDojoTrackExecutor } from "./agentdojo.ts";
 
-function deferred(trackId: EvaluationTrackId): TrackExecutor {
-  return async ({ evidence }) => ({
-    executionStatus: "not_implemented" as const,
-    trialReceipts: [],
-    metrics: { execution: { numerator: null, denominator: null, value: null } },
-    nativeEvidence: evidence({
-      value: { trackId, reason: "native sampled executor is not registered" },
-      mediaType: "application/json",
-    }),
-    cleanupStatus: "complete" as const,
-  });
-}
-
 export function getNativeTrackExecutor(trackId: EvaluationTrackId): TrackExecutor {
   switch (trackId) {
     case "ifeval":
