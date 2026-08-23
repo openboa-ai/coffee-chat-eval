@@ -1,4 +1,7 @@
 import assert from "node:assert/strict";
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
 
 import {
@@ -6,9 +9,12 @@ import {
   IFEVAL_PROMPT_COUNT,
   IFEVAL_TOP_LEVEL_FAMILIES,
   createIfevalInventory,
+  createIfevalTrackExecutor,
   summarizeIfevalObservations,
   type IfevalObservation,
 } from "../src/ifeval.ts";
+import { createFixtureCandidateTransport } from "../src/transports.ts";
+import { putEvidence } from "../src/evidence.ts";
 
 test("IFEval inventory pins the official 541 prompts and nine checker-family first cases", () => {
   assert.equal(IFEVAL_PROMPT_COUNT, 541);
@@ -79,4 +85,55 @@ test("IFEval keeps four native metrics and never turns an empty denominator into
     accuracy: 1,
   });
   assert.equal(summarizeIfevalObservations([]).metrics.strictPrompt.accuracy, null);
+});
+
+test("IFEval smoke executor calls the candidate for nine pinned prompts and validates native denominators", async () => {
+  const root = mkdtempSync(join(tmpdir(), "coffee-chat-ifeval-executor-"));
+  try {
+    const sourceRoot = join(root, "source");
+    const inputPath = join(sourceRoot, "instruction_following_eval", "data");
+    mkdirSync(inputPath, { recursive: true });
+    writeFileSync(
+      join(inputPath, "input_data.jsonl"),
+      IFEVAL_PILOT_CASES.map((entry) => JSON.stringify({ key: Number(entry.caseId), prompt: `prompt-${entry.caseId}` })).join("\n") + "\n",
+    );
+    let candidateCalls = 0;
+    const candidate = createFixtureCandidateTransport(() => {
+      candidateCalls += 1;
+      return `response-${candidateCalls}`;
+    }, { evidenceRoot: root });
+    const executor = createIfevalTrackExecutor({
+      bridge: {
+        run: async ({ output, keys }) => {
+          writeFileSync(
+            output,
+            JSON.stringify({
+              source: { inputCount: keys.length, keys },
+              metrics: {
+                strictPrompt: { numerator: 1, denominator: keys.length, accuracy: 1 / keys.length },
+                strictInstruction: { numerator: 1, denominator: keys.length, accuracy: 1 / keys.length },
+                loosePrompt: { numerator: 1, denominator: keys.length, accuracy: 1 / keys.length },
+                looseInstruction: { numerator: 1, denominator: keys.length, accuracy: 1 / keys.length },
+              },
+            }),
+          );
+        },
+      },
+    });
+    const result = await executor({
+      plan: { profile: "smoke", id: "run-ifeval", evidenceRoot: root, trackId: "ifeval" },
+      source: { sourceRoot },
+      candidate,
+      evidence: ({ value, mediaType }) => {
+        const evidence = putEvidence(root, typeof value === "string" ? value : JSON.stringify(value), "private");
+        return { path: evidence.path, digest: evidence.digest, mediaType, bytes: Buffer.byteLength(typeof value === "string" ? value : JSON.stringify(value)) };
+      },
+    });
+    assert.equal(result.executionStatus, "measured");
+    assert.equal(candidateCalls, 9);
+    assert.equal(result.metrics.strictPrompt?.denominator, 9);
+    assert.equal(result.trialReceipts.length, 9);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
 });

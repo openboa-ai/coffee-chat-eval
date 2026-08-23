@@ -74,6 +74,36 @@ export function createFixtureCandidateTransport(
   });
 }
 
+export function createFixtureJudgeTransport(
+  handler: (input: unknown) => unknown,
+  options: { readonly evidenceRoot?: string } = {},
+): JudgeTransport {
+  const evidenceRoot = options.evidenceRoot ?? "/tmp/coffee-chat-eval-fixture-evidence";
+  return Object.freeze({
+    kind: "sealed-judge" as const,
+    evaluate: async (input: unknown) => {
+      const started = Date.now();
+      try {
+        const verdict = artifactFromValue(evidenceRoot, handler(input));
+        return {
+          state: "measured" as const,
+          verdict,
+          verdictDigest: verdict.digest,
+          latencyMs: Math.max(0, Date.now() - started),
+          inputTokens: null,
+          outputTokens: null,
+        };
+      } catch (error) {
+        return {
+          state: "failed" as const,
+          reason: error instanceof Error ? error.message : "fixture Judge failed",
+          failureOwner: "judge" as const,
+        };
+      }
+    },
+  });
+}
+
 export function createNotImplementedTransport(
   kind: "fixture" | "reference_model" | "agent_stack" | "coffee_chat_product",
 ): CandidateTransport {
@@ -142,9 +172,15 @@ async function callResponses(input: {
   readonly model: string;
   readonly body: unknown;
 }): Promise<unknown> {
+  const requestBody =
+    input.body !== null &&
+    typeof input.body === "object" &&
+    "input" in (input.body as Record<string, unknown>)
+      ? input.body
+      : { input: input.body };
   return postBroker(input.endpoint, input.capability, {
     model: input.model,
-    ...((input.body !== null && typeof input.body === "object") ? input.body : { input: input.body }),
+    ...requestBody,
   });
 }
 

@@ -33,8 +33,10 @@ import { runOracleControl } from "./runner.ts";
 import { verifyMaterializedSource } from "./source-cache.ts";
 import { materializePinnedSource } from "./source-materializer.ts";
 import { executeImmutableRun } from "./run-engine.ts";
+import { getNativeTrackExecutor } from "./native-executors.ts";
 import {
   createFixtureCandidateTransport,
+  createFixtureJudgeTransport,
   createNotImplementedTransport,
   createResponsesCandidateTransport,
   createResponsesJudgeTransport,
@@ -481,7 +483,19 @@ export async function runCli(args: readonly string[]): Promise<void> {
         const candidate =
           spec.candidateType === "fixture"
             ? createFixtureCandidateTransport(
-                (input) => ({ input }),
+                (input) =>
+                  plan.trackId === "coffee-chat-taste"
+                    ? {
+                        artifact: { mediaType: "text/plain", content: JSON.stringify(input) },
+                        decisionRecord: {
+                          decision: "fixture replay",
+                          evidenceUse: [],
+                          tradeoffs: [],
+                          constraints: [],
+                          uncertainty: null,
+                        },
+                      }
+                    : { input },
                 { evidenceRoot: plan.evidenceRoot },
               )
             : runtime === undefined
@@ -494,7 +508,9 @@ export async function runCli(args: readonly string[]): Promise<void> {
                 });
         const judge =
           runtime?.judge === undefined
-            ? undefined
+            ? spec.trackId === "coffee-chat-taste" && spec.candidateType === "fixture"
+              ? createFixtureJudgeTransport(() => ({ score: 3, rationale: "fixture replay" }), { evidenceRoot: plan.evidenceRoot })
+              : undefined
             : createResponsesJudgeTransport({
                 endpoint: runtime.judge.endpoint,
                 capability: runtime.judge.capabilityToken,
@@ -506,18 +522,7 @@ export async function runCli(args: readonly string[]): Promise<void> {
           manifest,
           candidate,
           judge,
-          executor: async ({ evidence }) => ({
-            executionStatus: "unmeasured" as const,
-            trialReceipts: [],
-            metrics: {
-              execution: { numerator: null, denominator: null, value: null },
-            },
-            nativeEvidence: evidence({
-              mediaType: "application/json",
-              value: { status: "executor-not-registered", trackId: plan.trackId },
-            }),
-            cleanupStatus: "complete" as const,
-          }),
+          executor: getNativeTrackExecutor(plan.trackId),
         });
         writeJson(result.publicReceipt);
         return;

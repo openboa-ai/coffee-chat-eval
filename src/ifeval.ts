@@ -1,6 +1,12 @@
 import { isAbsolute, resolve } from "node:path";
+import { execFile } from "node:child_process";
+import { createHash } from "node:crypto";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { promisify } from "node:util";
 
 import { stableDigest } from "./identity.ts";
+import { putEvidence } from "./evidence.ts";
+import { createTrialReceipt, type CandidateTransport, type PrivateArtifactRef, type TrackExecutionResult } from "./eval-core.ts";
 import type { Sha256Digest } from "./types.ts";
 
 export type IfevalProfile = "fixture" | "smoke" | "pilot" | "score";
@@ -42,6 +48,10 @@ export const IFEVAL_PILOT_CASES = Object.freeze([
   Object.freeze({ family: "keywords" as const, caseId: "1122" }),
   Object.freeze({ family: "language" as const, caseId: "1108" }),
 ] as const);
+
+export const IFEVAL_SMOKE_KEYS = Object.freeze(
+  IFEVAL_PILOT_CASES.map((entry) => Number(entry.caseId)),
+);
 
 export interface IfevalCase {
   readonly caseId: string;
@@ -167,6 +177,7 @@ export function createIfevalBridgeCommand(input: {
   readonly inputPath: string;
   readonly responsePath: string;
   readonly outputPath: string;
+  readonly profile?: IfevalProfile;
 }): IfevalBridgeCommand {
   for (const [label, value] of Object.entries(input)) {
     if (!isAbsolute(value)) throw new TypeError(`${label} must be absolute`);
@@ -188,10 +199,191 @@ export function createIfevalBridgeCommand(input: {
       resolve(input.responsePath),
       "--output",
       resolve(input.outputPath),
+      ...(input.profile === undefined ? [] : ["--profile", input.profile]),
+      ...(input.profile === undefined || input.profile === "score"
+        ? []
+        : ["--keys", IFEVAL_SMOKE_KEYS.join(",")]),
     ]),
     cacheRoot,
     inputPath: sourcePath,
     responsePath: resolve(input.responsePath),
     outputPath: resolve(input.outputPath),
   });
+}
+
+const execFileAsync = promisify(execFile);
+
+function artifactFromPath(root: string, path: string, mediaType: string): PrivateArtifactRef {
+  const resolvedRoot = resolve(root);
+  const resolvedPath = resolve(path);
+  if (!isAbsolute(path) || (resolvedPath !== resolvedRoot && !resolvedPath.startsWith(`${resolvedRoot}/`))) {
+    throw new TypeError("IFEval artifact must be below EVIDENCE_ROOT");
+  }
+  const bytes = readFileSync(resolvedPath);
+  const digest = `sha256:${createHash("sha256").update(bytes).digest("hex")}` as Sha256Digest;
+  return Object.freeze({ path: resolvedPath, digest, mediaType, bytes: bytes.byteLength });
+}
+
+function responseText(artifact: PrivateArtifactRef): string {
+  const raw = readFileSync(artifact.path, "utf8");
+  if (artifact.mediaType === "text/plain") return raw;
+  try {
+    const value = JSON.parse(raw) as unknown;
+    if (typeof value === "string") return value;
+    if (value !== null && typeof value === "object") {
+      const record = value as Record<string, unknown>;
+      if (typeof record.output_text === "string") return record.output_text;
+      if (typeof record.text === "string") return record.text;
+      if (typeof record.content === "string") return record.content;
+    }
+    return JSON.stringify(value);
+  } catch {
+    return raw;
+  }
+}
+
+export interface IFEvalBridgeRunner {
+  readonly run: (input: {
+    readonly sourceRoot: string;
+    readonly inputData: string;
+    readonly responseData: string;
+    readonly output: string;
+    readonly profile: IfevalProfile;
+    readonly keys: readonly number[];
+  }) => Promise<void>;
+}
+
+function defaultIfevalBridgeRunner(): IFEvalBridgeRunner {
+  return {
+    run: async (input) => {
+      await execFileAsync("python3", [
+        "integrations/ifeval/bridge.py",
+        "--source-root",
+        input.sourceRoot,
+        "--input-data",
+        input.inputData,
+        "--response-data",
+        input.responseData,
+        "--output",
+        input.output,
+        "--profile",
+        input.profile,
+        "--keys",
+        input.keys.join(","),
+      ]);
+    },
+  };
+}
+
+function metricFromNative(value: unknown, label: string): Readonly<{ numerator: number | null; denominator: number | null; value: number | null }> {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) throw new TypeError(`IFEval native metric ${label} is invalid`);
+  const record = value as Record<string, unknown>;
+  const numerator = record.numerator as number;
+  const denominator = record.denominator as number;
+  if (!Number.isSafeInteger(numerator) || !Number.isSafeInteger(denominator) || numerator < 0 || denominator < 0) throw new TypeError(`IFEval native metric ${label} counts are invalid`);
+  if (numerator > denominator) throw new TypeError(`IFEval native metric ${label} numerator exceeds denominator`);
+  const accuracy = record.accuracy;
+  if (accuracy !== null && (typeof accuracy !== "number" || !Number.isFinite(accuracy) || accuracy < 0 || accuracy > 1)) throw new TypeError(`IFEval native metric ${label} accuracy is invalid`);
+  return Object.freeze({ numerator, denominator, value: accuracy as number | null });
+}
+
+export function createIfevalTrackExecutor(input: { readonly bridge?: IFEvalBridgeRunner } = {}): (context: {
+  readonly plan: { readonly profile: IfevalProfile; readonly evidenceRoot: string; readonly id: string; readonly trackId: "ifeval" };
+  readonly source: { readonly sourceRoot: string };
+  readonly candidate: CandidateTransport;
+  readonly evidence: (input: { readonly value: unknown; readonly mediaType: string }) => PrivateArtifactRef;
+}) => Promise<TrackExecutionResult> {
+  return async (context) => {
+    const bridge =
+      input.bridge ??
+      (context.plan.profile === "fixture"
+        ? {
+            run: async ({ output, keys }: { readonly output: string; readonly keys: readonly number[] }) => {
+              mkdirSync(resolve(output, ".."), { recursive: true });
+              writeFileSync(
+                output,
+                JSON.stringify({
+                  source: { inputCount: keys.length, keys },
+                  metrics: Object.fromEntries(
+                    ["strictPrompt", "strictInstruction", "loosePrompt", "looseInstruction"].map((metric) => [metric, { numerator: 0, denominator: keys.length, accuracy: 0 }]),
+                  ),
+                }),
+              );
+            },
+          }
+        : defaultIfevalBridgeRunner());
+    const inventory = createIfevalInventory(context.plan.profile);
+    const inputData = resolve(context.source.sourceRoot, IFEVAL_SOURCE.dataPath);
+    const sourceRows = readFileSync(inputData, "utf8")
+      .split("\n")
+      .filter((line) => line.length > 0)
+      .map((line) => JSON.parse(line) as { readonly key: number; readonly prompt: string });
+    const sourceByKey = new Map(sourceRows.map((row) => [row.key, row]));
+    const responses: string[] = [];
+    const trialReceipts = [];
+    for (const item of inventory) {
+      const sourceRow = sourceByKey.get(Number(item.caseId));
+      if (sourceRow === undefined) throw new TypeError(`IFEval source key is missing: ${item.caseId}`);
+      const candidate = await context.candidate.run({ caseId: item.caseId, prompt: sourceRow.prompt });
+      if (candidate.state !== "measured") {
+        return Object.freeze({
+          executionStatus: candidate.state === "failed" ? "failed" : "unavailable",
+          failureOwner: candidate.failureOwner ?? "candidate",
+          trialReceipts: Object.freeze(trialReceipts),
+          metrics: Object.freeze({ execution: Object.freeze({ numerator: null, denominator: null, value: null }) }),
+          nativeEvidence: context.evidence({ value: { error: candidate.reason }, mediaType: "application/json" }),
+          cleanupStatus: "complete" as const,
+        });
+      }
+      if (candidate.output === undefined) throw new TypeError("candidate output artifact is required");
+      const response = responseText(candidate.output);
+      if (response.length === 0) throw new TypeError("empty IFEval candidate response is invalid");
+      responses.push(JSON.stringify({ key: Number(item.caseId), prompt: sourceRow.prompt, response }));
+      trialReceipts.push(
+        createTrialReceipt({
+          runId: context.plan.id,
+          trackId: "ifeval",
+          trialId: item.caseId,
+          executionStatus: "measured",
+          host: { id: "eval-owned-runner", isolationClass: "fixture", evidenceRef: stableDigest(context.plan.id) },
+          artifacts: { output: candidate.output.digest },
+          metrics: null,
+          latencyMs: candidate.latencyMs,
+          cleanupStatus: "complete",
+        }),
+      );
+    }
+    const responseArtifact = putEvidence(context.plan.evidenceRoot, `${responses.join("\n")}\n`, "private");
+    const responsePath = responseArtifact.path;
+    const nativePath = resolve(context.plan.evidenceRoot, context.plan.id, "ifeval-native.json");
+    mkdirSync(resolve(nativePath, ".."), { recursive: true });
+    await bridge.run({
+      sourceRoot: context.source.sourceRoot,
+      inputData,
+      responseData: responsePath,
+      output: nativePath,
+      profile: context.plan.profile,
+      keys: inventory.map((item) => Number(item.caseId)),
+    });
+    const nativeArtifact = artifactFromPath(context.plan.evidenceRoot, nativePath, "application/json");
+    const native = JSON.parse(readFileSync(nativeArtifact.path, "utf8")) as Record<string, unknown>;
+    const metricsRecord = native.metrics;
+    if (metricsRecord === null || typeof metricsRecord !== "object" || Array.isArray(metricsRecord)) throw new TypeError("IFEval native metrics are missing");
+    const metrics = Object.freeze({
+      strictPrompt: metricFromNative((metricsRecord as Record<string, unknown>).strictPrompt, "strictPrompt"),
+      strictInstruction: metricFromNative((metricsRecord as Record<string, unknown>).strictInstruction, "strictInstruction"),
+      loosePrompt: metricFromNative((metricsRecord as Record<string, unknown>).loosePrompt, "loosePrompt"),
+      looseInstruction: metricFromNative((metricsRecord as Record<string, unknown>).looseInstruction, "looseInstruction"),
+    });
+    const expectedKeys = inventory.map((item) => Number(item.caseId));
+    if (native.source === null || typeof native.source !== "object" || (native.source as Record<string, unknown>).inputCount !== inventory.length) throw new TypeError("IFEval native input census does not match");
+    if (JSON.stringify(native.source && (native.source as Record<string, unknown>).keys) !== JSON.stringify(expectedKeys)) throw new TypeError("IFEval native key census does not match");
+    return Object.freeze({
+      executionStatus: "measured" as const,
+      trialReceipts: Object.freeze(trialReceipts),
+      metrics,
+      nativeEvidence: nativeArtifact,
+      cleanupStatus: "complete" as const,
+    });
+  };
 }

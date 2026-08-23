@@ -1,4 +1,7 @@
 import assert from "node:assert/strict";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
 
 import {
@@ -8,8 +11,12 @@ import {
   createTasteInventory,
   createTasteBridgeCommand,
   executeTasteBench,
+  createTasteTrackExecutor,
   type TasteCondition,
 } from "../src/taste.ts";
+import { createFixtureCandidateTransport } from "../src/transports.ts";
+import { putEvidence } from "../src/evidence.ts";
+import { stableDigest } from "../src/identity.ts";
 
 test("Coffee Chat Taste inventory keeps the 32 x 3 x (13+8) plan explicit", () => {
   assert.equal(TASTE_FAMILY_COUNT, 32);
@@ -53,27 +60,54 @@ test("Taste bridge command keeps source/cache/evidence roots explicit", () => {
 });
 
 test("Taste bridge keeps candidate inputs separate from sealed Judge calls and preserves failures", async () => {
+  const root = mkdtempSync(join(tmpdir(), "coffee-chat-taste-test-"));
+  const candidateSubmission = {
+    artifact: { mediaType: "text/plain", content: "candidate output" },
+    decisionRecord: {
+      decision: "take a reversible next step",
+      evidenceUse: [{ sourceId: "doc-1", use: "supports the decision" }],
+      tradeoffs: [{ factors: ["speed", "safety"], resolution: "stage the change" }],
+      constraints: [{ constraint: "preserve recovery", handling: "keep rollback" }],
+      uncertainty: null,
+    },
+  };
   const calls: string[] = [];
   const api = {
-    getBenchmarkInput: async (manifest: unknown, condition: TasteCondition) => ({
+    getBenchmarkInput: (manifest: unknown, condition: TasteCondition) => ({
       manifest,
       condition,
       prompt: "sealed upstream input",
     }),
-    evaluateSubmission: async (input: unknown) => {
-      calls.push(`submission:${JSON.stringify(input)}`);
-      return { output: "candidate output" };
+    evaluateSubmission: async () => ({}),
+    evaluateCaseFamily: async ({ transport }: { transport: { complete: (request: unknown) => Promise<{ raw: string }> } }) => {
+      for (let index = 0; index < 21; index += 1) {
+        calls.push(`judge:${index}`);
+        await transport.complete({ index });
+      }
+      return { state: "measured" };
     },
-    evaluateCaseFamily: async (request: unknown) => request,
   };
   const judge = {
-    model: "gpt-5.6-luna",
-    evaluate: async (request: { readonly kind: string }) => {
-      calls.push(`judge:${request.kind}`);
-      return { state: "measured" as const, verdict: "pass" };
+    kind: "sealed-judge" as const,
+    evaluate: async () => {
+      const verdict = putEvidence(root, JSON.stringify({ score: 3 }), "private");
+      return {
+        state: "measured" as const,
+        verdict: {
+          path: verdict.path,
+          digest: verdict.digest,
+          mediaType: "application/json",
+          bytes: JSON.stringify({ score: 3 }).length,
+        },
+        verdictDigest: verdict.digest,
+        latencyMs: 1,
+        inputTokens: null,
+        outputTokens: null,
+      };
     },
   };
-  const result = await executeTasteBench({ profile: "pilot", api, judge });
+  const candidate = createFixtureCandidateTransport(() => candidateSubmission, { evidenceRoot: root });
+  const result = await executeTasteBench({ profile: "pilot", manifest: { familyId: "family-00" }, api, candidate, judge });
   assert.equal(result.executionStatus, "measured");
   assert.equal(result.submissions, 3);
   assert.equal(result.judgeCalls, 21);
@@ -85,9 +119,11 @@ test("Taste bridge keeps candidate inputs separate from sealed Judge calls and p
 
   const failed = await executeTasteBench({
     profile: "pilot",
+    manifest: { familyId: "family-00" },
+    candidate,
     api: {
       ...api,
-      getBenchmarkInput: async () => {
+      getBenchmarkInput: () => {
         throw new Error("source unavailable");
       },
     },
@@ -96,4 +132,56 @@ test("Taste bridge keeps candidate inputs separate from sealed Judge calls and p
   assert.equal(failed.executionStatus, "unavailable");
   assert.equal(failed.failureOwner, "source");
   assert.equal(failed.score, null);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("Taste native executor preserves the 3/13/8 smoke census privately", async () => {
+  const root = mkdtempSync(join(tmpdir(), "coffee-chat-taste-native-"));
+  try {
+    let judgeCalls = 0;
+    const api = {
+      getBenchmarkInput: (_manifest: unknown, condition: TasteCondition) => ({ condition }),
+      evaluateSubmission: async () => ({}),
+      evaluateCaseFamily: async ({ transport }: { transport: { complete: (request: unknown) => Promise<{ raw: string }> } }) => {
+        for (let index = 0; index < 21; index += 1) {
+          judgeCalls += 1;
+          await transport.complete({ index });
+        }
+        return { native: true, judgeCalls };
+      },
+    };
+    const candidate = createFixtureCandidateTransport(
+      () => ({
+        artifact: { mediaType: "text/plain", content: "fixture" },
+        decisionRecord: { decision: "fixture", evidenceUse: [], tradeoffs: [], constraints: [], uncertainty: null },
+      }),
+      { evidenceRoot: root },
+    );
+    const judge = {
+      kind: "sealed-judge" as const,
+      evaluate: async () => {
+        const evidence = putEvidence(root, JSON.stringify({ score: 3 }), "private");
+        return { state: "measured" as const, verdict: { path: evidence.path, digest: evidence.digest, mediaType: "application/json", bytes: Buffer.byteLength(JSON.stringify({ score: 3 })) }, verdictDigest: evidence.digest, latencyMs: 1, inputTokens: null, outputTokens: null };
+      },
+    };
+    const executor = createTasteTrackExecutor({ api });
+    const result = await executor({
+      plan: { profile: "smoke", id: "run-taste", evidenceRoot: root, trackId: "coffee-chat-taste" },
+      manifest: { caseId: "fixture" },
+      source: { sourceRoot: root },
+      candidate,
+      judge,
+      evidence: ({ value, mediaType }) => {
+        const evidence = putEvidence(root, JSON.stringify(value), "private");
+        return { path: evidence.path, digest: evidence.digest, mediaType, bytes: Buffer.byteLength(JSON.stringify(value)) };
+      },
+    });
+    assert.equal(result.executionStatus, "measured");
+    assert.equal(judgeCalls, 21);
+    assert.equal(result.trialReceipts.length, 3);
+    assert.equal(result.metrics["pointwiseCalls"]?.denominator, 13);
+    assert.equal(result.metrics["pairwiseCalls"]?.denominator, 8);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
 });
