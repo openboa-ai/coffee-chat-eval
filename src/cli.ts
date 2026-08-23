@@ -31,6 +31,7 @@ import { readBoundedJson } from "./resources.ts";
 import { runCodexCandidate } from "./codex-runner.ts";
 import { runOracleControl } from "./runner.ts";
 import { verifyMaterializedSource } from "./source-cache.ts";
+import { materializePinnedSource } from "./source-materializer.ts";
 import { getSourceManifest, verifySourceManifestPins } from "./source-manifests.ts";
 import { createTasteInventory } from "./taste.ts";
 import type { EvaluationTrackId } from "./track-registry.ts";
@@ -340,6 +341,39 @@ export async function runCli(args: readonly string[]): Promise<void> {
       caseCensus: manifest.caseCensus,
       publicArtifactPolicy: manifest.publicArtifactPolicy,
       ...(materialized === undefined ? {} : { materialized }),
+    });
+    return;
+  }
+  if (args[0] === "source" && args[1] === "materialize") {
+    const values = flags(args.slice(2));
+    const trackId = required(values, "--track") as EvaluationTrackId;
+    const manifest = getSourceManifest(trackId);
+    verifySourceManifestPins(manifest);
+    const cacheRoot = optionalRoot(values, "--cache-root", "EVAL_CACHE_ROOT");
+    const sourceRoot = values.has("--source-root")
+      ? required(values, "--source-root")
+      : join(cacheRoot, trackId, "staging-source");
+    const dataRoot = values.get("--data-root");
+    const runtimeLockPath = values.get("--runtime-lock");
+    const licenseEvidence = values.get("--license-evidence");
+    const materialized = materializePinnedSource({
+      manifest,
+      cacheRoot,
+      sourceRoot,
+      ...(dataRoot === undefined ? {} : { dataRoot }),
+      ...(runtimeLockPath === undefined ? {} : { runtimeLockPath }),
+      ...(licenseEvidence === undefined
+        ? {}
+        : {
+            licenseEvidence: JSON.parse(
+              readFileSync(resolve(licenseEvidence), "utf8"),
+            ) as never,
+          }),
+    });
+    writeJson({
+      trackId,
+      sourceManifestDigest: stableDigest(manifest),
+      materialized,
     });
     return;
   }

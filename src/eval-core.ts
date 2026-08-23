@@ -131,6 +131,8 @@ export interface SourceManifest {
     revision: string;
     license: string;
     licenseDigest?: Sha256Digest;
+    allowlist?: readonly string[];
+    licenseEvidencePath?: string;
   }>;
   readonly allowlist: readonly string[];
   readonly excludedPaths: readonly string[];
@@ -344,12 +346,21 @@ export function parseSourceManifest(value: unknown): SourceManifest {
     exactKeysAllowed(
       dataRecord,
       ["repository", "revision", "license"],
-      ["licenseDigest"],
+      ["licenseDigest", "allowlist", "licenseEvidencePath"],
       "data",
     );
     const revision = text(dataRecord.revision, "data revision");
     if (!COMMIT.test(revision) && !/^v[0-9]/u.test(revision)) {
       throw new TypeError("data revision must be an immutable commit or release");
+    }
+    let dataAllowlist: readonly string[] | undefined;
+    if (dataRecord.allowlist !== undefined) {
+      if (!Array.isArray(dataRecord.allowlist) || dataRecord.allowlist.length === 0) {
+        throw new TypeError("data allowlist must be a non-empty array");
+      }
+      dataAllowlist = Object.freeze(
+        dataRecord.allowlist.map((path) => sourcePath(path, "data allowlist path")),
+      );
     }
     data = Object.freeze({
       repository: text(dataRecord.repository, "data repository"),
@@ -358,6 +369,15 @@ export function parseSourceManifest(value: unknown): SourceManifest {
       ...(dataRecord.licenseDigest === undefined
         ? {}
         : { licenseDigest: digest(dataRecord.licenseDigest, "data license digest") }),
+      ...(dataAllowlist === undefined ? {} : { allowlist: dataAllowlist }),
+      ...(dataRecord.licenseEvidencePath === undefined
+        ? {}
+        : {
+            licenseEvidencePath: sourcePath(
+              dataRecord.licenseEvidencePath,
+              "data license evidence path",
+            ),
+          }),
     });
   }
   const noticesValue = manifest.notices;
