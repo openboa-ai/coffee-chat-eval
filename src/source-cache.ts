@@ -198,11 +198,12 @@ export function parseMaterializedSourceReceipt(
 
 function matches(path: string, pattern: string): boolean {
   if (pattern === path) return true;
-  if (pattern.endsWith("/**")) {
-    const base = pattern.slice(0, -3);
-    return path.startsWith(`${base}/`);
-  }
-  return false;
+  if (!pattern.includes("**")) return false;
+  const escaped = pattern
+    .split("**")
+    .map((part) => part.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&"))
+    .join(".*");
+  return new RegExp(`^${escaped}$`, "u").test(path);
 }
 
 function admitted(path: string, manifest: SourceManifest): boolean {

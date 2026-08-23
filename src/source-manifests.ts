@@ -64,6 +64,7 @@ const SOURCE_MANIFESTS_RAW = {
       "src/__init__.py",
       "src/evaluation/**",
       "src/prompts.py",
+      "chats/100K/**/probing_questions/probing_questions.json",
       "LICENSE",
       "README.md",
     ],
@@ -181,7 +182,7 @@ const EXPECTED_DIGESTS: Readonly<Record<EvaluationTrackId, `sha256:${string}`>> 
     "coffee-chat-taste":
       "sha256:bc5b172721cc7ddb41ef85ea0436b7dbfd12d9feac35c8e923e7cd229bd638bb",
     "beam-record-core":
-      "sha256:5c98e191e800ea7d1ab08939886c7bf142805493af4638f5b221a4ad63a8ab3f",
+      "sha256:ccb3cadc70ff15f8c1c4630cf0ddcd7b8673e4ddb12a04766492ba9e666ca9f0",
     ifeval: "sha256:e3343ceabe05005ebc26965be04f0b410b7574c534dab7aef8794e70ded8df3e",
     "agentdojo-security":
       "sha256:9470d6cdcc6670dde2a056c6bc82b1f935db6eed1c762002fd74b3e205fe289b",

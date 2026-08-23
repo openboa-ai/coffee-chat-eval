@@ -522,6 +522,7 @@ export async function runCli(args: readonly string[]): Promise<void> {
           manifest,
           candidate,
           judge,
+          runtime,
           executor: getNativeTrackExecutor(plan.trackId),
         });
         writeJson(result.publicReceipt);

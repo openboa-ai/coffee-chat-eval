@@ -127,3 +127,49 @@ test("materializer copies only admitted bytes and records immutable revisions an
     rmSync(input, { recursive: true, force: true });
   }
 });
+
+test("materializer supports recursive globs with a pinned path segment", () => {
+  const root = mkdtempSync(join(tmpdir(), "coffee-chat-eval-glob-cache-"));
+  const input = mkdtempSync(join(tmpdir(), "coffee-chat-eval-glob-source-"));
+  try {
+    const source = join(input, "source");
+    const nested = join(source, "chats", "100K", "1", "probing_questions");
+    mkdirSync(nested, { recursive: true });
+    writeFileSync(join(source, "LICENSE"), "license");
+    writeFileSync(join(nested, "probing_questions.json"), "{}\n");
+    const manifest = parseSourceManifest({
+      schema: "source-manifest-v1",
+      trackId: "beam-record-core",
+      source: {
+        repository: "https://example.invalid/beam",
+        commit: "c".repeat(40),
+        license: "MIT",
+        licenseDigest: digest("license"),
+      },
+      allowlist: [
+        "LICENSE",
+        "chats/100K/**/probing_questions/probing_questions.json",
+      ],
+      excludedPaths: ["secrets/**"],
+      retention: {
+        source: "cache-only",
+        evidence: "private-content-addressed",
+        public: "aggregate-provenance-only",
+      },
+      providerTermsPolicy: "receipt-required",
+      providerTermsDigest: stableDigest("terms"),
+      publicArtifactPolicy: "receipt-redacted",
+    });
+    const result = materializeSource({
+      manifest,
+      cacheRoot: root,
+      sourceRoot: source,
+      runtimeLockDigest: stableDigest("runtime-lock"),
+      licenseEvidence: [{ path: "LICENSE", digest: digest("license"), license: "MIT" }],
+    });
+    assert.equal(result.sourceFileCount, 2);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+    rmSync(input, { recursive: true, force: true });
+  }
+});

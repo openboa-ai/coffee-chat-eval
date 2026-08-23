@@ -24,6 +24,7 @@ import { putEvidence } from "./evidence.ts";
 import { verifyMaterializedSource, type MaterializedSourceVerification } from "./source-cache.ts";
 import { verifySourceManifestPins } from "./source-manifests.ts";
 import type { ExecutionStatus, FailureOwner, Sha256Digest } from "./types.ts";
+import type { RuntimeBundleConfig } from "./runtime-config.ts";
 
 export interface EvidenceWriterInput {
   readonly value: unknown;
@@ -36,6 +37,8 @@ export interface TrackExecutorContext {
   readonly source: MaterializedSourceVerification;
   readonly candidate: CandidateTransport;
   readonly judge: JudgeTransport | undefined;
+  /** Ephemeral broker capabilities supplied by `run`; never part of RunSpec identity. */
+  readonly runtime?: RuntimeBundleConfig | undefined;
   readonly evidence: (input: EvidenceWriterInput) => PrivateArtifactRef;
 }
 
@@ -133,6 +136,7 @@ function materializedSourceResult(input: {
   readonly manifest: SourceManifest;
   readonly candidate: CandidateTransport;
   readonly judge: JudgeTransport | undefined;
+  readonly runtime?: RuntimeBundleConfig | undefined;
   readonly source: MaterializedSourceVerification;
   readonly executor: TrackExecutor;
 }): Promise<TrackExecutionResult> {
@@ -142,6 +146,7 @@ function materializedSourceResult(input: {
     source: input.source,
     candidate: input.candidate,
     judge: input.judge,
+    runtime: input.runtime,
     evidence: ({ value, mediaType }) => privateArtifact(input.plan.evidenceRoot, value, mediaType),
   });
 }
@@ -151,6 +156,7 @@ export async function executeImmutableRun(input: {
   readonly manifest: SourceManifest;
   readonly candidate: CandidateTransport;
   readonly judge: JudgeTransport | undefined;
+  readonly runtime?: RuntimeBundleConfig | undefined;
   readonly executor: TrackExecutor;
 }): Promise<ImmutableRunResult> {
   const plan = input.plan;
