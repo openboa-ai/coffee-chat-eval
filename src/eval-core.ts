@@ -33,13 +33,35 @@ const EXECUTION_STATUSES: readonly ExecutionStatus[] = [
 
 export type RunProfile = "fixture" | "smoke" | "pilot" | "score";
 
+export interface PrivateArtifactRef {
+  readonly path: string;
+  readonly digest: Sha256Digest;
+  readonly mediaType: string;
+  readonly bytes: number;
+}
+
+export type CandidateRunResult =
+  | {
+      readonly state: "measured";
+      readonly output: PrivateArtifactRef;
+      readonly latencyMs: number;
+      readonly inputTokens: number | null;
+      readonly outputTokens: number | null;
+      /** Backward-compatible digest projection for existing callers. */
+      readonly outputDigest: Sha256Digest;
+    }
+  | {
+      readonly state: Exclude<ExecutionStatus, "measured">;
+      readonly reason: string;
+      readonly failureOwner?: FailureOwner;
+    };
+
 export interface CandidateTransport {
   readonly kind: "fixture" | "reference_model" | "agent_stack" | "coffee_chat_product";
   readonly run: (
     input: unknown,
   ) => Promise<
-    | { readonly state: "measured"; readonly outputDigest: Sha256Digest }
-    | { readonly state: Exclude<ExecutionStatus, "measured">; readonly reason: string }
+    CandidateRunResult
   >;
 }
 
@@ -58,8 +80,27 @@ export interface JudgeTransport {
   readonly evaluate: (
     input: unknown,
   ) => Promise<
-    | { readonly state: "measured"; readonly verdictDigest: Sha256Digest }
-    | { readonly state: Exclude<ExecutionStatus, "measured">; readonly reason: string }
+    | {
+        readonly state: "measured";
+        readonly verdict: PrivateArtifactRef;
+        readonly latencyMs: number;
+        readonly inputTokens: number | null;
+        readonly outputTokens: number | null;
+        readonly verdictDigest: Sha256Digest;
+      }
+    | {
+        readonly state: "measured";
+        readonly verdictDigest: Sha256Digest;
+        readonly verdict?: PrivateArtifactRef;
+        readonly latencyMs?: number;
+        readonly inputTokens?: number | null;
+        readonly outputTokens?: number | null;
+      }
+    | {
+        readonly state: Exclude<ExecutionStatus, "measured">;
+        readonly reason: string;
+        readonly failureOwner?: FailureOwner;
+      }
   >;
 }
 
@@ -94,7 +135,17 @@ export interface TrackReport {
   readonly provenance: Readonly<{
     sourceManifestDigest: Sha256Digest;
     runId: string;
+    nativeEvidenceDigest?: Sha256Digest;
   }>;
+}
+
+export interface TrackExecutionResult {
+  readonly executionStatus: ExecutionStatus;
+  readonly failureOwner?: FailureOwner;
+  readonly trialReceipts: readonly TrialReceipt[];
+  readonly metrics: TrackReport["metrics"];
+  readonly nativeEvidence: PrivateArtifactRef;
+  readonly cleanupStatus: "complete" | "failed" | "unavailable";
 }
 
 export interface TrialReceipt {
@@ -189,6 +240,7 @@ export interface RunPlan {
   readonly executionStatus: Extract<ExecutionStatus, "unmeasured">;
   readonly evidenceRoot: string;
   readonly cacheRoot: string;
+  readonly runSpec?: RunSpec;
 }
 
 function object(value: unknown, label: string): Record<string, unknown> {
@@ -676,6 +728,7 @@ export function createRunPlan(input: {
     executionStatus: "unmeasured",
     evidenceRoot,
     cacheRoot,
+    runSpec: input.spec,
   });
 }
 
@@ -960,7 +1013,10 @@ export function parseTrackReport(value: unknown): TrackReport {
   }
   const provenance = object(record.provenance, "track report provenance");
   if (
-    Object.keys(provenance).sort().join("\0") !==
+    Object.keys(provenance).some((key) =>
+      !["runId", "sourceManifestDigest", "nativeEvidenceDigest"].includes(key),
+    ) ||
+    Object.keys(provenance).filter((key) => key !== "nativeEvidenceDigest").sort().join("\0") !==
       ["runId", "sourceManifestDigest"].sort().join("\0") ||
     typeof provenance.runId !== "string" ||
     provenance.runId.length === 0
@@ -985,6 +1041,14 @@ export function parseTrackReport(value: unknown): TrackReport {
         "track report source manifest digest",
       ),
       runId: provenance.runId,
+      ...(provenance.nativeEvidenceDigest === undefined
+        ? {}
+        : {
+            nativeEvidenceDigest: digest(
+              provenance.nativeEvidenceDigest,
+              "track report native evidence digest",
+            ),
+          }),
     },
   });
 }

@@ -32,6 +32,20 @@ import { runCodexCandidate } from "./codex-runner.ts";
 import { runOracleControl } from "./runner.ts";
 import { verifyMaterializedSource } from "./source-cache.ts";
 import { materializePinnedSource } from "./source-materializer.ts";
+import { executeImmutableRun } from "./run-engine.ts";
+import {
+  createFixtureCandidateTransport,
+  createNotImplementedTransport,
+  createResponsesCandidateTransport,
+  createResponsesJudgeTransport,
+} from "./transports.ts";
+import {
+  candidateIdentityDigest,
+  judgeIdentityDigest,
+  parseCandidateIdentityConfig,
+  parseJudgeIdentityConfig,
+  parseRuntimeBundleConfig,
+} from "./runtime-config.ts";
 import { getSourceManifest, verifySourceManifestPins } from "./source-manifests.ts";
 import { createTasteInventory } from "./taste.ts";
 import type { EvaluationTrackId } from "./track-registry.ts";
@@ -146,23 +160,37 @@ function buildV1Plan(values: ReadonlyMap<string, string>) {
     required(values, "--candidate-config"),
     "candidate config",
   );
-  const candidateConfigDigest = stableDigest(candidateConfig);
-  const candidateTypeValue =
+  const candidateRecord =
     candidateConfig !== null &&
     typeof candidateConfig === "object" &&
     !Array.isArray(candidateConfig)
-      ? (candidateConfig as Record<string, unknown>).candidateType
+      ? (candidateConfig as Record<string, unknown>)
       : undefined;
-  const candidateType =
-    candidateTypeValue === undefined ? "fixture" : candidateTypeValue;
-  if (
-    candidateType !== "fixture" &&
-    candidateType !== "reference_model" &&
-    candidateType !== "agent_stack" &&
-    candidateType !== "coffee_chat_product"
-  ) {
-    throw new TypeError("candidate config candidateType is unsupported");
+  const forbiddenRuntimeKeys = ["endpoint", "capabilityToken", "apiKey", "providerKey"];
+  if (candidateRecord !== undefined && forbiddenRuntimeKeys.some((key) => key in candidateRecord)) {
+    throw new TypeError("candidate identity config must not contain runtime capability fields");
   }
+  const candidateIdentity =
+    candidateRecord?.schema === "candidate-config-v1"
+      ? parseCandidateIdentityConfig(candidateRecord)
+      : parseCandidateIdentityConfig({
+          schema: "candidate-config-v1",
+          candidateType: candidateRecord?.candidateType ?? "fixture",
+          harness: candidateRecord?.harness ?? "fixture-replay-v1",
+          model: candidateRecord?.model ?? "fixture",
+          ...(candidateRecord?.seed === undefined ? {} : { seed: candidateRecord.seed }),
+        });
+  const candidateType = candidateIdentity.candidateType;
+  const candidateConfigDigest = candidateIdentityDigest(candidateIdentity);
+  const judgeIdentity =
+    candidateRecord?.judge !== undefined
+      ? parseJudgeIdentityConfig(candidateRecord.judge)
+      : parseJudgeIdentityConfig({
+          schema: "judge-config-v1",
+          transport: "responses",
+          model: "gpt-5.6-luna",
+        });
+  const judgeConfigDigest = judgeIdentityDigest(judgeIdentity);
   const providerTermsReceiptPath = values.get("--provider-terms-receipt");
   if (providerTermsReceiptPath !== undefined && !isAbsolute(providerTermsReceiptPath)) {
     throw new TypeError("--provider-terms-receipt must be an absolute path");
@@ -187,12 +215,6 @@ function buildV1Plan(values: ReadonlyMap<string, string>) {
   const sourceCondition = "native-pinned";
   const coffeeCondition =
     trackId === "coffee-chat-taste" ? "three-condition-matrix" : undefined;
-  const candidateRecord =
-    candidateConfig !== null &&
-    typeof candidateConfig === "object" &&
-    !Array.isArray(candidateConfig)
-      ? (candidateConfig as Record<string, unknown>)
-      : undefined;
   const isolationEvidenceDigest =
     candidateRecord?.isolationEvidence === undefined
       ? undefined
@@ -202,20 +224,15 @@ function buildV1Plan(values: ReadonlyMap<string, string>) {
     trackId,
     profile,
     sourceManifestDigest,
-    candidateDigest: stableDigest({ candidateType, candidateConfigDigest }),
-    judgeDigest: stableDigest(
-      candidateConfig !== null &&
-        typeof candidateConfig === "object" &&
-        !Array.isArray(candidateConfig)
-        ? ((candidateConfig as Record<string, unknown>).judge ?? "sealed-native-judge")
-        : "sealed-native-judge",
-    ),
+    candidateDigest: candidateConfigDigest,
+    judgeDigest: judgeConfigDigest,
     attackDigest,
     defenseDigest,
     configurationDigest: stableDigest({
       trackId,
       profile,
-      candidateConfigDigest,
+      candidateIdentityDigest: candidateConfigDigest,
+      judgeIdentityDigest: judgeConfigDigest,
       providerTermsDigest: manifest.providerTermsDigest,
       ...(providerTermsReceiptDigest === undefined
         ? {}
@@ -254,6 +271,8 @@ function buildV1Plan(values: ReadonlyMap<string, string>) {
     ...plan,
     runSpec: spec,
     sourceManifest: manifest,
+    candidateIdentity,
+    judgeIdentity,
     census,
   });
 }
@@ -413,6 +432,96 @@ export async function runCli(args: readonly string[]): Promise<void> {
             ? envelope.cacheRoot
             : optionalRoot(runValues, "--cache-root", "EVAL_CACHE_ROOT"),
       });
+      const modernPlan = envelope.runSpec !== undefined && envelope.sourceManifest !== undefined;
+      if (modernPlan) {
+        const candidateIdentity =
+          envelope.candidateIdentity === undefined
+            ? parseCandidateIdentityConfig({
+                schema: "candidate-config-v1",
+                candidateType: spec.candidateType ?? "fixture",
+                harness: "legacy-plan-v1",
+                model: spec.candidateType === "fixture" ? "fixture" : "gpt-5.6-luna",
+              })
+            : parseCandidateIdentityConfig(envelope.candidateIdentity);
+        const judgeIdentity =
+          envelope.judgeIdentity === undefined
+            ? parseJudgeIdentityConfig({
+                schema: "judge-config-v1",
+                transport: "responses",
+                model: "gpt-5.6-luna",
+              })
+            : parseJudgeIdentityConfig(envelope.judgeIdentity);
+        if (
+          envelope.candidateIdentity !== undefined &&
+          candidateIdentityDigest(candidateIdentity) !== spec.candidateDigest
+        ) {
+          throw new TypeError("candidate identity digest does not match run spec");
+        }
+        if (
+          envelope.judgeIdentity !== undefined &&
+          judgeIdentityDigest(judgeIdentity) !== spec.judgeDigest
+        ) {
+          throw new TypeError("judge identity digest does not match run spec");
+        }
+        const runtimeConfigPath = runValues.get("--runtime-config");
+        const runtime =
+          runtimeConfigPath === undefined
+            ? undefined
+            : parseRuntimeBundleConfig(
+                readBoundedJson(resolve(runtimeConfigPath), CORE_BYTES, "runtime config"),
+              );
+        if (runtime !== undefined) {
+          if (runtime.candidate.model !== candidateIdentity.model) {
+            throw new TypeError("candidate runtime model does not match identity config");
+          }
+          if (runtime.judge !== undefined && runtime.judge.model !== judgeIdentity.model) {
+            throw new TypeError("judge runtime model does not match identity config");
+          }
+        }
+        const candidate =
+          spec.candidateType === "fixture"
+            ? createFixtureCandidateTransport(
+                (input) => ({ input }),
+                { evidenceRoot: plan.evidenceRoot },
+              )
+            : runtime === undefined
+              ? createNotImplementedTransport(spec.candidateType ?? "agent_stack")
+              : createResponsesCandidateTransport({
+                  endpoint: runtime.candidate.endpoint,
+                  capability: runtime.candidate.capabilityToken,
+                  model: runtime.candidate.model,
+                  evidenceRoot: plan.evidenceRoot,
+                });
+        const judge =
+          runtime?.judge === undefined
+            ? undefined
+            : createResponsesJudgeTransport({
+                endpoint: runtime.judge.endpoint,
+                capability: runtime.judge.capabilityToken,
+                model: runtime.judge.model,
+                evidenceRoot: plan.evidenceRoot,
+              });
+        const result = await executeImmutableRun({
+          plan,
+          manifest,
+          candidate,
+          judge,
+          executor: async ({ evidence }) => ({
+            executionStatus: "unmeasured" as const,
+            trialReceipts: [],
+            metrics: {
+              execution: { numerator: null, denominator: null, value: null },
+            },
+            nativeEvidence: evidence({
+              mediaType: "application/json",
+              value: { status: "executor-not-registered", trackId: plan.trackId },
+            }),
+            cleanupStatus: "complete" as const,
+          }),
+        });
+        writeJson(result.publicReceipt);
+        return;
+      }
       const executionStatus =
         spec.candidateType === "coffee_chat_product"
           ? ("not_implemented" as const)
