@@ -30,6 +30,27 @@ export function createDryRunRegistry(): DryRunRegistry {
         status: "unmeasured" as const,
         reason: "manual_baseline_receipts_exist_without_qualified_semantic_judgment",
       },
+      {
+        id: "coffee-chat-taste",
+        status: "unmeasured" as const,
+        reason: "32 families / 96 submissions / 672 Judge calls; benchmark not_active",
+      },
+      {
+        id: "beam-record-core",
+        status: "unmeasured" as const,
+        reason: "20 conversations / 240 queries; upstream-code-exact diagnostic",
+      },
+      {
+        id: "ifeval",
+        status: "unmeasured" as const,
+        reason: "official 541 prompts; four native accuracies",
+      },
+      {
+        id: "agentdojo-security",
+        status: "unmeasured" as const,
+        reason:
+          "97 user + 35 injection + 949 attacked = 1081 episodes; no security certification",
+      },
     ]),
   });
 }
