@@ -1,4 +1,16 @@
 import { stableDigest } from "./identity.ts";
+import { createHash } from "node:crypto";
+import { mkdirSync, readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+import { requireRuntimePython } from "./python-runtime.ts";
+import type {
+  CandidateTransport,
+  PrivateArtifactRef,
+  TrackExecutionResult,
+  TrialReceipt,
+} from "./eval-core.ts";
+import { createTrialReceipt } from "./eval-core.ts";
 import type { ExecutionStatus, FailureOwner, Sha256Digest } from "./types.ts";
 
 export type AgentDojoProfile = "fixture" | "smoke" | "pilot" | "score";
@@ -226,7 +238,7 @@ export function summarizeAgentDojoObservations(
 }
 
 export interface AgentDojoBridgeCommand {
-  readonly command: "python3";
+  readonly command: "uv";
   readonly args: readonly string[];
   readonly sourceCommit: typeof AGENTDOJO_SOURCE.commit;
 }
@@ -234,21 +246,31 @@ export interface AgentDojoBridgeCommand {
 export function createAgentDojoBridgeCommand(input: {
   readonly cacheRoot: string;
   readonly evidenceRoot: string;
-  readonly candidateConfigPath: string;
+  readonly candidateConfigPath?: string;
+  readonly candidateRuntimePath?: string;
 }): AgentDojoBridgeCommand {
   for (const [label, value] of Object.entries(input)) {
+    if (value === undefined) continue;
     if (!value.startsWith("/")) throw new TypeError(`${label} must be absolute`);
   }
+  const candidateRuntimePath = input.candidateRuntimePath ?? input.candidateConfigPath;
+  if (candidateRuntimePath === undefined)
+    throw new TypeError("candidateRuntimePath is required");
   return Object.freeze({
-    command: "python3" as const,
+    command: "uv" as const,
     args: Object.freeze([
-      "integrations/agentdojo/bridge.py",
+      "run",
+      "--offline",
+      "--project",
+      resolve(input.cacheRoot, "source"),
+      "python",
+      fileURLToPath(new URL("../integrations/agentdojo/bridge.py", import.meta.url)),
       "--cache-root",
       input.cacheRoot,
       "--evidence-root",
       input.evidenceRoot,
-      "--candidate-config",
-      input.candidateConfigPath,
+      "--candidate-runtime",
+      candidateRuntimePath,
       "--attack",
       AGENTDOJO_ATTACK,
       "--defense",
@@ -258,4 +280,276 @@ export function createAgentDojoBridgeCommand(input: {
     ]),
     sourceCommit: AGENTDOJO_SOURCE.commit,
   });
+}
+
+export interface AgentDojoBridgeRunner {
+  readonly run: (input: {
+    readonly sourceRoot: string;
+    readonly evidenceRoot: string;
+    readonly candidateRuntimePath?: string | undefined;
+    readonly outputPath: string;
+    readonly profile: AgentDojoProfile;
+  }) => Promise<void>;
+}
+
+function agentDojoArtifactFromPath(
+  evidenceRoot: string,
+  path: string,
+): PrivateArtifactRef {
+  const root = resolve(evidenceRoot);
+  const resolvedPath = resolve(path);
+  if (resolvedPath !== root && !resolvedPath.startsWith(`${root}/`)) {
+    throw new TypeError("AgentDojo native evidence must be below EVIDENCE_ROOT");
+  }
+  const bytes = readFileSync(resolvedPath);
+  return Object.freeze({
+    path: resolvedPath,
+    digest: `sha256:${createHash("sha256").update(bytes).digest("hex")}`,
+    mediaType: "application/json",
+    bytes: bytes.byteLength,
+  });
+}
+
+function defaultAgentDojoBridge(): AgentDojoBridgeRunner {
+  return {
+    run: async (input) => {
+      const { execFile } = await import("node:child_process");
+      const { promisify } = await import("node:util");
+      await promisify(execFile)(requireRuntimePython(input.sourceRoot), [
+        fileURLToPath(new URL("../integrations/agentdojo/bridge.py", import.meta.url)),
+        "--source-root",
+        input.sourceRoot,
+        "--evidence-root",
+        input.evidenceRoot,
+        "--output",
+        input.outputPath,
+        "--profile",
+        input.profile,
+        "--attack",
+        AGENTDOJO_ATTACK,
+        "--defense",
+        "None",
+        "--benchmark-version",
+        AGENTDOJO_SOURCE.benchmarkVersion,
+        ...(input.candidateRuntimePath === undefined
+          ? []
+          : ["--candidate-runtime", input.candidateRuntimePath]),
+      ]);
+    },
+  };
+}
+
+function agentDojoMetric(
+  native: Record<string, unknown>,
+  key: string,
+): {
+  readonly numerator: number;
+  readonly denominator: number;
+  readonly value: number | null;
+} {
+  const value = native[key];
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    throw new TypeError(`AgentDojo native metric is missing: ${key}`);
+  }
+  const metric = value as Record<string, unknown>;
+  if (
+    typeof metric.numerator !== "number" ||
+    typeof metric.denominator !== "number" ||
+    (metric.value !== null && typeof metric.value !== "number")
+  ) {
+    throw new TypeError(`AgentDojo native metric is malformed: ${key}`);
+  }
+  if (metric.denominator !== 1) {
+    throw new TypeError(`AgentDojo smoke denominator must be one: ${key}`);
+  }
+  return Object.freeze({
+    numerator: metric.numerator,
+    denominator: metric.denominator,
+    value: metric.value as number | null,
+  });
+}
+
+export function createAgentDojoTrackExecutor(
+  input: { readonly bridge?: AgentDojoBridgeRunner } = {},
+) {
+  return async (context: {
+    readonly plan: {
+      readonly profile: AgentDojoProfile;
+      readonly id: string;
+      readonly evidenceRoot: string;
+      readonly trackId: "agentdojo-security";
+    };
+    readonly source: { readonly sourceRoot: string };
+    readonly candidate: CandidateTransport;
+    readonly judge?: unknown;
+    readonly runtime?: {
+      readonly candidate: {
+        readonly endpoint: string;
+        readonly capabilityToken: string;
+        readonly model: string;
+        readonly maxRequests: number;
+      };
+    };
+    readonly evidence: (input: {
+      readonly value: unknown;
+      readonly mediaType: string;
+    }) => PrivateArtifactRef;
+  }): Promise<TrackExecutionResult> => {
+    const inventory = createAgentDojoInventory(context.plan.profile);
+    const bridge = input.bridge ?? defaultAgentDojoBridge();
+    const outputPath = resolve(
+      context.plan.evidenceRoot,
+      context.plan.id,
+      "agentdojo-native.json",
+    );
+    mkdirSync(resolve(outputPath, ".."), { recursive: true });
+
+    let candidateRuntimePath: string | undefined;
+    if (context.plan.profile !== "fixture") {
+      if (context.runtime?.candidate === undefined) {
+        throw new TypeError("AgentDojo live evaluation requires a candidate runtime");
+      }
+      candidateRuntimePath = context.evidence({
+        value: context.runtime.candidate,
+        mediaType: "application/json",
+      }).path;
+    } else {
+      for (const episode of inventory) {
+        const candidate = await context.candidate.run({
+          suite: episode.suite,
+          kind: episode.kind,
+          userTaskId: episode.userTaskId,
+          injectionTaskId: episode.injectionTaskId,
+        });
+        if (candidate.state !== "measured") {
+          return Object.freeze({
+            executionStatus: candidate.state === "failed" ? "failed" : "unavailable",
+            failureOwner: candidate.failureOwner ?? "candidate",
+            trialReceipts: Object.freeze([]),
+            metrics: Object.freeze({
+              execution: Object.freeze({
+                numerator: null,
+                denominator: null,
+                value: null,
+              }),
+            }),
+            nativeEvidence: context.evidence({
+              value: { reason: candidate.reason },
+              mediaType: "application/json",
+            }),
+            cleanupStatus: "complete" as const,
+          });
+        }
+      }
+    }
+
+    await bridge.run({
+      sourceRoot: context.source.sourceRoot,
+      evidenceRoot: context.plan.evidenceRoot,
+      outputPath,
+      profile: context.plan.profile,
+      ...(candidateRuntimePath === undefined ? {} : { candidateRuntimePath }),
+    });
+    const nativeEvidence = agentDojoArtifactFromPath(
+      context.plan.evidenceRoot,
+      outputPath,
+    );
+    const native = JSON.parse(readFileSync(nativeEvidence.path, "utf8")) as Record<
+      string,
+      unknown
+    >;
+    if (
+      native.schema !== "coffee-chat-eval/agentdojo-security-v1" ||
+      native.sourceCommit !== AGENTDOJO_SOURCE.commit ||
+      native.benchmarkVersion !== AGENTDOJO_SOURCE.benchmarkVersion ||
+      native.attack !== AGENTDOJO_ATTACK ||
+      native.publishedTableComparable !== false
+    ) {
+      throw new TypeError(
+        "AgentDojo native identity or public comparability flag drifted",
+      );
+    }
+    const episodes = native.episodes;
+    if (!Array.isArray(episodes) || episodes.length !== inventory.length) {
+      throw new TypeError(
+        "AgentDojo native episode census does not match sampled inventory",
+      );
+    }
+    const expected = inventory.map(
+      (episode) =>
+        `${episode.suite}/${episode.kind}/${episode.userTaskId ?? "-"}/${episode.injectionTaskId ?? "-"}`,
+    );
+    const observed = episodes.map((value) => {
+      if (value === null || typeof value !== "object" || Array.isArray(value)) {
+        throw new TypeError("AgentDojo native episode is malformed");
+      }
+      const record = value as Record<string, unknown>;
+      return `${record.suite}/${record.kind}/${record.userTaskId ?? "-"}/${record.injectionTaskId ?? "-"}`;
+    });
+    if (JSON.stringify(expected) !== JSON.stringify(observed)) {
+      throw new TypeError("AgentDojo native episode identity does not match inventory");
+    }
+    if (native.providerContextFailure === true) {
+      return Object.freeze({
+        executionStatus: "invalid" as const,
+        failureOwner: "host" as const,
+        trialReceipts: Object.freeze([]),
+        metrics: Object.freeze({
+          execution: Object.freeze({ numerator: null, denominator: null, value: null }),
+        }),
+        nativeEvidence,
+        cleanupStatus: "complete" as const,
+      });
+    }
+    if (native.status !== "measured") {
+      const owner = native.failureOwner === "host" ? "host" : "adapter";
+      return Object.freeze({
+        executionStatus: owner === "host" ? "unavailable" : "failed",
+        failureOwner: owner,
+        trialReceipts: Object.freeze([]),
+        metrics: Object.freeze({
+          execution: Object.freeze({ numerator: null, denominator: null, value: null }),
+        }),
+        nativeEvidence,
+        cleanupStatus: "complete" as const,
+      });
+    }
+    const candidateCalls = native.candidateCalls;
+    if (
+      typeof candidateCalls !== "number" ||
+      candidateCalls < 0 ||
+      candidateCalls > 45
+    ) {
+      throw new TypeError("AgentDojo candidate turn cap is invalid");
+    }
+    const metrics = Object.freeze({
+      benignUtility: agentDojoMetric(native, "benignUtility"),
+      utilityUnderAttack: agentDojoMetric(native, "utilityUnderAttack"),
+      targetedASR: agentDojoMetric(native, "targetedASR"),
+      injectionTaskSolvability: agentDojoMetric(native, "injectionTaskSolvability"),
+    });
+    const trialReceipts: TrialReceipt[] = inventory.map((episode) =>
+      createTrialReceipt({
+        runId: context.plan.id,
+        trackId: "agentdojo-security",
+        trialId: `${episode.suite}/${episode.kind}/${episode.userTaskId ?? "-"}/${episode.injectionTaskId ?? "-"}`,
+        executionStatus: "measured",
+        host: {
+          id: "eval-owned-agentdojo",
+          isolationClass: context.plan.profile === "fixture" ? "fixture" : "real",
+          evidenceRef: nativeEvidence.digest,
+        },
+        artifacts: { native: nativeEvidence.digest },
+        metrics: null,
+        cleanupStatus: "complete",
+      }),
+    );
+    return Object.freeze({
+      executionStatus: "measured" as const,
+      trialReceipts: Object.freeze(trialReceipts),
+      metrics,
+      nativeEvidence,
+      cleanupStatus: "complete" as const,
+    });
+  };
 }

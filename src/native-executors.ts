@@ -2,6 +2,8 @@ import type { EvaluationTrackId } from "./track-registry.ts";
 import type { TrackExecutor } from "./run-engine.ts";
 import { createIfevalTrackExecutor } from "./ifeval.ts";
 import { createTasteTrackExecutor } from "./taste.ts";
+import { createBeamTrackExecutor } from "./beam.ts";
+import { createAgentDojoTrackExecutor } from "./agentdojo.ts";
 
 function deferred(trackId: EvaluationTrackId): TrackExecutor {
   return async ({ evidence }) => ({
@@ -23,7 +25,8 @@ export function getNativeTrackExecutor(trackId: EvaluationTrackId): TrackExecuto
     case "coffee-chat-taste":
       return createTasteTrackExecutor() as unknown as TrackExecutor;
     case "beam-record-core":
+      return createBeamTrackExecutor() as unknown as TrackExecutor;
     case "agentdojo-security":
-      return deferred(trackId);
+      return createAgentDojoTrackExecutor() as unknown as TrackExecutor;
   }
 }

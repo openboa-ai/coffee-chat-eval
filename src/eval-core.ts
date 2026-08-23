@@ -58,11 +58,7 @@ export type CandidateRunResult =
 
 export interface CandidateTransport {
   readonly kind: "fixture" | "reference_model" | "agent_stack" | "coffee_chat_product";
-  readonly run: (
-    input: unknown,
-  ) => Promise<
-    CandidateRunResult
-  >;
+  readonly run: (input: unknown) => Promise<CandidateRunResult>;
 }
 
 export interface InteractiveAgentSession {
@@ -77,9 +73,7 @@ export interface InteractiveAgentTransport extends CandidateTransport {
 
 export interface JudgeTransport {
   readonly kind: "sealed-judge";
-  readonly evaluate: (
-    input: unknown,
-  ) => Promise<
+  readonly evaluate: (input: unknown) => Promise<
     | {
         readonly state: "measured";
         readonly verdict: PrivateArtifactRef;
@@ -184,6 +178,7 @@ export interface SourceManifest {
     licenseDigest?: Sha256Digest;
     allowlist?: readonly string[];
     licenseEvidencePath?: string;
+    fileDigests?: Readonly<Record<string, Sha256Digest>>;
   }>;
   readonly allowlist: readonly string[];
   readonly excludedPaths: readonly string[];
@@ -398,7 +393,7 @@ export function parseSourceManifest(value: unknown): SourceManifest {
     exactKeysAllowed(
       dataRecord,
       ["repository", "revision", "license"],
-      ["licenseDigest", "allowlist", "licenseEvidencePath"],
+      ["licenseDigest", "allowlist", "licenseEvidencePath", "fileDigests"],
       "data",
     );
     const revision = text(dataRecord.revision, "data revision");
@@ -413,6 +408,20 @@ export function parseSourceManifest(value: unknown): SourceManifest {
       dataAllowlist = Object.freeze(
         dataRecord.allowlist.map((path) => sourcePath(path, "data allowlist path")),
       );
+    }
+    let dataFileDigests: Readonly<Record<string, Sha256Digest>> | undefined;
+    if (dataRecord.fileDigests !== undefined) {
+      const digestRecord = object(dataRecord.fileDigests, "data fileDigests");
+      const entries: Record<string, Sha256Digest> = {};
+      for (const [path, value] of Object.entries(digestRecord)) {
+        entries[sourcePath(path, "data file digest path")] = digest(
+          value,
+          "data file digest",
+        );
+      }
+      if (Object.keys(entries).length === 0)
+        throw new TypeError("data fileDigests must not be empty");
+      dataFileDigests = Object.freeze(entries);
     }
     data = Object.freeze({
       repository: text(dataRecord.repository, "data repository"),
@@ -430,6 +439,7 @@ export function parseSourceManifest(value: unknown): SourceManifest {
               "data license evidence path",
             ),
           }),
+      ...(dataFileDigests === undefined ? {} : { fileDigests: dataFileDigests }),
     });
   }
   const noticesValue = manifest.notices;
@@ -1013,11 +1023,13 @@ export function parseTrackReport(value: unknown): TrackReport {
   }
   const provenance = object(record.provenance, "track report provenance");
   if (
-    Object.keys(provenance).some((key) =>
-      !["runId", "sourceManifestDigest", "nativeEvidenceDigest"].includes(key),
+    Object.keys(provenance).some(
+      (key) => !["runId", "sourceManifestDigest", "nativeEvidenceDigest"].includes(key),
     ) ||
-    Object.keys(provenance).filter((key) => key !== "nativeEvidenceDigest").sort().join("\0") !==
-      ["runId", "sourceManifestDigest"].sort().join("\0") ||
+    Object.keys(provenance)
+      .filter((key) => key !== "nativeEvidenceDigest")
+      .sort()
+      .join("\0") !== ["runId", "sourceManifestDigest"].sort().join("\0") ||
     typeof provenance.runId !== "string" ||
     provenance.runId.length === 0
   ) {

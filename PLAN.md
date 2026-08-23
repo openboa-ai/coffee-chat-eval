@@ -26,12 +26,12 @@ live sampled execution), `pilot` (the retained formal sample), and `score`
 threshold, official benchmark score, product-performance claim, leaderboard,
 or security certification.
 
-| Track | Smoke sample | Pilot sample |
-| --- | --- | --- |
-| Taste | first family; `unconditioned`, `target_a`, `target_b`; 3 submissions; 13 pointwise + 8 mirrored pairwise Judge calls | same family-level minimum |
-| BEAM | `100K/1`, first question in each six-category record-core set; 6 queries and 11 rubric Judge calls | 12 queries |
-| IFEval | one prompt per top-level checker family: `1000, 1012, 1069, 1005, 1098, 1019, 1040, 1122, 1108` | same 9 prompts |
-| AgentDojo | workspace `user_task_0`, `injection_task_0`, and their attacked pair; 3 episodes | 24 episodes |
+| Track     | Smoke sample                                                                                                         | Pilot sample              |
+| --------- | -------------------------------------------------------------------------------------------------------------------- | ------------------------- |
+| Taste     | first family; `unconditioned`, `target_a`, `target_b`; 3 submissions; 13 pointwise + 8 mirrored pairwise Judge calls | same family-level minimum |
+| BEAM      | `100K/1`, first question in each six-category record-core set; 6 queries and 11 rubric Judge calls                   | 12 queries                |
+| IFEval    | one prompt per top-level checker family: `1000, 1012, 1069, 1005, 1098, 1019, 1040, 1122, 1108`                      | same 9 prompts            |
+| AgentDojo | workspace `user_task_0`, `injection_task_0`, and their attacked pair; 3 episodes                                     | 24 episodes               |
 
 ## Execution contract
 
@@ -91,7 +91,7 @@ CI or automatically purchased.
 
 ```text
 source verify --track <track-id>
-source materialize --track <track-id> --cache-root <absolute-path>
+source materialize --track <track-id> --cache-root <absolute-path> --source-root <pinned-checkout> [--data-root <pinned-data>] [--runtime-lock <absolute-lock>]
 plan --track <track-id> --profile fixture|smoke|pilot|score --candidate-config <json-or-absolute-file>
 run --plan <run-spec-or-plan.json> --evidence-root <absolute-path>
 portfolio smoke --config <absolute-private-json>
@@ -104,6 +104,23 @@ content digest; without it, a non-fixture provider run ends in `rights_hold`.
 legacy `source-verify --source-manifest`, Harbor Oracle, Codex baseline, and
 `dry-run` paths remain available for migration evidence, but their structural
 receipts are not benchmark scores.
+
+`source materialize` is a no-network projection step: the operator supplies a
+separately fetched exact checkout and, for BEAM, the pinned data directory.
+IFEval uses the committed Eval-owned runtime lock by default; BEAM uses the
+committed Eval-owned LLM-only lock (including its pinned parquet reader); other
+tracks bind an upstream `uv.lock` or pinned `requirements.txt` when one is
+admitted. The operator creates `<cache>/<track-id>/runtime` with pinned `uv`
+in offline mode after materialization. `run` calls the runtime executable
+directly and never downloads, resolves, or writes into the source checkout.
+If that runtime is absent, the run is explicit host unavailability.
+
+`portfolio smoke` may receive a private `broker` object containing only a host
+environment variable name (`providerKeyEnv`) plus optional upstream URL and
+short expiry. It starts separate candidate and Judge proxies per track from
+that host-held key, issues the exact smoke budgets, and closes every proxy
+before writing the redacted portfolio receipt. Raw provider keys are rejected
+from JSON and never enter a receipt.
 
 ## Verification
 

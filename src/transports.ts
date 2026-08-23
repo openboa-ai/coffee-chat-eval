@@ -20,8 +20,7 @@ function artifactFromValue(
   value: unknown,
   mediaType = "application/json",
 ): PrivateArtifactRef {
-  const serialized =
-    typeof value === "string" ? value : `${JSON.stringify(value)}\n`;
+  const serialized = typeof value === "string" ? value : `${JSON.stringify(value)}\n`;
   const evidence: EvidenceRecord = putEvidence(root, serialized, "private");
   return Object.freeze({
     path: evidence.path,
@@ -129,7 +128,10 @@ async function postBroker(
         "content-type": "application/json",
       },
       body: JSON.stringify(body),
-      signal: AbortSignal.timeout(1_000),
+      // Provider-backed smoke calls may take longer than a local fixture. The
+      // broker's request cap and capability expiry remain the hard limits; the
+      // transport timeout only bounds a single stalled request.
+      signal: AbortSignal.timeout(60_000),
     });
     if (!response.ok) throw new Error(`broker returned HTTP ${response.status}`);
     return (await response.json()) as unknown;
@@ -138,11 +140,15 @@ async function postBroker(
   }
 }
 
-function responseText(value: unknown): { readonly value: unknown; readonly mediaType: string } {
+function responseText(value: unknown): {
+  readonly value: unknown;
+  readonly mediaType: string;
+} {
   if (typeof value === "string") return { value, mediaType: "text/plain" };
   if (value !== null && typeof value === "object") {
     const record = value as Record<string, unknown>;
-    if (typeof record.output_text === "string") return { value: record.output_text, mediaType: "text/plain" };
+    if (typeof record.output_text === "string")
+      return { value: record.output_text, mediaType: "text/plain" };
     if (Array.isArray(record.output)) {
       const content: unknown[] = [];
       for (const item of record.output) {
@@ -190,7 +196,8 @@ export function createResponsesCandidateTransport(input: {
   readonly model: string;
   readonly evidenceRoot: string;
 }): CandidateTransport {
-  if (input.capability.length === 0) throw new TypeError("scoped capability is required");
+  if (input.capability.length === 0)
+    throw new TypeError("scoped capability is required");
   if (input.model.length === 0) throw new TypeError("candidate model is required");
   return Object.freeze({
     kind: "agent_stack" as const,
@@ -204,16 +211,28 @@ export function createResponsesCandidateTransport(input: {
           body: request,
         });
         const normalized = responseText(response);
-        const output = artifactFromValue(input.evidenceRoot, normalized.value, normalized.mediaType);
-        const responseRecord = response !== null && typeof response === "object" ? response as Record<string, unknown> : {};
-        const usage = responseRecord.usage !== null && typeof responseRecord.usage === "object" ? responseRecord.usage as Record<string, unknown> : {};
+        const output = artifactFromValue(
+          input.evidenceRoot,
+          normalized.value,
+          normalized.mediaType,
+        );
+        const responseRecord =
+          response !== null && typeof response === "object"
+            ? (response as Record<string, unknown>)
+            : {};
+        const usage =
+          responseRecord.usage !== null && typeof responseRecord.usage === "object"
+            ? (responseRecord.usage as Record<string, unknown>)
+            : {};
         return {
           state: "measured" as const,
           output,
           outputDigest: output.digest,
           latencyMs: Math.max(0, Date.now() - started),
-          inputTokens: typeof usage.input_tokens === "number" ? usage.input_tokens : null,
-          outputTokens: typeof usage.output_tokens === "number" ? usage.output_tokens : null,
+          inputTokens:
+            typeof usage.input_tokens === "number" ? usage.input_tokens : null,
+          outputTokens:
+            typeof usage.output_tokens === "number" ? usage.output_tokens : null,
         };
       } catch (error) {
         return {
@@ -232,7 +251,8 @@ export function createResponsesJudgeTransport(input: {
   readonly model: string;
   readonly evidenceRoot: string;
 }): JudgeTransport {
-  if (input.capability.length === 0) throw new TypeError("scoped capability is required");
+  if (input.capability.length === 0)
+    throw new TypeError("scoped capability is required");
   if (input.model.length === 0) throw new TypeError("judge model is required");
   return Object.freeze({
     kind: "sealed-judge" as const,
@@ -245,16 +265,29 @@ export function createResponsesJudgeTransport(input: {
           model: input.model,
           body: request,
         });
-        const verdict = artifactFromValue(input.evidenceRoot, response, "application/json");
-        const responseRecord = response !== null && typeof response === "object" ? response as Record<string, unknown> : {};
-        const usage = responseRecord.usage !== null && typeof responseRecord.usage === "object" ? responseRecord.usage as Record<string, unknown> : {};
+        const normalized = responseText(response);
+        const verdict = artifactFromValue(
+          input.evidenceRoot,
+          normalized.value,
+          normalized.mediaType,
+        );
+        const responseRecord =
+          response !== null && typeof response === "object"
+            ? (response as Record<string, unknown>)
+            : {};
+        const usage =
+          responseRecord.usage !== null && typeof responseRecord.usage === "object"
+            ? (responseRecord.usage as Record<string, unknown>)
+            : {};
         return {
           state: "measured" as const,
           verdict,
           verdictDigest: verdict.digest,
           latencyMs: Math.max(0, Date.now() - started),
-          inputTokens: typeof usage.input_tokens === "number" ? usage.input_tokens : null,
-          outputTokens: typeof usage.output_tokens === "number" ? usage.output_tokens : null,
+          inputTokens:
+            typeof usage.input_tokens === "number" ? usage.input_tokens : null,
+          outputTokens:
+            typeof usage.output_tokens === "number" ? usage.output_tokens : null,
         };
       } catch (error) {
         return {

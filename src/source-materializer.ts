@@ -68,18 +68,35 @@ export function materializePinnedSource(input: {
     input.dataRoot === undefined
       ? undefined
       : requireAbsolute(input.dataRoot, "dataRoot");
+  const inferredRuntimeLockPath = resolve(sourceRoot, "uv.lock");
+  const inferredRequirementsPath = resolve(sourceRoot, "requirements.txt");
+  const runtimeLockPath =
+    input.runtimeLockPath === undefined
+      ? existsSync(inferredRuntimeLockPath)
+        ? inferredRuntimeLockPath
+        : existsSync(inferredRequirementsPath)
+          ? inferredRequirementsPath
+          : undefined
+      : requireAbsolute(input.runtimeLockPath, "runtimeLockPath");
   const runtimeLockDigest =
     input.runtimeLockDigest ??
-    (input.runtimeLockPath === undefined
+    (runtimeLockPath === undefined
       ? stableDigest({
           schema: "eval-owned-runtime-lock-v1",
           trackId: input.manifest.trackId,
           sourceRevision: input.manifest.source.commit,
-          dataRevision: input.manifest.data?.revision,
+          ...(input.manifest.data?.revision === undefined
+            ? {}
+            : { dataRevision: input.manifest.data.revision }),
         })
-      : fileDigest(requireAbsolute(input.runtimeLockPath, "runtimeLockPath")));
+      : fileDigest(runtimeLockPath));
+  const runtimeLockOrigin: "source" | "eval-owned" =
+    runtimeLockPath === undefined || !runtimeLockPath.startsWith(`${sourceRoot}/`)
+      ? "eval-owned"
+      : "source";
   const licenseEvidence =
-    input.licenseEvidence ?? defaultLicenseEvidence(input.manifest, sourceRoot, dataRoot);
+    input.licenseEvidence ??
+    defaultLicenseEvidence(input.manifest, sourceRoot, dataRoot);
   if (licenseEvidence.length === 0) {
     throw new TypeError("license evidence is required for materialization");
   }
@@ -89,6 +106,7 @@ export function materializePinnedSource(input: {
     sourceRoot,
     ...(dataRoot === undefined ? {} : { dataRoot }),
     runtimeLockDigest,
+    runtimeLockOrigin,
     licenseEvidence,
   });
 }

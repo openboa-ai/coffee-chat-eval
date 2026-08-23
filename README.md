@@ -49,7 +49,7 @@ attack payloads, tool traces, synthetic personal data, or secrets.
 
 ```sh
 source verify --track <track-id>
-source materialize --track <track-id> --cache-root <absolute-path>
+source materialize --track <track-id> --cache-root <absolute-path> --source-root <pinned-checkout> [--data-root <pinned-data>] [--runtime-lock <absolute-lock>]
 plan --track <track-id> --profile fixture|smoke|pilot|score --candidate-config <json-or-absolute-file>
 run --plan <run-spec-or-plan.json> --evidence-root <absolute-path>
 portfolio smoke --config <absolute-private-json>
@@ -69,6 +69,27 @@ For a materialized source, keep the checkout below
 declares a data layer) and write the exact file digest census to
 `source-receipt.json`. `source verify --track <track-id> --cache-root
 <absolute-path>` verifies that receipt before execution.
+
+Materialization never downloads. The operator fetches and verifies the exact
+upstream revision first, then supplies the checkout with `--source-root` (and
+BEAM's parquet checkout with `--data-root`). IFEval defaults to the committed
+Eval-owned lock at `runtime-locks/ifeval-requirements.txt`; BEAM's six
+LLM-only scorers use the committed Eval-owned lock at
+`runtime-locks/beam-eval-requirements.txt` (including the parquet reader), and
+other tracks bind an upstream `uv.lock` or pinned `requirements.txt` when
+present. After materialization, create `<cache>/<track-id>/runtime` with the
+pinned `uv` lock in offline mode. `run` invokes that runtime directly and never
+downloads or mutates the source checkout; a missing runtime is unavailable
+host evidence, not an automatic installation opportunity.
+
+For a host-held provider smoke, the private portfolio config points to
+already-issued local capability bundles. The provider key itself is never
+accepted in JSON, never passed to a candidate/Judge, and never written to
+evidence. An operator that wants the portfolio command to create separate
+per-track proxies may instead provide a private `broker` object with only
+`providerKeyEnv` (and optional `upstreamUrl`/`ttlSeconds`); the command reads
+the key from that host environment variable and closes every proxy after the
+sequential run.
 
 ## Local verification
 

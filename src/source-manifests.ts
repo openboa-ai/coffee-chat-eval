@@ -25,7 +25,14 @@ const SOURCE_MANIFESTS_RAW = {
       licenseDigest:
         "sha256:6db6f04aa9ed319bfb1b0b90269cace3ed8231d7bd180bacce38a866e040d9a4",
     },
-    allowlist: ["bank/bank.json", "bank/public/cases/**", "src/**", "LICENSE", "README.md", "package.json"],
+    allowlist: [
+      "bank/bank.json",
+      "bank/public/cases/**",
+      "src/**",
+      "LICENSE",
+      "README.md",
+      "package.json",
+    ],
     excludedPaths: ["sealed/**", "raw-responses/**"],
     notices: [
       "https://github.com/openboa-ai/coffee-chat-bench/blob/43d3350be9e7aa2498b7843dad3a956728fe5d54/LICENSE",
@@ -59,12 +66,17 @@ const SOURCE_MANIFESTS_RAW = {
         "sha256:30b9ff56f4ca52e4078754e91f5e8dd8cd73b1b1246a42a000f11ce6b940400d",
       allowlist: ["README.md", "data/100K-00000-of-00001.parquet"],
       licenseEvidencePath: "README.md",
+      fileDigests: {
+        "data/100K-00000-of-00001.parquet":
+          "sha256:c0519be25907005ba873c927c50877471d550873039d96c041554d0075a78ace",
+      },
     },
     allowlist: [
       "src/__init__.py",
       "src/evaluation/**",
       "src/prompts.py",
       "chats/100K/**/probing_questions/probing_questions.json",
+      "requirements.txt",
       "LICENSE",
       "README.md",
     ],
@@ -75,6 +87,8 @@ const SOURCE_MANIFESTS_RAW = {
       "secrets/**",
       "results/**",
       "raw-responses/**",
+      "**/__pycache__/**",
+      "**/*.pyc",
     ],
     notices: [
       "https://github.com/mohammadtavakoli78/BEAM/blob/3e12035532eb85768f1a7cd779832b650c4b2ef9/LICENSE",
@@ -107,12 +121,15 @@ const SOURCE_MANIFESTS_RAW = {
       "instruction_following_eval/instructions.py",
       "instruction_following_eval/instructions_registry.py",
       "instruction_following_eval/instructions_util.py",
+      "instruction_following_eval/requirements.txt",
       "instruction_following_eval/data/input_data.jsonl",
       "LICENSE",
     ],
     excludedPaths: [
       "instruction_following_eval/data/input_response_data_gpt4_20231107_145030.jsonl",
       "raw-responses/**",
+      "**/__pycache__/**",
+      "**/*.pyc",
     ],
     notices: [
       "https://github.com/google-research/google-research/blob/e6890f85757dd84e27ca6df2dd30651dafad28e0/LICENSE",
@@ -138,8 +155,14 @@ const SOURCE_MANIFESTS_RAW = {
       licenseDigest:
         "sha256:4285a071f2d382338e52b4fb0a186d952984a34d43a33d8872e1a1d8cb43401e",
     },
-    allowlist: ["src/**", "pyproject.toml", "LICENSE"],
-    excludedPaths: [".env", "secrets/**", "raw-traces/**"],
+    allowlist: ["src/**", "pyproject.toml", "uv.lock", "LICENSE", "README.md"],
+    excludedPaths: [
+      ".env",
+      "secrets/**",
+      "raw-traces/**",
+      "**/__pycache__/**",
+      "**/*.pyc",
+    ],
     notices: [
       "https://github.com/ethz-spylab/agentdojo/blob/a75aba7631d3ca5fb7ab938965c97ead2f9ff84b/LICENSE",
     ],
@@ -182,10 +205,10 @@ const EXPECTED_DIGESTS: Readonly<Record<EvaluationTrackId, `sha256:${string}`>> 
     "coffee-chat-taste":
       "sha256:bc5b172721cc7ddb41ef85ea0436b7dbfd12d9feac35c8e923e7cd229bd638bb",
     "beam-record-core":
-      "sha256:ccb3cadc70ff15f8c1c4630cf0ddcd7b8673e4ddb12a04766492ba9e666ca9f0",
-    ifeval: "sha256:e3343ceabe05005ebc26965be04f0b410b7574c534dab7aef8794e70ded8df3e",
+      "sha256:0b82aa37976284c78a8624a776cf71588a2ef4c3b2e9f754eb6c71fc66dd5624",
+    ifeval: "sha256:7b8e3d261b3f3a31191940e4f9f0290c97b64e5998ad9567eafae5cf68e29f77",
     "agentdojo-security":
-      "sha256:9470d6cdcc6670dde2a056c6bc82b1f935db6eed1c762002fd74b3e205fe289b",
+      "sha256:8a28a55b0b00af738ca9d97e4990eae260c708ab27508482f4257eea076f86ab",
   });
 
 export function getSourceManifest(trackId: EvaluationTrackId): SourceManifest {

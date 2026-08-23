@@ -51,6 +51,8 @@ import {
 import { getSourceManifest, verifySourceManifestPins } from "./source-manifests.ts";
 import { createTasteInventory } from "./taste.ts";
 import type { EvaluationTrackId } from "./track-registry.ts";
+import { runPortfolioSmokeConfig } from "./portfolio.ts";
+import { BEAM_RUNTIME_LOCK, IFEVAL_RUNTIME_LOCK } from "./python-runtime.ts";
 
 const MANIFEST_BYTES = 2 * 1024 * 1024;
 const CORE_BYTES = 256 * 1024;
@@ -169,8 +171,13 @@ function buildV1Plan(values: ReadonlyMap<string, string>) {
       ? (candidateConfig as Record<string, unknown>)
       : undefined;
   const forbiddenRuntimeKeys = ["endpoint", "capabilityToken", "apiKey", "providerKey"];
-  if (candidateRecord !== undefined && forbiddenRuntimeKeys.some((key) => key in candidateRecord)) {
-    throw new TypeError("candidate identity config must not contain runtime capability fields");
+  if (
+    candidateRecord !== undefined &&
+    forbiddenRuntimeKeys.some((key) => key in candidateRecord)
+  ) {
+    throw new TypeError(
+      "candidate identity config must not contain runtime capability fields",
+    );
   }
   const candidateIdentity =
     candidateRecord?.schema === "candidate-config-v1"
@@ -180,7 +187,9 @@ function buildV1Plan(values: ReadonlyMap<string, string>) {
           candidateType: candidateRecord?.candidateType ?? "fixture",
           harness: candidateRecord?.harness ?? "fixture-replay-v1",
           model: candidateRecord?.model ?? "fixture",
-          ...(candidateRecord?.seed === undefined ? {} : { seed: candidateRecord.seed }),
+          ...(candidateRecord?.seed === undefined
+            ? {}
+            : { seed: candidateRecord.seed }),
         });
   const candidateType = candidateIdentity.candidateType;
   const candidateConfigDigest = candidateIdentityDigest(candidateIdentity);
@@ -339,6 +348,20 @@ export async function runCli(args: readonly string[]): Promise<void> {
     process.stdout.write(`${formatDryRunReport(createDryRunRegistry())}\n`);
     return;
   }
+  if (args[0] === "portfolio" && args[1] === "smoke") {
+    const values = flags(args.slice(2));
+    const configPath = required(values, "--config");
+    if (!isAbsolute(configPath))
+      throw new TypeError("--config must be an absolute path");
+    const receipt = await runPortfolioSmokeConfig(configPath);
+    // The on-disk portfolio receipt is public-safe.  Do not echo its private
+    // absolute path to stdout, where an operator may forward the JSON.
+    const { publicReceiptPath: _publicReceiptPath, ...publicReceipt } = receipt;
+    writeJson(publicReceipt);
+    if (receipt.status !== "measured")
+      throw new Error("portfolio smoke did not measure all four tracks");
+    return;
+  }
   if (args[0] === "source" && args[1] === "verify") {
     const values = flags(args.slice(2));
     const trackId = required(values, "--track") as EvaluationTrackId;
@@ -375,7 +398,13 @@ export async function runCli(args: readonly string[]): Promise<void> {
       ? required(values, "--source-root")
       : join(cacheRoot, trackId, "staging-source");
     const dataRoot = values.get("--data-root");
-    const runtimeLockPath = values.get("--runtime-lock");
+    const runtimeLockPath =
+      values.get("--runtime-lock") ??
+      (trackId === "ifeval"
+        ? IFEVAL_RUNTIME_LOCK
+        : trackId === "beam-record-core"
+          ? BEAM_RUNTIME_LOCK
+          : undefined);
     const licenseEvidence = values.get("--license-evidence");
     const materialized = materializePinnedSource({
       manifest,
@@ -434,7 +463,8 @@ export async function runCli(args: readonly string[]): Promise<void> {
             ? envelope.cacheRoot
             : optionalRoot(runValues, "--cache-root", "EVAL_CACHE_ROOT"),
       });
-      const modernPlan = envelope.runSpec !== undefined && envelope.sourceManifest !== undefined;
+      const modernPlan =
+        envelope.runSpec !== undefined && envelope.sourceManifest !== undefined;
       if (modernPlan) {
         const candidateIdentity =
           envelope.candidateIdentity === undefined
@@ -470,13 +500,22 @@ export async function runCli(args: readonly string[]): Promise<void> {
           runtimeConfigPath === undefined
             ? undefined
             : parseRuntimeBundleConfig(
-                readBoundedJson(resolve(runtimeConfigPath), CORE_BYTES, "runtime config"),
+                readBoundedJson(
+                  resolve(runtimeConfigPath),
+                  CORE_BYTES,
+                  "runtime config",
+                ),
               );
         if (runtime !== undefined) {
           if (runtime.candidate.model !== candidateIdentity.model) {
-            throw new TypeError("candidate runtime model does not match identity config");
+            throw new TypeError(
+              "candidate runtime model does not match identity config",
+            );
           }
-          if (runtime.judge !== undefined && runtime.judge.model !== judgeIdentity.model) {
+          if (
+            runtime.judge !== undefined &&
+            runtime.judge.model !== judgeIdentity.model
+          ) {
             throw new TypeError("judge runtime model does not match identity config");
           }
         }
@@ -486,7 +525,10 @@ export async function runCli(args: readonly string[]): Promise<void> {
                 (input) =>
                   plan.trackId === "coffee-chat-taste"
                     ? {
-                        artifact: { mediaType: "text/plain", content: JSON.stringify(input) },
+                        artifact: {
+                          mediaType: "text/plain",
+                          content: JSON.stringify(input),
+                        },
                         decisionRecord: {
                           decision: "fixture replay",
                           evidenceUse: [],
@@ -509,7 +551,10 @@ export async function runCli(args: readonly string[]): Promise<void> {
         const judge =
           runtime?.judge === undefined
             ? spec.trackId === "coffee-chat-taste" && spec.candidateType === "fixture"
-              ? createFixtureJudgeTransport(() => ({ score: 3, rationale: "fixture replay" }), { evidenceRoot: plan.evidenceRoot })
+              ? createFixtureJudgeTransport(
+                  () => ({ score: 3, rationale: "fixture replay" }),
+                  { evidenceRoot: plan.evidenceRoot },
+                )
               : undefined
             : createResponsesJudgeTransport({
                 endpoint: runtime.judge.endpoint,

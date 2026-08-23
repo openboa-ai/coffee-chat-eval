@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -14,7 +14,10 @@ import {
   createTasteTrackExecutor,
   type TasteCondition,
 } from "../src/taste.ts";
-import { createFixtureCandidateTransport } from "../src/transports.ts";
+import {
+  createFixtureCandidateTransport,
+  createFixtureJudgeTransport,
+} from "../src/transports.ts";
 import { putEvidence } from "../src/evidence.ts";
 import { stableDigest } from "../src/identity.ts";
 
@@ -79,7 +82,11 @@ test("Taste bridge keeps candidate inputs separate from sealed Judge calls and p
       prompt: "sealed upstream input",
     }),
     evaluateSubmission: async () => ({}),
-    evaluateCaseFamily: async ({ transport }: { transport: { complete: (request: unknown) => Promise<{ raw: string }> } }) => {
+    evaluateCaseFamily: async ({
+      transport,
+    }: {
+      transport: { complete: (request: unknown) => Promise<{ raw: string }> };
+    }) => {
       for (let index = 0; index < 21; index += 1) {
         calls.push(`judge:${index}`);
         await transport.complete({ index });
@@ -106,8 +113,16 @@ test("Taste bridge keeps candidate inputs separate from sealed Judge calls and p
       };
     },
   };
-  const candidate = createFixtureCandidateTransport(() => candidateSubmission, { evidenceRoot: root });
-  const result = await executeTasteBench({ profile: "pilot", manifest: { familyId: "family-00" }, api, candidate, judge });
+  const candidate = createFixtureCandidateTransport(() => candidateSubmission, {
+    evidenceRoot: root,
+  });
+  const result = await executeTasteBench({
+    profile: "pilot",
+    manifest: { familyId: "family-00" },
+    api,
+    candidate,
+    judge,
+  });
   assert.equal(result.executionStatus, "measured");
   assert.equal(result.submissions, 3);
   assert.equal(result.judgeCalls, 21);
@@ -140,9 +155,15 @@ test("Taste native executor preserves the 3/13/8 smoke census privately", async 
   try {
     let judgeCalls = 0;
     const api = {
-      getBenchmarkInput: (_manifest: unknown, condition: TasteCondition) => ({ condition }),
+      getBenchmarkInput: (_manifest: unknown, condition: TasteCondition) => ({
+        condition,
+      }),
       evaluateSubmission: async () => ({}),
-      evaluateCaseFamily: async ({ transport }: { transport: { complete: (request: unknown) => Promise<{ raw: string }> } }) => {
+      evaluateCaseFamily: async ({
+        transport,
+      }: {
+        transport: { complete: (request: unknown) => Promise<{ raw: string }> };
+      }) => {
         for (let index = 0; index < 21; index += 1) {
           judgeCalls += 1;
           await transport.complete({ index });
@@ -153,7 +174,13 @@ test("Taste native executor preserves the 3/13/8 smoke census privately", async 
     const candidate = createFixtureCandidateTransport(
       () => ({
         artifact: { mediaType: "text/plain", content: "fixture" },
-        decisionRecord: { decision: "fixture", evidenceUse: [], tradeoffs: [], constraints: [], uncertainty: null },
+        decisionRecord: {
+          decision: "fixture",
+          evidenceUse: [],
+          tradeoffs: [],
+          constraints: [],
+          uncertainty: null,
+        },
       }),
       { evidenceRoot: root },
     );
@@ -161,19 +188,41 @@ test("Taste native executor preserves the 3/13/8 smoke census privately", async 
       kind: "sealed-judge" as const,
       evaluate: async () => {
         const evidence = putEvidence(root, JSON.stringify({ score: 3 }), "private");
-        return { state: "measured" as const, verdict: { path: evidence.path, digest: evidence.digest, mediaType: "application/json", bytes: Buffer.byteLength(JSON.stringify({ score: 3 })) }, verdictDigest: evidence.digest, latencyMs: 1, inputTokens: null, outputTokens: null };
+        return {
+          state: "measured" as const,
+          verdict: {
+            path: evidence.path,
+            digest: evidence.digest,
+            mediaType: "application/json",
+            bytes: Buffer.byteLength(JSON.stringify({ score: 3 })),
+          },
+          verdictDigest: evidence.digest,
+          latencyMs: 1,
+          inputTokens: null,
+          outputTokens: null,
+        };
       },
     };
     const executor = createTasteTrackExecutor({ api });
     const result = await executor({
-      plan: { profile: "smoke", id: "run-taste", evidenceRoot: root, trackId: "coffee-chat-taste" },
+      plan: {
+        profile: "smoke",
+        id: "run-taste",
+        evidenceRoot: root,
+        trackId: "coffee-chat-taste",
+      },
       manifest: { caseId: "fixture" },
       source: { sourceRoot: root },
       candidate,
       judge,
       evidence: ({ value, mediaType }) => {
         const evidence = putEvidence(root, JSON.stringify(value), "private");
-        return { path: evidence.path, digest: evidence.digest, mediaType, bytes: Buffer.byteLength(JSON.stringify(value)) };
+        return {
+          path: evidence.path,
+          digest: evidence.digest,
+          mediaType,
+          bytes: Buffer.byteLength(JSON.stringify(value)),
+        };
       },
     });
     assert.equal(result.executionStatus, "measured");
@@ -181,6 +230,76 @@ test("Taste native executor preserves the 3/13/8 smoke census privately", async 
     assert.equal(result.trialReceipts.length, 3);
     assert.equal(result.metrics["pointwiseCalls"]?.denominator, 13);
     assert.equal(result.metrics["pairwiseCalls"]?.denominator, 8);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("Taste native executor loads the first pinned bank manifest for the native evaluator", async () => {
+  const root = mkdtempSync(join(tmpdir(), "coffee-chat-taste-source-"));
+  try {
+    mkdirSync(join(root, "bank", "public", "cases"), { recursive: true });
+    mkdirSync(join(root, "src"), { recursive: true });
+    writeFileSync(
+      join(root, "bank", "bank.json"),
+      JSON.stringify({ cases: [{ casePath: "public/cases/first.json" }] }),
+    );
+    writeFileSync(
+      join(root, "bank", "public", "cases", "first.json"),
+      JSON.stringify({ caseId: "case-first" }),
+    );
+    writeFileSync(
+      join(root, "src", "evaluator.ts"),
+      `
+      export function getBenchmarkInput(manifest, condition) {
+        if (manifest.caseId !== "case-first") throw new Error("wrong Bench case manifest");
+        return { condition };
+      }
+      export async function evaluateCaseFamily({ manifest, transport }) {
+        if (manifest.caseId !== "case-first") throw new Error("wrong Bench family manifest");
+        for (let index = 0; index < 21; index += 1) await transport.complete({ index });
+        return { state: "measured" };
+      }
+    `,
+    );
+    const candidate = createFixtureCandidateTransport(
+      () => ({
+        artifact: { mediaType: "text/plain", content: "fixture" },
+        decisionRecord: {
+          decision: "fixture",
+          evidenceUse: [],
+          tradeoffs: [],
+          constraints: [],
+          uncertainty: null,
+        },
+      }),
+      { evidenceRoot: root },
+    );
+    const judge = createFixtureJudgeTransport(() => ({ score: 1 }), {
+      evidenceRoot: root,
+    });
+    const result = await createTasteTrackExecutor()({
+      plan: {
+        profile: "smoke",
+        id: "run-taste-source",
+        evidenceRoot: root,
+        trackId: "coffee-chat-taste",
+      },
+      manifest: { sourceManifest: true },
+      source: { sourceRoot: root },
+      candidate,
+      judge,
+      evidence: ({ value, mediaType }) => {
+        const item = putEvidence(root, `${JSON.stringify(value)}\n`, "private");
+        return {
+          path: item.path,
+          digest: item.digest,
+          mediaType,
+          bytes: readFileSync(item.path).byteLength,
+        };
+      },
+    });
+    assert.equal(result.executionStatus, "measured");
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

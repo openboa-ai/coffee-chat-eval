@@ -15,6 +15,10 @@ import sys
 from pathlib import Path
 
 
+# Never mutate the immutable materialized source with interpreter bytecode.
+sys.dont_write_bytecode = True
+
+
 EXCLUDED_RESPONSE_NAME = "input_response_data_gpt4_20231107_145030.jsonl"
 
 

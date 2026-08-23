@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import {
   copyFileSync,
+  existsSync,
   lstatSync,
   mkdirSync,
   readdirSync,
@@ -36,6 +37,7 @@ export interface MaterializedSourceReceipt {
   readonly dataRevision?: string;
   readonly licenseEvidence: readonly LicenseEvidence[];
   readonly runtimeLockDigest: Sha256Digest;
+  readonly runtimeLockOrigin?: "source" | "eval-owned";
   readonly sourceRoot: string;
   readonly sourceFiles: readonly MaterializedFile[];
   readonly dataRoot?: string;
@@ -53,6 +55,7 @@ export interface MaterializedSourceVerification {
   readonly dataRevision?: string;
   readonly licenseEvidence: readonly LicenseEvidence[];
   readonly runtimeLockDigest: Sha256Digest;
+  readonly runtimeLockOrigin?: "source" | "eval-owned";
 }
 
 function object(value: unknown, label: string): Record<string, unknown> {
@@ -109,7 +112,8 @@ function parseLicenseEvidence(value: unknown): readonly LicenseEvidence[] {
     });
   });
   const paths = new Set(entries.map((entry) => entry.path));
-  if (paths.size !== entries.length) throw new TypeError("licenseEvidence paths must be unique");
+  if (paths.size !== entries.length)
+    throw new TypeError("licenseEvidence paths must be unique");
   return Object.freeze(entries);
 }
 
@@ -149,7 +153,7 @@ export function parseMaterializedSourceReceipt(
     "sourceFiles",
     "trackId",
   ];
-  const optional = ["dataFiles", "dataRevision", "dataRoot"];
+  const optional = ["dataFiles", "dataRevision", "dataRoot", "runtimeLockOrigin"];
   if (
     required.some((key) => !(key in receipt)) ||
     keys.some((key) => !required.includes(key) && !optional.includes(key))
@@ -158,6 +162,14 @@ export function parseMaterializedSourceReceipt(
   }
   if (receipt.schema !== "materialized-source-v1") {
     throw new TypeError("materialized source receipt schema is unsupported");
+  }
+  const runtimeLockOrigin = receipt.runtimeLockOrigin;
+  if (
+    runtimeLockOrigin !== undefined &&
+    runtimeLockOrigin !== "source" &&
+    runtimeLockOrigin !== "eval-owned"
+  ) {
+    throw new TypeError("runtimeLockOrigin is unsupported");
   }
   const dataRoot =
     receipt.dataRoot === undefined
@@ -189,6 +201,7 @@ export function parseMaterializedSourceReceipt(
     ...(dataRevision === undefined ? {} : { dataRevision }),
     licenseEvidence: parseLicenseEvidence(receipt.licenseEvidence),
     runtimeLockDigest: digest(receipt.runtimeLockDigest, "runtimeLockDigest"),
+    ...(runtimeLockOrigin === undefined ? {} : { runtimeLockOrigin }),
     sourceRoot: relativePath(receipt.sourceRoot, "sourceRoot"),
     sourceFiles: parseFiles(receipt.sourceFiles, "sourceFiles"),
     ...(dataRoot === undefined ? {} : { dataRoot }),
@@ -211,7 +224,11 @@ function admitted(path: string, manifest: SourceManifest): boolean {
   return manifest.allowlist.some((pattern) => matches(path, pattern));
 }
 
-function walkFiles(root: string, prefix = ""): string[] {
+function walkFiles(
+  root: string,
+  prefix = "",
+  skipUnadmittedSymlink?: (path: string) => boolean,
+): string[] {
   const entries = readdirSync(root, { withFileTypes: true });
   const paths: string[] = [];
   for (const entry of entries) {
@@ -219,12 +236,13 @@ function walkFiles(root: string, prefix = ""): string[] {
       prefix.length === 0 ? entry.name : `${prefix}/${entry.name}`;
     const fullPath = resolve(root, entry.name);
     if (entry.isSymbolicLink()) {
+      if (skipUnadmittedSymlink?.(relativePathValue) === true) continue;
       throw new TypeError(
         `materialized source must not contain symlinks: ${relativePathValue}`,
       );
     }
     if (entry.isDirectory()) {
-      paths.push(...walkFiles(fullPath, relativePathValue));
+      paths.push(...walkFiles(fullPath, relativePathValue, skipUnadmittedSymlink));
     } else if (entry.isFile()) {
       paths.push(relativePathValue);
     } else {
@@ -238,6 +256,27 @@ function walkFiles(root: string, prefix = ""): string[] {
 
 function fileDigest(path: string): Sha256Digest {
   return `sha256:${createHash("sha256").update(readFileSync(path)).digest("hex")}`;
+}
+
+function verifyRuntimeLockDigest(
+  receipt: MaterializedSourceReceipt,
+  sourceRoot: string,
+): void {
+  // Upstream Python tracks expose their lock/requirements file in the
+  // allowlist.  Bind the receipt to those exact bytes so a later edit cannot
+  // silently reuse an otherwise valid source materialization.  Tracks with no
+  // upstream lock use the Eval-owned identity recorded by the materializer;
+  // there is no file to hash in that case.
+  if (receipt.runtimeLockOrigin === "eval-owned") return;
+  for (const name of ["uv.lock", "requirements.txt"] as const) {
+    const path = resolve(sourceRoot, name);
+    if (!existsSync(path)) continue;
+    const actual = fileDigest(path);
+    if (receipt.runtimeLockDigest !== actual) {
+      throw new TypeError(`runtime lock digest drifted: ${name}`);
+    }
+    return;
+  }
 }
 
 function verifyFileSet(
@@ -272,6 +311,12 @@ function verifyFileSet(
     if (actualDigest !== file.digest) {
       throw new TypeError(`${label} file digest drifted: ${file.path}`);
     }
+    if (label === "data") {
+      const expectedDigest = manifest.data?.fileDigests?.[file.path];
+      if (expectedDigest !== undefined && actualDigest !== expectedDigest) {
+        throw new TypeError(`data file digest drifted: ${file.path}`);
+      }
+    }
   }
 }
 
@@ -301,6 +346,7 @@ export function verifyMaterializedSource(input: {
   }
   const sourceStat = lstatSync(sourceRoot);
   if (!sourceStat.isDirectory()) throw new TypeError("sourceRoot must be a directory");
+  verifyRuntimeLockDigest(receipt, sourceRoot);
   verifyFileSet(sourceRoot, receipt.sourceFiles, input.manifest, "source");
   if (input.manifest.source.licenseDigest !== undefined) {
     const license = receipt.sourceFiles.find((file) => file.path === "LICENSE");
@@ -312,9 +358,13 @@ export function verifyMaterializedSource(input: {
     throw new TypeError("materialized source revision does not match manifest");
   }
   const sourceEvidence = receipt.licenseEvidence.find(
-    (entry) => entry.path === "LICENSE" && entry.digest === input.manifest.source.licenseDigest,
+    (entry) =>
+      entry.path === "LICENSE" && entry.digest === input.manifest.source.licenseDigest,
   );
-  if (input.manifest.source.licenseDigest !== undefined && sourceEvidence === undefined) {
+  if (
+    input.manifest.source.licenseDigest !== undefined &&
+    sourceEvidence === undefined
+  ) {
     throw new TypeError("source license evidence does not match manifest");
   }
   const dataRoot =
@@ -326,10 +376,12 @@ export function verifyMaterializedSource(input: {
     const dataStat = lstatSync(dataRoot);
     if (!dataStat.isDirectory()) throw new TypeError("dataRoot must be a directory");
     verifyFileSet(dataRoot, receipt.dataFiles, input.manifest, "data");
-    if (input.manifest.data?.licenseDigest !== undefined &&
-        !receipt.licenseEvidence.some(
-          (entry) => entry.digest === input.manifest.data!.licenseDigest,
-        )) {
+    if (
+      input.manifest.data?.licenseDigest !== undefined &&
+      !receipt.licenseEvidence.some(
+        (entry) => entry.digest === input.manifest.data!.licenseDigest,
+      )
+    ) {
       throw new TypeError("data license evidence does not match manifest");
     }
     if (receipt.dataRevision !== input.manifest.data?.revision) {
@@ -343,9 +395,14 @@ export function verifyMaterializedSource(input: {
     sourceRoot,
     sourceFileCount: receipt.sourceFiles.length,
     sourceRevision: receipt.sourceRevision,
-    ...(receipt.dataRevision === undefined ? {} : { dataRevision: receipt.dataRevision }),
+    ...(receipt.dataRevision === undefined
+      ? {}
+      : { dataRevision: receipt.dataRevision }),
     licenseEvidence: receipt.licenseEvidence,
     runtimeLockDigest: receipt.runtimeLockDigest,
+    ...(receipt.runtimeLockOrigin === undefined
+      ? {}
+      : { runtimeLockOrigin: receipt.runtimeLockOrigin }),
     ...(dataRoot === undefined
       ? {}
       : { dataRoot, dataFileCount: receipt.dataFiles!.length }),
@@ -353,12 +410,19 @@ export function verifyMaterializedSource(input: {
   });
 }
 
-function copyTree(sourceRoot: string, targetRoot: string, manifest: SourceManifest): readonly MaterializedFile[] {
-  const paths = walkFiles(sourceRoot).sort();
-  for (const path of paths) {
-    if (!admitted(path, manifest)) {
-      throw new TypeError(`source materialization path is not admitted: ${path}`);
-    }
+function copyTree(
+  sourceRoot: string,
+  targetRoot: string,
+  manifest: SourceManifest,
+): readonly MaterializedFile[] {
+  // Operators normally provide a complete pinned checkout.  Project it onto
+  // the allowlist instead of copying unrelated upstream files (including
+  // explicitly excluded historical responses) into the Eval cache.
+  const paths = walkFiles(sourceRoot, "", (path) => !admitted(path, manifest))
+    .filter((path) => admitted(path, manifest))
+    .sort();
+  if (paths.length === 0) {
+    throw new TypeError("source materialization allowlist selected no files");
   }
   const files: MaterializedFile[] = [];
   for (const path of paths) {
@@ -376,7 +440,12 @@ function copyDataTree(
   targetRoot: string,
   manifest: SourceManifest,
 ): readonly MaterializedFile[] {
-  const paths = walkFiles(sourceRoot).sort();
+  const dataAdmitted = (path: string): boolean =>
+    manifest.data?.allowlist === undefined
+      ? true
+      : !manifest.excludedPaths.some((pattern) => matches(path, pattern)) &&
+        manifest.data.allowlist.some((pattern) => matches(path, pattern));
+  const paths = walkFiles(sourceRoot, "", (path) => !dataAdmitted(path)).sort();
   if (manifest.data?.allowlist !== undefined) {
     for (const path of paths) {
       if (
@@ -405,15 +474,22 @@ function validateLicenseEvidence(
   manifest: SourceManifest,
 ): void {
   const expected = new Set<string>();
-  if (manifest.source.licenseDigest !== undefined) expected.add(manifest.source.licenseDigest);
-  if (manifest.data?.licenseDigest !== undefined) expected.add(manifest.data.licenseDigest);
+  if (manifest.source.licenseDigest !== undefined)
+    expected.add(manifest.source.licenseDigest);
+  if (manifest.data?.licenseDigest !== undefined)
+    expected.add(manifest.data.licenseDigest);
   for (const entry of evidence) {
     const root = entry.path.startsWith("data/") ? dataRoot : sourceRoot;
-    const relativeEntry = entry.path.startsWith("data/") ? entry.path.slice("data/".length) : entry.path;
-    if (root === undefined) throw new TypeError(`license evidence path has no data root: ${entry.path}`);
+    const relativeEntry = entry.path.startsWith("data/")
+      ? entry.path.slice("data/".length)
+      : entry.path;
+    if (root === undefined)
+      throw new TypeError(`license evidence path has no data root: ${entry.path}`);
     const path = resolve(root, relativeEntry);
-    if (relative(root, path).startsWith("..")) throw new TypeError("license evidence escapes materialization");
-    if (fileDigest(path) !== entry.digest) throw new TypeError(`license evidence digest drifted: ${entry.path}`);
+    if (relative(root, path).startsWith(".."))
+      throw new TypeError("license evidence escapes materialization");
+    if (fileDigest(path) !== entry.digest)
+      throw new TypeError(`license evidence digest drifted: ${entry.path}`);
   }
   for (const required of expected) {
     if (!evidence.some((entry) => entry.digest === required)) {
@@ -433,10 +509,13 @@ export function materializeSource(input: {
   readonly sourceRoot: string;
   readonly dataRoot?: string;
   readonly runtimeLockDigest: Sha256Digest;
+  readonly runtimeLockOrigin?: "source" | "eval-owned";
   readonly licenseEvidence: readonly LicenseEvidence[];
 }): MaterializedSourceVerification {
-  if (!isAbsolute(input.cacheRoot)) throw new TypeError("cacheRoot must be an absolute path");
-  if (!isAbsolute(input.sourceRoot)) throw new TypeError("sourceRoot must be an absolute path");
+  if (!isAbsolute(input.cacheRoot))
+    throw new TypeError("cacheRoot must be an absolute path");
+  if (!isAbsolute(input.sourceRoot))
+    throw new TypeError("sourceRoot must be an absolute path");
   if (input.dataRoot !== undefined && !isAbsolute(input.dataRoot)) {
     throw new TypeError("dataRoot must be an absolute path");
   }
@@ -452,7 +531,8 @@ export function materializeSource(input: {
   const sourceTarget = resolve(trackRoot, "source");
   mkdirSync(sourceTarget, { recursive: true });
   const sourceFiles = copyTree(input.sourceRoot, sourceTarget, input.manifest);
-  const dataTarget = input.dataRoot === undefined ? undefined : resolve(trackRoot, "data");
+  const dataTarget =
+    input.dataRoot === undefined ? undefined : resolve(trackRoot, "data");
   const dataFiles =
     input.dataRoot === undefined
       ? undefined
@@ -468,9 +548,14 @@ export function materializeSource(input: {
     trackId: input.manifest.trackId,
     sourceManifestDigest: stableDigest(input.manifest),
     sourceRevision: input.manifest.source.commit,
-    ...(input.manifest.data === undefined ? {} : { dataRevision: input.manifest.data.revision }),
+    ...(input.manifest.data === undefined
+      ? {}
+      : { dataRevision: input.manifest.data.revision }),
     licenseEvidence: evidence,
     runtimeLockDigest: input.runtimeLockDigest,
+    ...(input.runtimeLockOrigin === undefined
+      ? {}
+      : { runtimeLockOrigin: input.runtimeLockOrigin }),
     sourceRoot: "source",
     sourceFiles,
     ...(dataFiles === undefined ? {} : { dataRoot: "data", dataFiles }),
@@ -480,9 +565,12 @@ export function materializeSource(input: {
   try {
     writeFileSync(receiptPath, serialized, { flag: "wx" });
   } catch (error) {
-    if (!(error instanceof Error) || !("code" in error) || error.code !== "EEXIST") throw error;
+    if (!(error instanceof Error) || !("code" in error) || error.code !== "EEXIST")
+      throw error;
     if (readFileSync(receiptPath, "utf8") !== serialized) {
-      throw new TypeError("materialized source receipt already contains different bytes");
+      throw new TypeError(
+        "materialized source receipt already contains different bytes",
+      );
     }
   }
   return verifyMaterializedSource({ manifest: input.manifest, cacheRoot });

@@ -30,7 +30,11 @@ test("BEAM record-core inventory is 20 conversations x six categories x two stab
   assert.equal(createBeamInventory("score").length, 240);
   assert.equal(createBeamInventory("smoke").length, 6);
   assert.deepEqual(
-    createBeamInventory("smoke").map((item) => [item.conversationId, item.category, item.questionOrdinal]),
+    createBeamInventory("smoke").map((item) => [
+      item.conversationId,
+      item.category,
+      item.questionOrdinal,
+    ]),
     [
       ["100K/1", "abstention", 0],
       ["100K/1", "contradiction_resolution", 0],
@@ -77,40 +81,93 @@ test("BEAM smoke executor sends six candidate queries and validates eleven nativ
   try {
     const sourceRoot = join(root, "source", "chats", "100K", "1", "probing_questions");
     mkdirSync(sourceRoot, { recursive: true });
-    const bank = Object.fromEntries(BEAM_CATEGORIES.map((category, index) => [category, [{ question: `${category} question`, rubric: Array.from({ length: index === 1 ? 4 : index === 4 || index === 5 ? 2 : 1 }, (_, i) => `rubric-${i}`) }]]));
+    const bank = Object.fromEntries(
+      BEAM_CATEGORIES.map((category, index) => [
+        category,
+        [
+          {
+            question: `${category} question`,
+            rubric: Array.from(
+              { length: index === 1 ? 4 : index === 4 || index === 5 ? 2 : 1 },
+              (_, i) => `rubric-${i}`,
+            ),
+          },
+        ],
+      ]),
+    );
     writeFileSync(join(sourceRoot, "probing_questions.json"), JSON.stringify(bank));
     let candidateCalls = 0;
-    const candidate = createFixtureCandidateTransport(() => {
-      candidateCalls += 1;
-      return `response-${candidateCalls}`;
-    }, { evidenceRoot: root });
+    const candidateInputs: unknown[] = [];
+    const candidate = createFixtureCandidateTransport(
+      (input) => {
+        candidateCalls += 1;
+        candidateInputs.push(input);
+        return `response-${candidateCalls}`;
+      },
+      { evidenceRoot: root },
+    );
     const executor = createBeamTrackExecutor({
+      conversationLoader: {
+        load: async ({ conversationId }) => ({
+          conversationId,
+          messages: ["conversation-only"],
+        }),
+      },
       bridge: {
         run: async ({ outputPath, queryPath, responsePath }) => {
           const queries = JSON.parse(readFileSync(queryPath, "utf8")) as unknown[];
-          const responses = JSON.parse(readFileSync(responsePath, "utf8")) as Record<string, unknown>;
-          writeFileSync(outputPath, JSON.stringify({
-            queryCount: queries.length,
-            judgeCalls: 11,
-            unusedEmbeddingInitializationBypassed: true,
-            paperComparable: false,
-            categories: Object.fromEntries(BEAM_CATEGORIES.map((category) => [category, { numerator: 0, denominator: 1, accuracy: 0 }])),
-            responses,
-          }));
+          const responses = JSON.parse(readFileSync(responsePath, "utf8")) as Record<
+            string,
+            unknown
+          >;
+          writeFileSync(
+            outputPath,
+            JSON.stringify({
+              queryCount: queries.length,
+              judgeCalls: 11,
+              unusedEmbeddingInitializationBypassed: true,
+              paperComparable: false,
+              categories: Object.fromEntries(
+                BEAM_CATEGORIES.map((category) => [
+                  category,
+                  { numerator: 0, denominator: 1, accuracy: 0 },
+                ]),
+              ),
+              responses,
+            }),
+          );
         },
       },
     });
     const result = await executor({
-      plan: { profile: "smoke", id: "run-beam", evidenceRoot: root, trackId: "beam-record-core" },
+      plan: {
+        profile: "smoke",
+        id: "run-beam",
+        evidenceRoot: root,
+        trackId: "beam-record-core",
+      },
       source: { sourceRoot: join(root, "source") },
       candidate,
       evidence: ({ value, mediaType }) => {
         const evidence = putEvidence(root, JSON.stringify(value), "private");
-        return { path: evidence.path, digest: evidence.digest, mediaType, bytes: Buffer.byteLength(JSON.stringify(value)) };
+        return {
+          path: evidence.path,
+          digest: evidence.digest,
+          mediaType,
+          bytes: Buffer.byteLength(JSON.stringify(value)),
+        };
       },
     });
     assert.equal(result.executionStatus, "measured");
     assert.equal(candidateCalls, 6);
+    assert.deepEqual(Object.keys(candidateInputs[0] as object).sort(), [
+      "conversation",
+      "question",
+    ]);
+    assert.deepEqual((candidateInputs[0] as { conversation: unknown }).conversation, {
+      conversationId: "100K/1",
+      messages: ["conversation-only"],
+    });
     assert.equal(result.trialReceipts.length, 6);
     assert.equal(result.metrics.abstention?.denominator, 1);
   } finally {

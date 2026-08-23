@@ -5,7 +5,35 @@ export type ResultState =
   | "skipped"
   | "unavailable"
   | "invalid"
-  | "not_implemented";
+  | "not_implemented"
+  | "failed"
+  | "missing"
+  | "rights_hold";
+
+export type ExecutionStatus =
+  | "measured"
+  | "unmeasured"
+  | "skipped"
+  | "unavailable"
+  | "invalid"
+  | "failed"
+  | "missing"
+  | "not_implemented"
+  | "rights_hold";
+
+export type ClaimStatus =
+  "calibration" | "pilot" | "provisional_internal" | "reportable" | "not_active";
+
+export type FailureOwner =
+  | "source"
+  | "rights"
+  | "host"
+  | "candidate"
+  | "adapter"
+  | "judge"
+  | "verifier"
+  | "artifact"
+  | "cleanup";
 
 export type IsolationClass = "fixture" | "real";
 

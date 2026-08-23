@@ -36,15 +36,15 @@ test("source manifests pin all four tracks, rights layers, exclusions, and censu
   assert.equal(getSourceManifest("agentdojo-security").caseCensus?.episodes, 1081);
   const beam = getSourceManifest("beam-record-core");
   assert.ok(
-    beam.allowlist.includes(
-      "chats/100K/**/probing_questions/probing_questions.json",
-    ),
+    beam.allowlist.includes("chats/100K/**/probing_questions/probing_questions.json"),
     "BEAM native evaluator requires the pinned probing-question rubric",
   );
   assert.deepEqual(beam.data?.allowlist, [
     "README.md",
     "data/100K-00000-of-00001.parquet",
   ]);
+  assert.ok(getSourceManifest("agentdojo-security").allowlist.includes("uv.lock"));
+  assert.ok(getSourceManifest("agentdojo-security").allowlist.includes("README.md"));
 });
 
 test("source verification is fail-closed when a manifest or digest drifts", () => {
