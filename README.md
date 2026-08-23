@@ -1,112 +1,89 @@
 # Coffee Chat Eval
 
-`@openboa-ai/coffee-chat-eval` executes candidates and publishes evaluation
-receipts. It does not own Coffee Chat product behavior or benchmark semantics.
-The product lives in `coffee-chat`; the candidate-independent case bank,
-Harbor projection, judgment protocol, and metrics live in `coffee-chat-bench`.
+`@openboa-ai/coffee-chat-eval` executes declared candidates and publishes
+provenance-safe evaluation receipts. It owns orchestration, adapters,
+isolation, evidence, native metrics, and reports—not Coffee Chat product
+behavior, benchmark source bytes, rubrics, or private product state.
 
-## Current executable boundary
+## v1 tracks
 
-The first path consumes a fresh Harbor projection produced by an exact Bench
-commit. It selects one case with two candidate-visible conditions:
+- `coffee-chat-taste`: 32 families × three conditions = 96 submissions and
+  672 sealed Judge calls. It remains `provisional_internal`; the Bench is
+  `not_active`.
+- `beam-record-core`: six long-memory categories, 20 pinned 100K
+  conversations, and 240 upstream-order queries. Category metrics stay
+  independent and reproduce the upstream integer-truncation diagnostic.
+- `ifeval`: all 541 official prompts with strict/loose prompt-level and
+  instruction-level accuracy. Historical GPT-4 responses are excluded.
+- `agentdojo-security`: workspace, travel, banking, and slack at native
+  `v1.2.2`, with 1,081 episodes. Benign utility, utility under attack,
+  targeted ASR, and injection-task solvability are reported separately.
 
-- `task_only`;
-- one explicitly chosen `diagnostic_target_a` or `diagnostic_target_b`.
+τ²-bench and Terminal-Bench are not v1 tracks. There is no aggregate score,
+leaderboard, security certification, or downstream product-performance claim.
 
-Each condition runs in a fresh Harbor 0.21 Docker trial. The Oracle path proves
-task loading, artifact collection, verifier execution, cleanup, and receipt
-parsing. The Codex candidate path uses the `harbor-codex-proxy` adapter: a
-host-held OpenAI Responses proxy injects the provider key, while the candidate
-receives only a per-trial capability token and a Responses-wire Codex config.
-The candidate network overlay allows only `host.docker.internal`; setup hosts
-are separate from the agent allowlist. Native reward `1` means only that the
-structural output contract passed. It is not semantic benchmark credit, and
-candidate receipts remain `measurement: unmeasured` until the qualified Bench
-judge and validity boundary are available.
+The runner profiles are `fixture` (offline fake/replay), `smoke` (minimal live
+execution used to prove the native evaluator path), `pilot` (formal retained
+sample), and `score` (complete census). The pre-merge portfolio smoke uses only
+the following fixed samples: Taste first family with native conditions
+`unconditioned`/`target_a`/`target_b` (3 candidate submissions and 21 Judge
+calls), BEAM `100K/1` first question in each of six categories (6 queries and
+11 Judge calls), nine pinned IFEval prompts (one per checker family), and
+AgentDojo workspace `user_task_0`, `injection_task_0`, plus their attacked pair
+(3 episodes). Smoke remains calibration evidence and never becomes a score or
+security certification.
 
-Stock Harbor 0.21 Codex is explicitly `credential_isolation_unavailable`.
-That adapter writes provider authentication into candidate-readable process and
-filesystem state. Eval does not use that path. The proxy adapter keeps the
-provider key in the host boundary; its receipt records whether the key appeared
-in candidate-owned artifacts and whether the container was deleted.
+## Rights and retention
 
-## Commands
+The pinned source manifests in [`src/source-manifests.ts`](src/source-manifests.ts)
+record the exact commits/releases, license digests, allowlists, exclusions,
+notices, retention, and public-artifact policy. Source verification is
+fail-closed. “Evaluation only” does not remove commercial-use or attribution
+obligations, so raw upstream bytes are materialized only in `EVAL_CACHE_ROOT`
+when the manifest permits it. `EVIDENCE_ROOT` is private, content-addressed,
+append-only storage. Public reports contain hashes, provenance, denominators,
+and native metric names—not task text, candidate prose, Judge responses,
+attack payloads, tool traces, synthetic personal data, or secrets.
 
-Deterministic repository verification:
+## CLI
+
+```sh
+source verify --track <track-id>
+source materialize --track <track-id> --cache-root <absolute-path>
+plan --track <track-id> --profile fixture|smoke|pilot|score --candidate-config <json-or-absolute-file>
+run --plan <run-spec-or-plan.json> --evidence-root <absolute-path>
+portfolio smoke --config <absolute-private-json>
+report --run <run-id-or-receipt-path> --visibility internal|public
+```
+
+Set `EVAL_CACHE_ROOT` and `EVIDENCE_ROOT` to absolute operator-owned paths, or
+pass them to `plan`/`run`. The plan and fixture paths are deterministic and
+offline. Candidate and Judge provider credentials belong only to a host-held
+broker; the AgentDojo bridge uses its native tool loop with a scoped broker
+capability. For a non-fixture provider run, pass
+`--provider-terms-receipt <absolute-json>`; otherwise the run is explicitly
+`rights_hold`.
+
+For a materialized source, keep the checkout below
+`EVAL_CACHE_ROOT/<track-id>/source` (and data below `data` when the manifest
+declares a data layer) and write the exact file digest census to
+`source-receipt.json`. `source verify --track <track-id> --cache-root
+<absolute-path>` verifies that receipt before execution.
+
+## Local verification
 
 ```sh
 npm ci
-npm run hooks:install
 npm run format:check
 npm run typecheck
 npm test
-npm run dry-run
+npm run build
 npm run smoke
+npm run dry-run
 npm run ci:policy
 npm run security:scan
 ```
 
-Manual Oracle control after producing a Bench projection:
-
-```sh
-npm run bench:oracle -- \
-  --projection-root /absolute/path/to/projected \
-  --case-id CASE_ID \
-  --diagnostic-target a \
-  --bench-commit FULL_40_CHARACTER_COMMIT \
-  --harbor-command /absolute/path/to/pinned/harbor \
-  --jobs-root /absolute/canonical/docker-shareable/path/new-run
-```
-
-The jobs root must be new and its parent must be a canonical path visible to
-Docker Desktop. On macOS, do not use the `/tmp` symlink for Harbor log mounts;
-use a workspace path such as this repository's ignored `artifacts/` directory.
-
-Manual Codex candidate baseline (live provider call; never a CI command):
-
-```sh
-OPENAI_API_KEY=... node --experimental-strip-types src/cli.ts codex-baseline -- \
-  --projection-root /absolute/path/to/projected \
-  --case-id CASE_ID \
-  --diagnostic-target a \
-  --bench-commit FULL_40_CHARACTER_COMMIT \
-  --harbor-command /absolute/path/to/pinned/harbor \
-  --jobs-root /absolute/canonical/docker-shareable/path/new-run \
-  --model gpt-5.6-luna
-```
-
-The key is read by the host process and is never placed in the candidate
-command line or candidate task files. The checked-in initial four-trial baseline
-receipts are in
-[`reports/2026.8.12/codex-baseline-receipts.json`](reports/2026.8.12/codex-baseline-receipts.json).
-They are execution evidence only: no native reward is promoted to a semantic
-score, and no judge result is treated as qualified measurement.
-
-The completed scored release/form coverage (48 Harbor Codex trials across 12
-cases, two models, and task-only/direct-context conditions) is in
-[`reports/2026.8.12/codex-baseline-coverage-receipts.json`](reports/2026.8.12/codex-baseline-coverage-receipts.json).
-The accompanying report preserves the same unmeasured boundary.
-
-The first live judge transport probe is retained separately in
-[`reports/2026.8.12/codex-judge-probe.json`](reports/2026.8.12/codex-judge-probe.json).
-It is intentionally unqualified and unmeasured because the Bench study has no
-genuine human qualification records and the current three-model probe is not a
-qualified, complete judge set.
-
-A fresh two-condition Harbor Oracle control was rerun against the merged Bench
-main commit `1bc71605964770bbd1bd96e049b8412b6ee068fc` and is retained in
-[`reports/2026.8.12/oracle-control-1bc7160-receipt.json`](reports/2026.8.12/oracle-control-1bc7160-receipt.json).
-It confirms current-head task/projection provenance, separate verifier
-execution, Docker cleanup, and a structural reward that remains
-`measurement: not_performed`.
-
-The evaluation shape follows OpenAI's skill-evaluation pattern: define a small
-set of observable outcome, process, style, and efficiency checks; capture the
-run trace and artifacts; apply deterministic checks first; then add a
-structured rubric judge only where rules cannot establish the criterion. The
-article's 10–20 prompt suggestion is a fast regression lane, not a replacement
-for the public Bench case bank or its validity evidence.
-
-Required CI is deterministic and makes no provider or judge call. Live model
-execution and semantic measurement remain manual. CalVer is the only release
-identity; no compatibility layer is provided.
+Live provider campaigns are manual. A fixture, calibration, transport receipt,
+or `measurement=unmeasured` artifact is plumbing evidence, not candidate
+performance.

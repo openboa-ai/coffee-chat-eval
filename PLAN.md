@@ -1,74 +1,123 @@
-# Coffee Chat Eval plan
+# Coffee Chat Eval v1
 
 CalVer: `2026.8.12`
+Implementation base: `eae568583b70af955771b51abab5eb326f028d23`
 
-## Implemented now
+`coffee-chat-eval` owns candidate execution, imported benchmark adapters,
+isolation evidence, receipts, native metric collection, and redacted reports.
+It does not own benchmark cases, benchmark rubrics, or Coffee Chat private
+state. The four tracks remain separate; v1 deliberately emits no composite
+score.
 
-The current evidence pins the merged `coffee-chat-bench` main commit
-`1bc71605964770bbd1bd96e049b8412b6ee068fc`.
+| Track                | Construct                                                |                                           Full profile | Native report boundary                                  |
+| -------------------- | -------------------------------------------------------- | -----------------------------------------------------: | ------------------------------------------------------- |
+| `coffee-chat-taste`  | infer and apply selected Taste                           |         32 families / 96 submissions / 672 Judge calls | `provisional_internal`; Bench `not_active`              |
+| `beam-record-core`   | preserve, update, retrieve, and reason over long records |                         20 conversations / 240 queries | code-exact diagnostic; `paperComparable=false`          |
+| `ifeval`             | follow explicit instructions and format constraints      |                                            541 prompts | strict/loose × prompt/instruction accuracy              |
+| `agentdojo-security` | preserve utility under indirect tool-result injection    | 97 user + 35 injection + 949 attacked = 1,081 episodes | utility and ASR are separate; no security certification |
+
+τ²-bench and Terminal-Bench are outside v1. No claim is made for a missing,
+skipped, unavailable, invalid, failed, or unmeasured result; none is converted
+to zero.
+
+The executable profiles are `fixture` (offline fake/replay), `smoke` (minimal
+live sampled execution), `pilot` (the retained formal sample), and `score`
+(complete census). Smoke is calibration evidence only: it creates no quality
+threshold, official benchmark score, product-performance claim, leaderboard,
+or security certification.
+
+| Track | Smoke sample | Pilot sample |
+| --- | --- | --- |
+| Taste | first family; `unconditioned`, `target_a`, `target_b`; 3 submissions; 13 pointwise + 8 mirrored pairwise Judge calls | same family-level minimum |
+| BEAM | `100K/1`, first question in each six-category record-core set; 6 queries and 11 rubric Judge calls | 12 queries |
+| IFEval | one prompt per top-level checker family: `1000, 1012, 1069, 1005, 1098, 1019, 1040, 1122, 1108` | same 9 prompts |
+| AgentDojo | workspace `user_task_0`, `injection_task_0`, and their attacked pair; 3 episodes | 24 episodes |
+
+## Execution contract
+
+Every run follows:
 
 ```text
-exact Bench commit
-  -> candidate-neutral Harbor projection
-  -> 12 scored cases across release_a/release_b and dialogue/professional-artifact forms
-  -> two fresh Harbor/Docker Oracle controls
-  -> 48 Codex candidate trials: Luna/Terra x 12 scored cases x task_only/diagnostic_target_a
-  -> host-held Responses proxy with per-trial capability token
-  -> structural verifier, trace/artifact collection, and cleanup evidence
-  -> evaluator receipts marked measurement=unmeasured
+source verify → immutable RunSpec → sealed staging → isolated candidate
+→ native evaluator → private content-addressed evidence → redacted report
 ```
 
-Eval validates the projection manifest and its digest, keeps the selected task
-identities in the receipt, invokes only an absolute pinned Harbor executable,
-and preserves host, candidate, verifier, and artifact failures as invalid
-evidence. The two Oracle controls establish executable plumbing, not system
-quality or benchmark validity. The 48 Codex coverage receipts establish that the first
-credential-isolated Harbor candidate path can execute the same public task
-projection for both allowed account models. They do not establish semantic
-quality, utility, target transfer, or benchmark activation.
+`src/eval-core.ts` defines `SourceManifest`, `RunSpec`, `TrackAdapter`,
+`CandidateTransport`, `InteractiveAgentTransport`, `JudgeTransport`,
+`TrialReceipt`, and `TrackReport`. `src/source-manifests.ts` fixes source/data
+revisions, license digests, allowlists, exclusions, notices, retention, native
+metrics, census, and provider-terms recheck policy. Raw upstream bytes stay in
+the operator-controlled `EVAL_CACHE_ROOT`; traces and judge responses stay in
+the append-only `EVIDENCE_ROOT` vault and never enter public reports.
 
-## Judge handoff boundary
+An admitted materialization is laid out as
+`EVAL_CACHE_ROOT/<track-id>/{source,data}/` plus a
+`source-receipt.json`. `src/source-cache.ts` checks that receipt against the
+manifest digest, exact file hashes, allowlist/exclusions, and license digests;
+an absent or drifting receipt fails closed before a source-backed run.
 
-The Eval-owned `JudgeTransport` boundary is implemented as a host-held
-Responses proxy. It calls only the approved judge models, sends a
-schema-constrained verdict request, and preserves unavailable, failed,
-invalid, and disagreeing votes. The recorded probe is deliberately
-`qualificationState: unqualified` and `measurement: unmeasured`: the Bench
-qualification study currently has no genuine human annotation records, and
-the current three-model probe has complete transport responses but
-cross-model disagreement (`Sol/Terra=left`, `Luna=right`). No response is
-promoted to benchmark measurement.
+The candidate receives a scoped, expiring broker capability rather than a
+provider key. Judge capability and candidate capability are separate. A
+provider-terms receipt is required before a live run; missing isolation is
+`unavailable`. `coffee_chat_product` remains `not_implemented` until its public
+interactive interface exists; Eval never imports Product private internals.
 
-The full scored coverage is retained in [reports/2026.8.12/codex-baseline-coverage-receipts.json](reports/2026.8.12/codex-baseline-coverage-receipts.json) and summarized in [reports/2026.8.12/codex-baseline-coverage-report.md](reports/2026.8.12/codex-baseline-coverage-report.md). All 48 receipts remain `measurement=unmeasured`.
+## Track adapters
 
-The probe is retained as transport evidence in
-[`reports/2026.8.12/codex-judge-probe.json`](reports/2026.8.12/codex-judge-probe.json)
-and its interpretation is recorded in
-[`reports/2026.8.12/codex-judge-probe-report.md`](reports/2026.8.12/codex-judge-probe-report.md).
+- Taste uses the current public Bench bridge surface (`getBenchmarkInput`,
+  `evaluateSubmission`, `evaluateCaseFamily`) and sealed pointwise/pairwise
+  Judge routing. The initial Judge model is `gpt-5.6-luna`; this is a
+  provisional configuration, not a qualification or public score.
+- BEAM materializes the pinned MIT code and CC BY-SA 4.0 100K data in the
+  cache, imports the upstream evaluator without source edits, selects the six
+  record-core categories and first two stable questions per conversation, and
+  preserves integer truncation and literal `<question>` behavior.
+- IFEval imports the pinned Apache-2.0 checker and the official 541-prompt
+  input. The historical GPT-4 response file is excluded; a copied long-form
+  source finding holds the full native track rather than silently deleting a
+  prompt.
+- AgentDojo imports package `0.1.35` at the pinned commit and native suite
+  `v1.2.2`. Its broker-backed `BasePipelineElement` keeps the upstream
+  `ToolsExecutor` loop and `max_iters=15`; evaluator-owned environments,
+  injection goals, ground truth, and scorers never cross the candidate boundary.
+  v1 fixes attack `important_instructions_no_model_name` and defense `None`,
+  and sets `publishedTableComparable=false`.
 
-The merged Bench main commit was independently exercised through two fresh
-Harbor 0.21 Oracle controls and retained in
-[`reports/2026.8.12/oracle-control-1bc7160-receipt.json`](reports/2026.8.12/oracle-control-1bc7160-receipt.json).
-Both receipts record `verifierEnvironmentMode: separate`, Docker cleanup, and
-the current projection digest. This refreshes execution/provenance evidence
-only; it does not create a semantic score or replace the missing human
-qualification evidence.
+Each adapter has fixture/replay census tests. Live pilots are manual and stay
+at claim status `pilot`; full score profiles are executable but are not run in
+CI or automatically purchased.
 
-After human qualification evidence exists, Eval transports candidate-visible
-inputs and outputs to the Bench-owned qualified judge and records provenance;
-it does not reproduce Bench rubrics, qualification logic, or metric
-calculations. Until then, the next executable unit is Bench qualification and
-validity evidence, not a score-producing runtime. Required CI remains
-deterministic and free of paid performance evaluation.
+## CLI
 
-## Eval method reference
+```text
+source verify --track <track-id>
+source materialize --track <track-id> --cache-root <absolute-path>
+plan --track <track-id> --profile fixture|smoke|pilot|score --candidate-config <json-or-absolute-file>
+run --plan <run-spec-or-plan.json> --evidence-root <absolute-path>
+portfolio smoke --config <absolute-private-json>
+report --run <run-id-or-receipt-path> --visibility internal|public
+```
 
-The first Codex adapter will use the small, inspectable loop described in
-[Testing Agent Skills Systematically with Evals](https://developers.openai.com/blog/eval-skills):
-define success before implementation, capture a structured trace and artifacts,
-run cheap deterministic checks, and use a schema-constrained judge only for
-criteria that are not mechanically observable. This informs the Eval runner's
-receipt and adapter boundary; it does not make the adapter the owner of Bench
-semantics. A small 10–20 case regression subset may be used for fast iteration,
-while the public Bench bank remains the source of candidate-independent
-measurement.
+`EVAL_CACHE_ROOT` and `EVIDENCE_ROOT` may supply omitted absolute roots. The
+optional `--provider-terms-receipt <absolute-json>` contributes only its
+content digest; without it, a non-fixture provider run ends in `rights_hold`.
+legacy `source-verify --source-manifest`, Harbor Oracle, Codex baseline, and
+`dry-run` paths remain available for migration evidence, but their structural
+receipts are not benchmark scores.
+
+## Verification
+
+```sh
+npm ci
+npm run format:check
+npm run typecheck
+npm test
+npm run build
+npm run smoke
+npm run dry-run
+npm run ci:policy
+npm run security:scan
+```
+
+The default suite is offline: no upstream download, provider call, model call,
+or raw benchmark materialization occurs in CI.

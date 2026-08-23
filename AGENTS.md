@@ -9,6 +9,9 @@ The active input is the candidate-neutral Harbor projection from an exact
 `coffee-chat-bench` commit. The smallest baseline is one case with `task_only`
 and one diagnostic condition. Harbor Oracle is control evidence only; its
 native reward cannot become semantic measurement or a Coffee Chat score.
+The admitted IFEval adapter imports Google's Apache-2.0 checker and official
+prompt input; it is separate from the retired legacy provider-bearing IFEval
+runner, which remains excluded from this repository.
 
 Provider credentials must not enter candidate-readable environment variables,
 filesystems, process memory, artifacts, or logs. Harbor 0.21 native Codex is
