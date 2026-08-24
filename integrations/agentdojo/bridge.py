@@ -456,6 +456,8 @@ class BrokerLLMElement:
         self.calls = 0
         self.provider_context_failure = False
         self.adapter_input_failure = False
+        self.provider_context_failure_count = 0
+        self.adapter_input_failure_count = 0
 
     def query(
         self,
@@ -466,9 +468,11 @@ class BrokerLLMElement:
         extra_args: dict[str, Any] | None = None,
     ) -> tuple[str, Any, Any, Sequence[dict[str, Any]], dict[str, Any]]:
         del query
+        if self.calls >= self.max_requests:
+            self.provider_context_failure = True
+            self.provider_context_failure_count += 1
+            raise BrokerUnavailable("candidate capability request cap exceeded")
         try:
-            if self.calls >= self.max_requests:
-                raise AdapterInputInvalid("candidate capability request cap exceeded")
             next_extra_args = dict(extra_args or {})
             replay_groups = next_extra_args.get(RESPONSES_REPLAY_STATE, [])
             if not isinstance(replay_groups, list):
@@ -488,9 +492,11 @@ class BrokerLLMElement:
             )
         except AdapterInputInvalid:
             self.adapter_input_failure = True
+            self.adapter_input_failure_count += 1
             raise
         except Exception as exc:
             self.adapter_input_failure = True
+            self.adapter_input_failure_count += 1
             raise AdapterInputInvalid("broker request assembly is invalid") from exc
         try:
             try:
@@ -504,6 +510,7 @@ class BrokerLLMElement:
                 next_extra_args[RESPONSES_REPLAY_STATE] = [*replay_groups, replay_group]
         except BrokerUnavailable:
             self.provider_context_failure = True
+            self.provider_context_failure_count += 1
             raise
         self.calls += 1
         return "", runtime, env, [*messages, assistant], next_extra_args
@@ -666,8 +673,8 @@ def run(
     max_candidate_turns = _candidate_turn_ceiling(profile, len(selected_episodes))
     results: list[dict[str, Any]] = []
     trace_attempt = uuid4().hex
-    direct_provider_context_failure = False
-    direct_adapter_input_failure = False
+    direct_provider_context_failures = 0
+    direct_adapter_input_failures = 0
     failure_owner: str | None = None
     for suite_name in (("workspace",) if profile in {"smoke", "pilot"} else SUITES):
         suite = get_suite(benchmark_version, suite_name)
@@ -715,10 +722,10 @@ def run(
         except CandidateOutputInvalid:
             failure_owner = "candidate"
         except AdapterInputInvalid:
-            direct_adapter_input_failure = True
+            direct_adapter_input_failures += 1
             failure_owner = "adapter"
         except BrokerUnavailable:
-            direct_provider_context_failure = True
+            direct_provider_context_failures += 1
             failure_owner = "host"
         except Exception as exc:
             print(
@@ -728,8 +735,14 @@ def run(
             failure_owner = failure_owner or "adapter"
         if failure_owner is not None:
             break
-    contaminated_provider_context = broker.provider_context_failure and not direct_provider_context_failure
-    contaminated_adapter_input = broker.adapter_input_failure and not direct_adapter_input_failure
+    contaminated_provider_context = (
+        broker.provider_context_failure_count > direct_provider_context_failures
+    )
+    contaminated_adapter_input = (
+        broker.adapter_input_failure_count > direct_adapter_input_failures
+    )
+    direct_provider_context_failure = direct_provider_context_failures > 0
+    direct_adapter_input_failure = direct_adapter_input_failures > 0
     if (
         contaminated_provider_context
         or contaminated_adapter_input

@@ -515,6 +515,16 @@ try:
 except bridge.AdapterInputInvalid:
     pass
 
+cap_broker = bridge.BrokerLLMElement(
+    "http://127.0.0.1:4311/responses", "scoped-capability", "gpt-5.6-luna", 1
+)
+cap_broker.calls = 1
+cap_exception = None
+try:
+    cap_broker.query("", runtime, messages=messages)
+except Exception as error:
+    cap_exception = type(error).__name__
+
 class Response:
     def __enter__(self):
         return self
@@ -549,6 +559,11 @@ print(json.dumps({
         "provider": getattr(adapter_broker, "provider_context_failure", None),
         "adapter": getattr(adapter_broker, "adapter_input_failure", None),
     },
+    "cap": {
+        "exception": cap_exception,
+        "provider": getattr(cap_broker, "provider_context_failure", None),
+        "adapter": getattr(cap_broker, "adapter_input_failure", None),
+    },
     "candidate": {
         "provider": getattr(candidate_broker, "provider_context_failure", None),
         "adapter": getattr(candidate_broker, "adapter_input_failure", None),
@@ -558,6 +573,7 @@ print(json.dumps({
 
   assert.deepEqual(observed, {
     adapter: { adapter: true, provider: false },
+    cap: { adapter: false, exception: "BrokerUnavailable", provider: true },
     candidate: { adapter: false, provider: false },
     provider: { adapter: false, provider: true },
   });
@@ -620,15 +636,17 @@ def benchmark_without(pipeline, _suite, **_kwargs):
             "error": None,
         }]
     )
-    try:
-        pipeline.llm.query(
-            "",
-            SimpleNamespace(functions={}),
-            messages=messages,
-        )
-    except (bridge.BrokerUnavailable, bridge.AdapterInputInvalid):
-        if mode.endswith("-direct"):
-            raise
+    attempts = 2 if mode.endswith("-then-direct") else 1
+    for attempt in range(attempts):
+        try:
+            pipeline.llm.query(
+                "",
+                SimpleNamespace(functions={}),
+                messages=messages,
+            )
+        except (bridge.BrokerUnavailable, bridge.AdapterInputInvalid):
+            if mode.endswith("-direct") and (attempt == attempts - 1):
+                raise
     return {
         "utility_results": {("user_task_0", ""): False},
         "security_results": {("user_task_0", ""): True},
@@ -671,8 +689,10 @@ outcomes = {}
 for current_mode in (
     "provider-direct",
     "provider-contaminated",
+    "provider-contaminated-then-direct",
     "adapter-direct",
     "adapter-contaminated",
+    "adapter-contaminated-then-direct",
 ):
     mode = current_mode
     with tempfile.TemporaryDirectory() as directory:
@@ -722,6 +742,13 @@ print(json.dumps(outcomes, sort_keys=True))
       providerContextFailure: false,
       status: "invalid",
     },
+    "adapter-contaminated-then-direct": {
+      episodeCount: 0,
+      failureOwner: "adapter",
+      hasMetrics: false,
+      providerContextFailure: false,
+      status: "invalid",
+    },
     "adapter-direct": {
       episodeCount: 0,
       failureOwner: "adapter",
@@ -731,6 +758,13 @@ print(json.dumps(outcomes, sort_keys=True))
     },
     "provider-contaminated": {
       episodeCount: 3,
+      failureOwner: "host",
+      hasMetrics: false,
+      providerContextFailure: true,
+      status: "invalid",
+    },
+    "provider-contaminated-then-direct": {
+      episodeCount: 0,
       failureOwner: "host",
       hasMetrics: false,
       providerContextFailure: true,
