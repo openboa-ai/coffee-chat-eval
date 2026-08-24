@@ -505,9 +505,13 @@ class BrokerLLMElement:
         try:
             try:
                 with urllib.request.urlopen(request, timeout=60) as response:
-                    result = json.loads(response.read().decode("utf-8"))
-            except (OSError, UnicodeDecodeError, urllib.error.URLError, json.JSONDecodeError) as exc:
+                    response_bytes = response.read()
+            except (OSError, urllib.error.URLError) as exc:
                 raise BrokerUnavailable("broker/context unavailable") from exc
+            try:
+                result = json.loads(response_bytes.decode("utf-8"))
+            except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+                raise CandidateOutputInvalid("broker response envelope is invalid") from exc
             assistant = _response_assistant(result)
             replay_group = _response_replay_group(result)
             if replay_group is not None:

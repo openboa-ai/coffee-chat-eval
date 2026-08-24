@@ -601,6 +601,35 @@ try:
 except bridge.CandidateOutputInvalid:
     pass
 
+malformed = {}
+for label, body in {
+    "invalid_json": b"not-json",
+    "invalid_utf8": bytes((0xff,)),
+}.items():
+    class MalformedResponse:
+        def __enter__(self):
+            return self
+        def __exit__(self, *_args):
+            return False
+        def read(self):
+            return body
+
+    bridge.urllib.request.urlopen = lambda _request, timeout: MalformedResponse()
+    malformed_broker = bridge.BrokerLLMElement(
+        "http://127.0.0.1:4311/responses", "scoped-capability", "gpt-5.6-luna", 45
+    )
+    try:
+        malformed_broker.query("", runtime, messages=messages)
+    except Exception as error:
+        exception = type(error).__name__
+    else:
+        exception = "accepted"
+    malformed[label] = {
+        "exception": exception,
+        "provider": malformed_broker.provider_context_failure,
+        "candidate": malformed_broker.candidate_output_failure,
+    }
+
 print(json.dumps({
     "provider": {
         "provider": getattr(provider_broker, "provider_context_failure", None),
@@ -620,6 +649,7 @@ print(json.dumps({
         "adapter": getattr(candidate_broker, "adapter_input_failure", None),
         "candidate": getattr(candidate_broker, "candidate_output_failure", None),
     },
+    "malformed": malformed,
 }, sort_keys=True))
 `);
 
@@ -627,6 +657,18 @@ print(json.dumps({
     adapter: { adapter: true, provider: false },
     cap: { adapter: false, exception: "BrokerUnavailable", provider: true },
     candidate: { adapter: false, candidate: true, provider: false },
+    malformed: {
+      invalid_json: {
+        candidate: true,
+        exception: "CandidateOutputInvalid",
+        provider: false,
+      },
+      invalid_utf8: {
+        candidate: true,
+        exception: "CandidateOutputInvalid",
+        provider: false,
+      },
+    },
     provider: { adapter: false, provider: true },
   });
 });

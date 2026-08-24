@@ -176,29 +176,38 @@ for failure in failures:
         outcomes.append({"type": type(error).__name__, "message": str(error)})
 
 class Response:
+    def __init__(self, body):
+        self.body = body
     def __enter__(self):
         return self
     def __exit__(self, *_args):
         return False
     def read(self):
-        return json.dumps({
-            "status": "completed",
-            "error": None,
-            "output_text": "not-json",
-        }).encode("utf-8")
+        return self.body
 
-bridge.urllib.request.urlopen = lambda _request, timeout: Response()
-judge = bridge.BrokerJudge({
-    "scope": "judge",
-    "endpoint": "http://127.0.0.1/responses",
-    "capabilityToken": "scoped",
-    "model": "gpt-5.6-luna",
-    "maxRequests": 1,
-})
-try:
-    judge.invoke("rubric prompt")
-except Exception as error:
-    outcomes.append({"type": type(error).__name__, "message": str(error)})
+malformed_bodies = [
+    b"\xff",
+    b"not-json",
+    json.dumps([]).encode("utf-8"),
+    json.dumps({
+        "status": "completed",
+        "error": None,
+        "output_text": "not-json",
+    }).encode("utf-8"),
+]
+for body in malformed_bodies:
+    bridge.urllib.request.urlopen = lambda _request, timeout, body=body: Response(body)
+    judge = bridge.BrokerJudge({
+        "scope": "judge",
+        "endpoint": "http://127.0.0.1/responses",
+        "capabilityToken": "scoped",
+        "model": "gpt-5.6-luna",
+        "maxRequests": 1,
+    })
+    try:
+        judge.invoke("rubric prompt")
+    except Exception as error:
+        outcomes.append({"type": type(error).__name__, "message": str(error)})
 
 print(json.dumps(outcomes))
 `);
@@ -216,6 +225,9 @@ print(json.dumps(outcomes))
       type: "JudgeUnavailableError",
       message: "BEAM Judge broker transport is unavailable",
     },
+    { type: "JudgeFailedError", message: "BEAM Judge completion is invalid" },
+    { type: "JudgeFailedError", message: "BEAM Judge completion is invalid" },
+    { type: "JudgeFailedError", message: "BEAM Judge completion is invalid" },
     { type: "JudgeFailedError", message: "BEAM Judge completion is invalid" },
   ]);
 });
@@ -307,6 +319,9 @@ bridge = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(bridge)
 
 payloads = {
+    "invalid_utf8": b"\xff",
+    "invalid_envelope_json": b"not-json",
+    "non_object_envelope": json.dumps([]).encode("utf-8"),
     "failed_status": {"status": "failed", "error": None, "output": []},
     "failed_with_error": {
         "status": "failed",
@@ -337,7 +352,10 @@ with tempfile.TemporaryDirectory() as directory:
         def __exit__(self, *_args):
             return False
         def read(self):
-            return json.dumps(current["payload"]).encode("utf-8")
+            payload = current["payload"]
+            if isinstance(payload, bytes):
+                return payload
+            return json.dumps(payload).encode("utf-8")
 
     bridge.urllib.request.urlopen = lambda _request, timeout: Response()
 
@@ -382,9 +400,12 @@ with tempfile.TemporaryDirectory() as directory:
     completed_with_error: failed,
     failed_status: failed,
     failed_with_error: failed,
+    invalid_envelope_json: failed,
     invalid_score: failed,
+    invalid_utf8: failed,
     malformed_json: failed,
     missing_output: failed,
+    non_object_envelope: failed,
   });
 });
 

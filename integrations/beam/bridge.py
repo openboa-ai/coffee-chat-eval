@@ -223,10 +223,13 @@ class BrokerJudge:
                 response_bytes = response.read()
         except (urllib.error.HTTPError, urllib.error.URLError, OSError) as exc:
             raise JudgeUnavailableError(JUDGE_UNAVAILABLE_REASON) from exc
-        payload = json.loads(response_bytes.decode("utf-8"))
+        try:
+            payload = json.loads(response_bytes.decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise JudgeFailedError(JUDGE_FAILED_REASON) from exc
         self.calls += 1
         if not isinstance(payload, dict):
-            raise ValueError("BEAM Judge completion envelope is invalid")
+            raise JudgeFailedError(JUDGE_FAILED_REASON)
         status = payload.get("status")
         if status in NONTERMINAL_RESPONSE_STATUSES:
             raise JudgeUnavailableError(JUDGE_UNAVAILABLE_REASON)
