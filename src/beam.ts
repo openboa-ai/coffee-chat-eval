@@ -476,6 +476,32 @@ export function createBeamTrackExecutor(
       string,
       unknown
     >;
+    if (native.schema === "coffee-chat-eval/beam-bridge-outcome-v1") {
+      const keys = Object.keys(native).sort();
+      if (
+        JSON.stringify(keys) !==
+          JSON.stringify(["executionStatus", "failureOwner", "reason", "schema"]) ||
+        native.executionStatus !== "unavailable" ||
+        native.failureOwner !== "judge" ||
+        native.reason !== "BEAM Judge broker transport is unavailable"
+      ) {
+        throw new TypeError("BEAM Judge unavailable outcome is malformed");
+      }
+      return Object.freeze({
+        executionStatus: "unavailable" as const,
+        failureOwner: "judge" as const,
+        trialReceipts: Object.freeze(trialReceipts),
+        metrics: Object.freeze({
+          execution: Object.freeze({
+            numerator: null,
+            denominator: null,
+            value: null,
+          }),
+        }),
+        nativeEvidence: nativeArtifact,
+        cleanupStatus: "complete" as const,
+      });
+    }
     const expectedJudgeCalls = inventory.reduce((count, item) => {
       const questionBank = questionBankFor(item.conversationId);
       return (

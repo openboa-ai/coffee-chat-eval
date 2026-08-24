@@ -10,6 +10,7 @@ import math
 import os
 import sys
 import types
+import urllib.error
 import urllib.request
 from pathlib import Path
 from types import SimpleNamespace
@@ -38,6 +39,10 @@ NLTK_DATA_FORBIDDEN = (
     "tokenizers/punkt_tab",
     "tokenizers/punkt_tab.zip",
 )
+
+
+class JudgeUnavailableError(RuntimeError):
+    pass
 
 
 def _install_unused_embedding_stub() -> None:
@@ -206,8 +211,14 @@ class BrokerJudge:
             headers={"authorization": f"Bearer {self.token}", "content-type": "application/json"},
             method="POST",
         )
-        with urllib.request.urlopen(request, timeout=30) as response:
-            payload = json.loads(response.read().decode("utf-8"))
+        try:
+            with urllib.request.urlopen(request, timeout=30) as response:
+                response_bytes = response.read()
+        except (urllib.error.HTTPError, urllib.error.URLError, OSError) as exc:
+            raise JudgeUnavailableError(
+                "BEAM Judge broker transport is unavailable"
+            ) from exc
+        payload = json.loads(response_bytes.decode("utf-8"))
         self.calls += 1
         if not isinstance(payload, dict):
             raise ValueError("BEAM Judge completion envelope is invalid")
@@ -456,7 +467,18 @@ def main() -> None:
         raise SystemExit("evaluation requires --query-path, --response-path, and --output")
     if args.tier != "100K":
         raise SystemExit("only BEAM 100K is admitted in v1")
-    run(args.source_root, args.query_path, args.response_path, args.output, args.profile, args.data_root, args.judge_runtime)
+    try:
+        run(args.source_root, args.query_path, args.response_path, args.output, args.profile, args.data_root, args.judge_runtime)
+    except JudgeUnavailableError:
+        _write_once(
+            args.output,
+            {
+                "schema": "coffee-chat-eval/beam-bridge-outcome-v1",
+                "executionStatus": "unavailable",
+                "failureOwner": "judge",
+                "reason": "BEAM Judge broker transport is unavailable",
+            },
+        )
 
 
 if __name__ == "__main__":

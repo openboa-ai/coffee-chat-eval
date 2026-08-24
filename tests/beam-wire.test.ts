@@ -116,3 +116,123 @@ print(json.dumps(outcomes))
     "BEAM Judge completion has no usable output",
   ]);
 });
+
+test("BEAM BrokerJudge separates transport outages from malformed Judge JSON", () => {
+  const result = runPython(String.raw`
+import importlib.util
+import io
+import json
+import sys
+import urllib.error
+
+spec = importlib.util.spec_from_file_location("beam_bridge", sys.argv[1])
+bridge = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(bridge)
+
+failures = [
+    TimeoutError("timed out"),
+    urllib.error.URLError("connection refused"),
+    urllib.error.HTTPError("http://127.0.0.1", 503, "unavailable", {}, io.BytesIO()),
+]
+outcomes = []
+for failure in failures:
+    def urlopen(_request, timeout, failure=failure):
+        raise failure
+    bridge.urllib.request.urlopen = urlopen
+    judge = bridge.BrokerJudge({
+        "scope": "judge",
+        "endpoint": "http://127.0.0.1/responses",
+        "capabilityToken": "scoped",
+        "model": "gpt-5.6-luna",
+        "maxRequests": 1,
+    })
+    try:
+        judge.invoke("rubric prompt")
+    except Exception as error:
+        outcomes.append({"type": type(error).__name__, "message": str(error)})
+
+class Response:
+    def __enter__(self):
+        return self
+    def __exit__(self, *_args):
+        return False
+    def read(self):
+        return json.dumps({
+            "status": "completed",
+            "error": None,
+            "output_text": "not-json",
+        }).encode("utf-8")
+
+bridge.urllib.request.urlopen = lambda _request, timeout: Response()
+judge = bridge.BrokerJudge({
+    "scope": "judge",
+    "endpoint": "http://127.0.0.1/responses",
+    "capabilityToken": "scoped",
+    "model": "gpt-5.6-luna",
+    "maxRequests": 1,
+})
+try:
+    judge.invoke("rubric prompt")
+except Exception as error:
+    outcomes.append({"type": type(error).__name__, "message": str(error)})
+
+print(json.dumps(outcomes))
+`);
+
+  assert.deepEqual(result, [
+    {
+      type: "JudgeUnavailableError",
+      message: "BEAM Judge broker transport is unavailable",
+    },
+    {
+      type: "JudgeUnavailableError",
+      message: "BEAM Judge broker transport is unavailable",
+    },
+    {
+      type: "JudgeUnavailableError",
+      message: "BEAM Judge broker transport is unavailable",
+    },
+    { type: "ValueError", message: "BEAM Judge returned malformed JSON" },
+  ]);
+});
+
+test("BEAM bridge main writes the exact unavailable Judge outcome", () => {
+  const result = runPython(String.raw`
+import importlib.util
+import json
+import sys
+import tempfile
+from pathlib import Path
+
+spec = importlib.util.spec_from_file_location("beam_bridge", sys.argv[1])
+bridge = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(bridge)
+
+with tempfile.TemporaryDirectory() as directory:
+    root = Path(directory)
+    output = root / "beam-native.json"
+    def unavailable(*_args, **_kwargs):
+        raise bridge.JudgeUnavailableError("BEAM Judge broker transport is unavailable")
+    bridge.run = unavailable
+    sys.argv = [
+        "bridge.py",
+        "--source-root", str(root),
+        "--data-root", str(root),
+        "--query-path", str(root / "queries.json"),
+        "--response-path", str(root / "responses.json"),
+        "--output", str(output),
+        "--tier", "100K",
+        "--profile", "smoke",
+        "--judge-runtime", str(root / "judge.json"),
+    ]
+    bridge.main()
+    print(json.dumps(json.loads(output.read_text(encoding="utf-8")), sort_keys=True))
+`);
+
+  assert.deepEqual(result, {
+    schema: "coffee-chat-eval/beam-bridge-outcome-v1",
+    executionStatus: "unavailable",
+    failureOwner: "judge",
+    reason: "BEAM Judge broker transport is unavailable",
+  });
+});

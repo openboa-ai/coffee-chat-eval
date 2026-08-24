@@ -227,3 +227,111 @@ test("BEAM smoke executor sends six candidate queries and validates eleven nativ
     rmSync(root, { recursive: true, force: true });
   }
 });
+
+test("BEAM executor preserves an exact native Judge transport outage", async () => {
+  const root = mkdtempSync(join(tmpdir(), "coffee-chat-beam-judge-outage-"));
+  try {
+    const sourceRoot = join(root, "source", "chats", "100K", "1", "probing_questions");
+    mkdirSync(sourceRoot, { recursive: true });
+    const bank = Object.fromEntries(
+      BEAM_CATEGORIES.map((category, index) => [
+        category,
+        [
+          {
+            question: `${category} question`,
+            rubric: Array.from(
+              { length: index === 1 ? 4 : index === 4 || index === 5 ? 2 : 1 },
+              (_, i) => `rubric-${i}`,
+            ),
+          },
+        ],
+      ]),
+    );
+    writeFileSync(join(sourceRoot, "probing_questions.json"), JSON.stringify(bank));
+    const candidate = createFixtureCandidateTransport(() => "candidate response", {
+      evidenceRoot: root,
+    });
+    const evidence = ({ value, mediaType }: { value: unknown; mediaType: string }) => {
+      const stored = putEvidence(root, JSON.stringify(value), "private");
+      return {
+        path: stored.path,
+        digest: stored.digest,
+        mediaType,
+        bytes: Buffer.byteLength(JSON.stringify(value)),
+      };
+    };
+    const executor = createBeamTrackExecutor({
+      conversationLoader: {
+        load: async ({ conversationId }) => ({
+          conversationId,
+          messages: ["conversation-only"],
+        }),
+      },
+      bridge: {
+        run: async ({ outputPath }) => {
+          writeFileSync(
+            outputPath,
+            JSON.stringify({
+              schema: "coffee-chat-eval/beam-bridge-outcome-v1",
+              executionStatus: "unavailable",
+              failureOwner: "judge",
+              reason: "BEAM Judge broker transport is unavailable",
+            }),
+          );
+        },
+      },
+    });
+    const result = await executor({
+      plan: {
+        profile: "smoke",
+        id: "run-beam-judge-outage",
+        evidenceRoot: root,
+        trackId: "beam-record-core",
+      },
+      source: { sourceRoot: join(root, "source") },
+      candidate,
+      evidence,
+    });
+    assert.equal(result.executionStatus, "unavailable");
+    assert.equal(result.failureOwner, "judge");
+    assert.equal(result.trialReceipts.length, 6);
+    assert.deepEqual(result.metrics, {
+      execution: { numerator: null, denominator: null, value: null },
+    });
+    assert.equal(result.cleanupStatus, "complete");
+
+    const malformedExecutor = createBeamTrackExecutor({
+      conversationLoader: {
+        load: async ({ conversationId }) => ({ conversationId, messages: [] }),
+      },
+      bridge: {
+        run: async ({ outputPath }) => {
+          writeFileSync(
+            outputPath,
+            JSON.stringify({
+              schema: "coffee-chat-eval/beam-bridge-outcome-v1",
+              executionStatus: "unavailable",
+              failureOwner: "judge",
+            }),
+          );
+        },
+      },
+    });
+    await assert.rejects(
+      malformedExecutor({
+        plan: {
+          profile: "smoke",
+          id: "run-beam-judge-outage-malformed",
+          evidenceRoot: root,
+          trackId: "beam-record-core",
+        },
+        source: { sourceRoot: join(root, "source") },
+        candidate,
+        evidence,
+      }),
+      /Judge unavailable outcome is malformed/u,
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
