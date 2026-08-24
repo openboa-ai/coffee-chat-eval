@@ -834,7 +834,7 @@ print(json.dumps(outcomes, sort_keys=True))
       failureOwner: "adapter",
       hasMetrics: false,
       providerContextFailure: false,
-      status: "failed",
+      status: "invalid",
     },
     "candidate-contaminated": {
       episodeCount: 3,

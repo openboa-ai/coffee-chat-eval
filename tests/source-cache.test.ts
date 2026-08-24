@@ -436,6 +436,58 @@ test("materialized source verification rejects Eval-owned lock-byte drift", () =
   }
 });
 
+test("expected Eval-owned lock is enforced regardless of receipt lock origin", () => {
+  const root = mkdtempSync(join(tmpdir(), "coffee-chat-eval-lock-origin-bypass-"));
+  try {
+    const source = join(root, "source-input");
+    const runtimeLockPath = join(root, "ifeval-runtime-lock.txt");
+    mkdirSync(source, { recursive: true });
+    writeFileSync(join(source, "LICENSE"), "license");
+    writeFileSync(runtimeLockPath, "admitted dependency bytes\n");
+    const manifest = parseSourceManifest({
+      schema: "source-manifest-v1",
+      trackId: "ifeval",
+      source: {
+        repository: "https://example.invalid/ifeval",
+        commit: "3".repeat(40),
+        license: "Apache-2.0",
+        licenseDigest: digest("license"),
+      },
+      allowlist: ["LICENSE"],
+      excludedPaths: ["responses/**"],
+      retention: {
+        source: "cache-only",
+        evidence: "private-content-addressed",
+        public: "aggregate-provenance-only",
+      },
+      publicArtifactPolicy: "receipt-redacted",
+    });
+    const cacheRoot = join(root, "cache");
+    materializeSource({
+      manifest,
+      cacheRoot,
+      sourceRoot: source,
+      runtimeLockDigest: stableDigest("attacker-selected-lock"),
+      runtimeLockOrigin: "source",
+      licenseEvidence: [
+        { path: "LICENSE", digest: digest("license"), license: "Apache-2.0" },
+      ],
+    });
+
+    assert.throws(
+      () =>
+        verifyMaterializedSource({
+          manifest,
+          cacheRoot,
+          expectedRuntimeLockPath: runtimeLockPath,
+        }),
+      /runtime lock digest drifted: Eval-owned lock/u,
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("source materialization verifies a supplied Eval-owned lock before succeeding", () => {
   const root = mkdtempSync(join(tmpdir(), "coffee-chat-eval-owned-lock-final-cache-"));
   const input = mkdtempSync(

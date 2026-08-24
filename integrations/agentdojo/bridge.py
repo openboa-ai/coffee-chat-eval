@@ -765,12 +765,12 @@ def run(
         elif direct_provider_context_failure:
             status = "unavailable"
         elif direct_adapter_input_failure:
-            status = "failed"
+            status = "invalid"
         elif broker.candidate_output_failure:
             status = "failed"
             failure_owner = "candidate"
         else:
-            status = "failed"
+            status = "invalid"
         _write_once(
             output,
             {

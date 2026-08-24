@@ -373,18 +373,18 @@ test("AgentDojo executor preserves partial candidate and provider failure attrib
     },
     {
       id: "adapter",
-      status: "failed",
+      status: "invalid",
       failureOwner: "adapter",
       providerContextFailure: false,
-      expectedStatus: "failed",
+      expectedStatus: "invalid",
       expectedOwner: "adapter",
     },
     {
       id: "artifact",
-      status: "failed",
+      status: "invalid",
       failureOwner: "artifact",
       providerContextFailure: false,
-      expectedStatus: "failed",
+      expectedStatus: "invalid",
       expectedOwner: "artifact",
     },
   ] as const;
@@ -495,6 +495,18 @@ test("AgentDojo executor rejects incoherent native failure taxonomy", async () =
       status: "invalid",
       failureOwner: "adapter",
       providerContextFailure: true,
+    },
+    {
+      id: "adapter-failed",
+      status: "failed",
+      failureOwner: "adapter",
+      providerContextFailure: false,
+    },
+    {
+      id: "artifact-failed",
+      status: "failed",
+      failureOwner: "artifact",
+      providerContextFailure: false,
     },
   ] as const;
 

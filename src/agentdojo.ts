@@ -525,26 +525,22 @@ export function createAgentDojoTrackExecutor(
       native.status === "invalid" &&
       native.failureOwner === "host" &&
       native.providerContextFailure === true;
-    const adapterContaminated =
+    const invalidOwner =
       native.status === "invalid" &&
-      native.failureOwner === "adapter" &&
-      native.providerContextFailure === false;
-    const failedOwner =
-      native.failureOwner === "candidate" ||
-      native.failureOwner === "adapter" ||
-      native.failureOwner === "artifact"
+      (native.failureOwner === "adapter" || native.failureOwner === "artifact") &&
+      native.providerContextFailure === false
         ? native.failureOwner
         : undefined;
-    const failed =
+    const candidateFailed =
       native.status === "failed" &&
-      failedOwner !== undefined &&
+      native.failureOwner === "candidate" &&
       native.providerContextFailure === false;
     if (
       !measured &&
       !providerUnavailable &&
       !providerContaminated &&
-      !adapterContaminated &&
-      !failed
+      invalidOwner === undefined &&
+      !candidateFailed
     ) {
       throw new TypeError("AgentDojo native failure taxonomy is invalid");
     }
@@ -605,10 +601,10 @@ export function createAgentDojoTrackExecutor(
         cleanupStatus: "complete" as const,
       });
     }
-    if (adapterContaminated) {
+    if (invalidOwner !== undefined) {
       return Object.freeze({
         executionStatus: "invalid" as const,
-        failureOwner: "adapter" as const,
+        failureOwner: invalidOwner,
         trialReceipts: Object.freeze([]),
         metrics: Object.freeze({
           execution: Object.freeze({ numerator: null, denominator: null, value: null }),
@@ -617,10 +613,10 @@ export function createAgentDojoTrackExecutor(
         cleanupStatus: "complete" as const,
       });
     }
-    if (failedOwner !== undefined) {
+    if (candidateFailed) {
       return Object.freeze({
         executionStatus: "failed" as const,
-        failureOwner: failedOwner,
+        failureOwner: "candidate" as const,
         trialReceipts: Object.freeze([]),
         metrics: Object.freeze({
           execution: Object.freeze({ numerator: null, denominator: null, value: null }),

@@ -269,8 +269,7 @@ function verifyRuntimeLockDigest(
   // upstream lock use the Eval-owned identity recorded by the materializer.
   // When a caller supplies that admitted repository lock, bind verification
   // to its current exact bytes as well.
-  if (receipt.runtimeLockOrigin === "eval-owned") {
-    if (expectedRuntimeLockPath === undefined) return;
+  if (expectedRuntimeLockPath !== undefined) {
     if (!isAbsolute(expectedRuntimeLockPath)) {
       throw new TypeError("expectedRuntimeLockPath must be an absolute path");
     }
@@ -284,6 +283,7 @@ function verifyRuntimeLockDigest(
     }
     return;
   }
+  if (receipt.runtimeLockOrigin === "eval-owned") return;
   for (const name of ["uv.lock", "requirements.txt"] as const) {
     const path = resolve(sourceRoot, name);
     if (!existsSync(path)) continue;
