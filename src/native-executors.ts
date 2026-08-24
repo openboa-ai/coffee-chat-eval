@@ -1,5 +1,5 @@
 import type { EvaluationTrackId } from "./track-registry.ts";
-import type { TrackExecutor } from "./run-engine.ts";
+import type { TrackExecutor } from "./track-executor.ts";
 import { createIfevalTrackExecutor } from "./ifeval.ts";
 import { createTasteTrackExecutor } from "./taste.ts";
 import { createBeamTrackExecutor } from "./beam.ts";

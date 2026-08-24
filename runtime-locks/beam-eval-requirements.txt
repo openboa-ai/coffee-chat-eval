@@ -1,6 +1,23 @@
+# nltk-data-repository=https://github.com/nltk/nltk_data
+# nltk-data-commit=550b6625bcef1f2abff2ff770a5a0d272c9c6b2a
+# nltk-data-repository-license=Apache-2.0
+# nltk-data-repository-license-digest=sha256:8d030ab5afc58f0b6a1f4207c12fd9553de6da2294efede65a0c58f9a6495fcc
+# nltk-data-package-license-status=unclarified
+# nltk-data-package-index-license-attribute=absent
+# nltk-data-rights-policy=not_used_by_admitted_scorers
+# nltk-data-resource=tokenizers/punkt_tab.zip
+# nltk-data-resource-bytes=4319076
+# nltk-data-resource-digest=sha256:e57f64187974277726a3417ca6f181ec5403676c717672eef6a748a7b20e0106
+absl-py==2.3.1
+click==8.2.1
+defusedxml==0.7.1
+joblib==1.5.1
 json-repair==0.44.1
 nltk==3.10.1
 numpy==2.3.2
 pyarrow==18.1.0
+regex==2024.11.6
 rouge-score==0.1.2
 scipy==1.16.1
+six==1.17.0
+tqdm==4.67.1

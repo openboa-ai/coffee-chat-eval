@@ -15,7 +15,12 @@ import {
   parseTrackReport,
 } from "./eval-core.ts";
 import { stableDigest } from "./identity.ts";
-import { createIfevalInventory } from "./ifeval.ts";
+import {
+  createIfevalInventory,
+  ifevalRightsRiskAcceptanceDigest,
+  parseIfevalRightsRiskAcceptance,
+  validateIfevalPrivateSmokeRiskAcceptance,
+} from "./ifeval.ts";
 import { createDryRunRegistry } from "./registry.ts";
 import {
   createEvidenceReceipt,
@@ -23,6 +28,7 @@ import {
   redactEvidenceReceipt,
 } from "./receipts.ts";
 import {
+  assertTrackReportMatchesReceipt,
   formatDryRunReport,
   formatEvidenceReport,
   formatTrackReport,
@@ -33,7 +39,6 @@ import { runOracleControl } from "./runner.ts";
 import { verifyMaterializedSource } from "./source-cache.ts";
 import { materializePinnedSource } from "./source-materializer.ts";
 import { executeImmutableRun } from "./run-engine.ts";
-import { getNativeTrackExecutor } from "./native-executors.ts";
 import {
   createFixtureCandidateTransport,
   createFixtureJudgeTransport,
@@ -47,12 +52,14 @@ import {
   parseCandidateIdentityConfig,
   parseJudgeIdentityConfig,
   parseRuntimeBundleConfig,
+  responsesCandidateHarnessForKind,
 } from "./runtime-config.ts";
 import { getSourceManifest, verifySourceManifestPins } from "./source-manifests.ts";
 import { createTasteInventory } from "./taste.ts";
 import type { EvaluationTrackId } from "./track-registry.ts";
 import { runPortfolioSmokeConfig } from "./portfolio.ts";
-import { BEAM_RUNTIME_LOCK, IFEVAL_RUNTIME_LOCK } from "./python-runtime.ts";
+import { evalOwnedRuntimeLockForTrack } from "./python-runtime.ts";
+import { prepareCoffeeChatProductCandidateTransport } from "./product-host.ts";
 
 const MANIFEST_BYTES = 2 * 1024 * 1024;
 const CORE_BYTES = 256 * 1024;
@@ -179,13 +186,19 @@ function buildV1Plan(values: ReadonlyMap<string, string>) {
       "candidate identity config must not contain runtime capability fields",
     );
   }
+  const configuredCandidateType = candidateRecord?.candidateType ?? "fixture";
   const candidateIdentity =
     candidateRecord?.schema === "candidate-config-v1"
       ? parseCandidateIdentityConfig(candidateRecord)
       : parseCandidateIdentityConfig({
           schema: "candidate-config-v1",
-          candidateType: candidateRecord?.candidateType ?? "fixture",
-          harness: candidateRecord?.harness ?? "fixture-replay-v1",
+          candidateType: configuredCandidateType,
+          harness:
+            candidateRecord?.harness ??
+            (configuredCandidateType === "reference_model" ||
+            configuredCandidateType === "agent_stack"
+              ? responsesCandidateHarnessForKind(configuredCandidateType)
+              : "fixture-replay-v1"),
           model: candidateRecord?.model ?? "fixture",
           ...(candidateRecord?.seed === undefined
             ? {}
@@ -202,6 +215,53 @@ function buildV1Plan(values: ReadonlyMap<string, string>) {
           model: "gpt-5.6-luna",
         });
   const judgeConfigDigest = judgeIdentityDigest(judgeIdentity);
+  const ifevalRightsRiskAcceptancePath = values.get(
+    "--ifeval-rights-risk-acceptance-receipt",
+  );
+  if (
+    ifevalRightsRiskAcceptancePath !== undefined &&
+    !isAbsolute(ifevalRightsRiskAcceptancePath)
+  ) {
+    throw new TypeError(
+      "--ifeval-rights-risk-acceptance-receipt must be an absolute path",
+    );
+  }
+  const ifevalRightsRiskAcceptance =
+    ifevalRightsRiskAcceptancePath === undefined
+      ? undefined
+      : parseIfevalRightsRiskAcceptance(
+          readBoundedJson(
+            resolve(ifevalRightsRiskAcceptancePath),
+            CORE_BYTES,
+            "IFEval rights risk acceptance receipt",
+          ),
+        );
+  if (
+    ifevalRightsRiskAcceptance !== undefined &&
+    (trackId !== "ifeval" ||
+      profile !== "smoke" ||
+      candidateType !== "coffee_chat_product")
+  ) {
+    throw new TypeError(
+      "IFEval rights risk acceptance is limited to the IFEval Product smoke",
+    );
+  }
+  const rightsRiskAcceptanceDigest =
+    ifevalRightsRiskAcceptance === undefined
+      ? undefined
+      : ifevalRightsRiskAcceptanceDigest(ifevalRightsRiskAcceptance);
+  if (
+    ifevalRightsRiskAcceptance !== undefined &&
+    rightsRiskAcceptanceDigest !== undefined
+  ) {
+    validateIfevalPrivateSmokeRiskAcceptance({
+      profile,
+      candidateType,
+      expectedDigest: rightsRiskAcceptanceDigest,
+      expectedCandidateDigest: candidateConfigDigest,
+      receipt: ifevalRightsRiskAcceptance,
+    });
+  }
   const providerTermsReceiptPath = values.get("--provider-terms-receipt");
   if (providerTermsReceiptPath !== undefined && !isAbsolute(providerTermsReceiptPath)) {
     throw new TypeError("--provider-terms-receipt must be an absolute path");
@@ -216,6 +276,18 @@ function buildV1Plan(values: ReadonlyMap<string, string>) {
             "provider terms receipt",
           ),
         );
+  const isolationReceiptPath = values.get("--isolation-receipt");
+  if (isolationReceiptPath !== undefined && !isAbsolute(isolationReceiptPath)) {
+    throw new TypeError("--isolation-receipt must be an absolute path");
+  }
+  if (
+    isolationReceiptPath !== undefined &&
+    candidateRecord?.isolationEvidence !== undefined
+  ) {
+    throw new TypeError(
+      "isolation evidence must be supplied by one receipt source only",
+    );
+  }
   const attackDigest = stableDigest(
     trackId === "agentdojo-security" ? AGENTDOJO_ATTACK : "none",
   );
@@ -227,9 +299,17 @@ function buildV1Plan(values: ReadonlyMap<string, string>) {
   const coffeeCondition =
     trackId === "coffee-chat-taste" ? "three-condition-matrix" : undefined;
   const isolationEvidenceDigest =
-    candidateRecord?.isolationEvidence === undefined
-      ? undefined
-      : stableDigest(candidateRecord.isolationEvidence);
+    isolationReceiptPath !== undefined
+      ? stableDigest(
+          readBoundedJson(
+            resolve(isolationReceiptPath),
+            CORE_BYTES,
+            "isolation receipt",
+          ),
+        )
+      : candidateRecord?.isolationEvidence === undefined
+        ? undefined
+        : stableDigest(candidateRecord.isolationEvidence);
   const spec = parseRunSpec({
     schema: "run-spec-v1",
     trackId,
@@ -251,10 +331,14 @@ function buildV1Plan(values: ReadonlyMap<string, string>) {
       sourceCondition,
       ...(coffeeCondition === undefined ? {} : { coffeeCondition }),
       ...(isolationEvidenceDigest === undefined ? {} : { isolationEvidenceDigest }),
+      ...(rightsRiskAcceptanceDigest === undefined
+        ? {}
+        : { rightsRiskAcceptanceDigest }),
       census,
     }),
     providerTermsDigest: manifest.providerTermsDigest,
     ...(providerTermsReceiptDigest === undefined ? {} : { providerTermsReceiptDigest }),
+    ...(rightsRiskAcceptanceDigest === undefined ? {} : { rightsRiskAcceptanceDigest }),
     candidateType,
     samplingUnit: samplingUnit(trackId),
     caseCensus: census,
@@ -367,10 +451,12 @@ export async function runCli(args: readonly string[]): Promise<void> {
     const trackId = required(values, "--track") as EvaluationTrackId;
     const manifest = getSourceManifest(trackId);
     const sourceManifestDigest = verifySourceManifestPins(manifest);
+    const expectedRuntimeLockPath = evalOwnedRuntimeLockForTrack(trackId);
     const materialized = values.has("--cache-root")
       ? verifyMaterializedSource({
           manifest,
           cacheRoot: optionalRoot(values, "--cache-root", "EVAL_CACHE_ROOT"),
+          ...(expectedRuntimeLockPath === undefined ? {} : { expectedRuntimeLockPath }),
         })
       : undefined;
     writeJson({
@@ -399,12 +485,7 @@ export async function runCli(args: readonly string[]): Promise<void> {
       : join(cacheRoot, trackId, "staging-source");
     const dataRoot = values.get("--data-root");
     const runtimeLockPath =
-      values.get("--runtime-lock") ??
-      (trackId === "ifeval"
-        ? IFEVAL_RUNTIME_LOCK
-        : trackId === "beam-record-core"
-          ? BEAM_RUNTIME_LOCK
-          : undefined);
+      values.get("--runtime-lock") ?? evalOwnedRuntimeLockForTrack(trackId);
     const licenseEvidence = values.get("--license-evidence");
     const materialized = materializePinnedSource({
       manifest,
@@ -466,15 +547,38 @@ export async function runCli(args: readonly string[]): Promise<void> {
       const modernPlan =
         envelope.runSpec !== undefined && envelope.sourceManifest !== undefined;
       if (modernPlan) {
-        const candidateIdentity =
-          envelope.candidateIdentity === undefined
-            ? parseCandidateIdentityConfig({
-                schema: "candidate-config-v1",
-                candidateType: spec.candidateType ?? "fixture",
-                harness: "legacy-plan-v1",
-                model: spec.candidateType === "fixture" ? "fixture" : "gpt-5.6-luna",
-              })
-            : parseCandidateIdentityConfig(envelope.candidateIdentity);
+        const ifevalRightsRiskAcceptancePath = runValues.get(
+          "--ifeval-rights-risk-acceptance-receipt",
+        );
+        if (
+          ifevalRightsRiskAcceptancePath !== undefined &&
+          !isAbsolute(ifevalRightsRiskAcceptancePath)
+        ) {
+          throw new TypeError(
+            "--ifeval-rights-risk-acceptance-receipt must be an absolute path",
+          );
+        }
+        const ifevalRightsRiskAcceptance =
+          ifevalRightsRiskAcceptancePath === undefined
+            ? undefined
+            : parseIfevalRightsRiskAcceptance(
+                readBoundedJson(
+                  resolve(ifevalRightsRiskAcceptancePath),
+                  CORE_BYTES,
+                  "IFEval rights risk acceptance receipt",
+                ),
+              );
+        if (envelope.candidateIdentity === undefined) {
+          throw new TypeError("run plan candidate identity is missing");
+        }
+        const candidateIdentity = parseCandidateIdentityConfig(
+          envelope.candidateIdentity,
+        );
+        if (candidateIdentity.candidateType !== spec.candidateType) {
+          throw new TypeError(
+            "candidate identity type does not match run spec candidateType",
+          );
+        }
         const judgeIdentity =
           envelope.judgeIdentity === undefined
             ? parseJudgeIdentityConfig({
@@ -483,10 +587,7 @@ export async function runCli(args: readonly string[]): Promise<void> {
                 model: "gpt-5.6-luna",
               })
             : parseJudgeIdentityConfig(envelope.judgeIdentity);
-        if (
-          envelope.candidateIdentity !== undefined &&
-          candidateIdentityDigest(candidateIdentity) !== spec.candidateDigest
-        ) {
+        if (candidateIdentityDigest(candidateIdentity) !== spec.candidateDigest) {
           throw new TypeError("candidate identity digest does not match run spec");
         }
         if (
@@ -519,7 +620,7 @@ export async function runCli(args: readonly string[]): Promise<void> {
             throw new TypeError("judge runtime model does not match identity config");
           }
         }
-        const candidate =
+        const baseCandidate =
           spec.candidateType === "fixture"
             ? createFixtureCandidateTransport(
                 (input) =>
@@ -543,11 +644,32 @@ export async function runCli(args: readonly string[]): Promise<void> {
             : runtime === undefined
               ? createNotImplementedTransport(spec.candidateType ?? "agent_stack")
               : createResponsesCandidateTransport({
+                  kind:
+                    candidateIdentity.candidateType === "reference_model"
+                      ? "reference_model"
+                      : "agent_stack",
                   endpoint: runtime.candidate.endpoint,
                   capability: runtime.candidate.capabilityToken,
                   model: runtime.candidate.model,
                   evidenceRoot: plan.evidenceRoot,
+                  ...(candidateIdentity.candidateType === "reference_model" ||
+                  candidateIdentity.candidateType === "agent_stack"
+                    ? { candidateIdentity }
+                    : {}),
                 });
+        const candidate =
+          candidateIdentity.candidateType !== "coffee_chat_product" ||
+          runtime === undefined
+            ? baseCandidate
+            : (
+                await prepareCoffeeChatProductCandidateTransport({
+                  ...(runtime?.productHost === undefined
+                    ? {}
+                    : { packageRoot: runtime.productHost.packageRoot }),
+                  identity: candidateIdentity.product,
+                  delegate: baseCandidate,
+                })
+              ).transport;
         const judge =
           runtime?.judge === undefined
             ? spec.trackId === "coffee-chat-taste" && spec.candidateType === "fixture"
@@ -561,14 +683,19 @@ export async function runCli(args: readonly string[]): Promise<void> {
                 capability: runtime.judge.capabilityToken,
                 model: runtime.judge.model,
                 evidenceRoot: plan.evidenceRoot,
+                judgeIdentity,
               });
         const result = await executeImmutableRun({
           plan,
           manifest,
           candidate,
+          candidateIdentity,
           judge,
+          judgeIdentity,
           runtime,
-          executor: getNativeTrackExecutor(plan.trackId),
+          ...(ifevalRightsRiskAcceptance === undefined
+            ? {}
+            : { ifevalRightsRiskAcceptance }),
         });
         writeJson(result.publicReceipt);
         return;
@@ -654,14 +781,7 @@ export async function runCli(args: readonly string[]): Promise<void> {
       const trackReport = parseTrackReport(
         readBoundedJson(trackReportPath, CORE_BYTES, "track report"),
       );
-      if (
-        trackReport.trackId !== receipt.trackId ||
-        trackReport.provenance.runId !== receipt.runId ||
-        trackReport.claimStatus !== receipt.claimStatus ||
-        trackReport.executionStatus !== receipt.executionStatus
-      ) {
-        throw new TypeError("track report does not match the public receipt");
-      }
+      assertTrackReportMatchesReceipt(trackReport, receipt);
       process.stdout.write(`${formatTrackReport(trackReport, visibility)}\n`);
     } else {
       process.stdout.write(`${formatEvidenceReport(receipt)}\n`);
@@ -670,7 +790,7 @@ export async function runCli(args: readonly string[]): Promise<void> {
   }
   if (args[0] !== "oracle-control" && args[0] !== "codex-baseline") {
     throw new TypeError(
-      "usage: coffee-chat-eval source verify --track TRACK | source materialize --track TRACK --cache-root ABSOLUTE | plan --track TRACK --profile fixture|smoke|pilot|score --candidate-config JSON | run --plan PATH --evidence-root ABSOLUTE | portfolio smoke --config ABSOLUTE | report --run RUN --visibility internal|public | dry-run | oracle-control | codex-baseline ...",
+      "usage: coffee-chat-eval source verify --track TRACK | source materialize --track TRACK --cache-root ABSOLUTE | plan --track TRACK --profile fixture|smoke|pilot|score --candidate-config JSON [--isolation-receipt ABSOLUTE] [--ifeval-rights-risk-acceptance-receipt ABSOLUTE] | run --plan PATH --evidence-root ABSOLUTE [--ifeval-rights-risk-acceptance-receipt ABSOLUTE] | portfolio smoke --config ABSOLUTE | report --run RUN --visibility internal|public | dry-run | oracle-control | codex-baseline ...",
     );
   }
   const values = flags(args.slice(1));

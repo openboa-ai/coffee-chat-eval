@@ -1,6 +1,7 @@
 import { isAbsolute, resolve } from "node:path";
 
 import { stableDigest } from "./identity.ts";
+import type { CandidateType } from "./runtime-config.ts";
 import { getEvaluationTrack, type EvaluationTrackId } from "./track-registry.ts";
 import type {
   ClaimStatus,
@@ -12,6 +13,20 @@ import type {
 
 const DIGEST = /^sha256:[0-9a-f]{64}$/u;
 const COMMIT = /^[0-9a-f]{40}$/u;
+const CALVER = /^[0-9]{4}\.(?:[1-9]|1[0-2])\.(?:[1-9]|[12][0-9]|3[01])$/u;
+const COFFEE_CHAT_REPOSITORY = "https://github.com/openboa-ai/coffee-chat";
+const PRODUCT_BOUNDARY_KEYS = Object.freeze([
+  "candidateMode",
+  "capabilitiesUsed",
+  "productBehaviorExercised",
+  "referenceHost",
+  "productIdentity",
+] as const);
+const RIGHTS_RISK_PROVENANCE_KEYS = Object.freeze([
+  "rightsRiskAcceptanceDigest",
+  "licenseCleared",
+  "rightsExecutionScope",
+] as const);
 const CLAIM_STATUSES: readonly ClaimStatus[] = [
   "calibration",
   "pilot",
@@ -32,6 +47,24 @@ const EXECUTION_STATUSES: readonly ExecutionStatus[] = [
 ];
 
 export type RunProfile = "fixture" | "smoke" | "pilot" | "score";
+
+export interface ProductCandidateBoundary {
+  readonly candidateMode: "connectivity_only";
+  readonly capabilitiesUsed: readonly [];
+  readonly productBehaviorExercised: false;
+  readonly referenceHost: "eval-skills-reference-host-v1";
+  readonly productIdentity: Readonly<{
+    repository: "https://github.com/openboa-ai/coffee-chat";
+    commit: string;
+    calver: string;
+    packageDigest: Sha256Digest;
+  }>;
+}
+
+export interface ProductHostPreflight {
+  readonly state: "verified" | "unavailable";
+  readonly reason?: string;
+}
 
 export interface PrivateArtifactRef {
   readonly path: string;
@@ -57,7 +90,9 @@ export type CandidateRunResult =
     };
 
 export interface CandidateTransport {
-  readonly kind: "fixture" | "reference_model" | "agent_stack" | "coffee_chat_product";
+  readonly kind: CandidateType;
+  readonly productBoundary?: ProductCandidateBoundary;
+  readonly productHostPreflight?: ProductHostPreflight;
   readonly run: (input: unknown) => Promise<CandidateRunResult>;
 }
 
@@ -126,11 +161,16 @@ export interface TrackReport {
       }>
     >
   >;
-  readonly provenance: Readonly<{
-    sourceManifestDigest: Sha256Digest;
-    runId: string;
-    nativeEvidenceDigest?: Sha256Digest;
-  }>;
+  readonly provenance: Readonly<
+    {
+      sourceManifestDigest: Sha256Digest;
+      runId: string;
+      nativeEvidenceDigest?: Sha256Digest;
+      rightsRiskAcceptanceDigest?: Sha256Digest;
+      licenseCleared?: false;
+      rightsExecutionScope?: "private-internal-smoke-only";
+    } & Partial<ProductCandidateBoundary>
+  >;
 }
 
 export interface TrackExecutionResult {
@@ -160,6 +200,11 @@ export interface TrialReceipt {
   readonly tokenCount?: number;
   readonly cost?: number;
   readonly cleanupStatus?: "complete" | "failed" | "unavailable";
+  readonly candidateMode?: ProductCandidateBoundary["candidateMode"];
+  readonly capabilitiesUsed?: ProductCandidateBoundary["capabilitiesUsed"];
+  readonly productBehaviorExercised?: ProductCandidateBoundary["productBehaviorExercised"];
+  readonly referenceHost?: ProductCandidateBoundary["referenceHost"];
+  readonly productIdentity?: ProductCandidateBoundary["productIdentity"];
 }
 
 export interface SourceManifest {
@@ -209,8 +254,9 @@ export interface RunSpec {
   readonly providerTermsDigest?: Sha256Digest;
   /** Content digest of the current provider-terms receipt, never the receipt bytes. */
   readonly providerTermsReceiptDigest?: Sha256Digest;
-  readonly candidateType?:
-    "fixture" | "reference_model" | "agent_stack" | "coffee_chat_product";
+  /** Explicit private-smoke risk acceptance for IFEval's unclarified Punkt asset. */
+  readonly rightsRiskAcceptanceDigest?: Sha256Digest;
+  readonly candidateType: CandidateType;
   readonly samplingUnit?:
     "family" | "conversation" | "prompt" | "suite_user_task_cluster";
   /** Profile-specific census; kept in the immutable spec, not inferred later. */
@@ -272,6 +318,72 @@ function exactKeysAllowed(
   }
 }
 
+export function parseProductCandidateBoundary(
+  value: unknown,
+  label = "product candidate boundary",
+): ProductCandidateBoundary {
+  const boundary = object(value, label);
+  exactKeys(boundary, PRODUCT_BOUNDARY_KEYS, label);
+  if (boundary.candidateMode !== "connectivity_only") {
+    throw new TypeError(`${label} candidateMode is unsupported`);
+  }
+  if (
+    !Array.isArray(boundary.capabilitiesUsed) ||
+    boundary.capabilitiesUsed.length !== 0
+  ) {
+    throw new TypeError(`${label} capabilitiesUsed must be an empty array`);
+  }
+  if (boundary.productBehaviorExercised !== false) {
+    throw new TypeError(`${label} productBehaviorExercised must be false`);
+  }
+  if (boundary.referenceHost !== "eval-skills-reference-host-v1") {
+    throw new TypeError(`${label} referenceHost is unsupported`);
+  }
+  const identity = object(boundary.productIdentity, `${label} productIdentity`);
+  exactKeys(
+    identity,
+    ["repository", "commit", "calver", "packageDigest"],
+    `${label} productIdentity`,
+  );
+  if (identity.repository !== COFFEE_CHAT_REPOSITORY) {
+    throw new TypeError(`${label} product repository is unsupported`);
+  }
+  if (typeof identity.commit !== "string" || !COMMIT.test(identity.commit)) {
+    throw new TypeError(`${label} product commit must be a full SHA`);
+  }
+  if (typeof identity.calver !== "string" || !CALVER.test(identity.calver)) {
+    throw new TypeError(`${label} product CalVer must use YYYY.M.D`);
+  }
+  const packageDigest = digest(identity.packageDigest, `${label} package digest`);
+  return Object.freeze({
+    candidateMode: "connectivity_only" as const,
+    capabilitiesUsed: Object.freeze([]) as readonly [],
+    productBehaviorExercised: false as const,
+    referenceHost: "eval-skills-reference-host-v1" as const,
+    productIdentity: Object.freeze({
+      repository: COFFEE_CHAT_REPOSITORY,
+      commit: identity.commit,
+      calver: identity.calver,
+      packageDigest,
+    }),
+  });
+}
+
+function boundaryFromFields(
+  value: Record<string, unknown>,
+  label: string,
+): ProductCandidateBoundary | undefined {
+  const present = PRODUCT_BOUNDARY_KEYS.filter((key) => value[key] !== undefined);
+  if (present.length === 0) return undefined;
+  if (present.length !== PRODUCT_BOUNDARY_KEYS.length) {
+    throw new TypeError(`${label} has an incomplete product candidate boundary`);
+  }
+  return parseProductCandidateBoundary(
+    Object.fromEntries(PRODUCT_BOUNDARY_KEYS.map((key) => [key, value[key]])),
+    label,
+  );
+}
+
 function text(value: unknown, label: string): string {
   if (typeof value !== "string" || value.length === 0) {
     throw new TypeError(`${label} must not be empty`);
@@ -327,6 +439,23 @@ function claimStatus(profile: RunProfile): ClaimStatus {
     case "score":
       return "provisional_internal";
   }
+}
+
+export function runProfileCandidateCompatibilityError(
+  profile: RunProfile,
+  candidateType: CandidateType | undefined,
+): string | undefined {
+  if (candidateType === undefined) return "run candidateType is required";
+  if (profile === "fixture" && candidateType !== "fixture") {
+    return "profile fixture requires candidateType fixture";
+  }
+  if (profile !== "fixture" && candidateType === "fixture") {
+    return "fixture candidateType requires profile fixture";
+  }
+  if (candidateType === "coffee_chat_product" && profile !== "smoke") {
+    return "coffee_chat_product candidateType requires profile smoke";
+  }
+  return undefined;
 }
 
 export function parseSourceManifest(value: unknown): SourceManifest {
@@ -556,6 +685,7 @@ export function parseRunSpec(value: unknown): RunSpec {
       "coffeeConditionDigest",
       "providerTermsDigest",
       "providerTermsReceiptDigest",
+      "rightsRiskAcceptanceDigest",
     ],
     "run spec",
   );
@@ -579,6 +709,14 @@ export function parseRunSpec(value: unknown): RunSpec {
   ) {
     throw new TypeError("candidate type is unsupported");
   }
+  if (candidateType === undefined) {
+    throw new TypeError("run candidateType is required");
+  }
+  const compatibilityError = runProfileCandidateCompatibilityError(
+    spec.profile,
+    candidateType,
+  );
+  if (compatibilityError !== undefined) throw new TypeError(compatibilityError);
   const samplingUnit = spec.samplingUnit;
   if (
     samplingUnit !== undefined &&
@@ -627,6 +765,20 @@ export function parseRunSpec(value: unknown): RunSpec {
   ) {
     throw new TypeError("coffee condition and digest must be supplied together");
   }
+  if (
+    spec.rightsRiskAcceptanceDigest !== undefined &&
+    (spec.trackId !== "ifeval" || spec.profile !== "smoke")
+  ) {
+    throw new TypeError("rights risk acceptance is limited to IFEval smoke");
+  }
+  if (
+    spec.rightsRiskAcceptanceDigest !== undefined &&
+    candidateType !== "coffee_chat_product"
+  ) {
+    throw new TypeError(
+      "rights risk acceptance is limited to the Coffee Chat Product candidate",
+    );
+  }
   let budgets: Readonly<Record<string, number>> | undefined;
   if (spec.budgets !== undefined) {
     const budgetRecord = object(spec.budgets, "budgets");
@@ -664,7 +816,15 @@ export function parseRunSpec(value: unknown): RunSpec {
             "provider terms receipt digest",
           ),
         }),
-    ...(candidateType === undefined ? {} : { candidateType }),
+    ...(spec.rightsRiskAcceptanceDigest === undefined
+      ? {}
+      : {
+          rightsRiskAcceptanceDigest: digest(
+            spec.rightsRiskAcceptanceDigest,
+            "rights risk acceptance digest",
+          ),
+        }),
+    candidateType,
     ...(samplingUnit === undefined ? {} : { samplingUnit }),
     ...(caseCensus === undefined ? {} : { caseCensus }),
     ...(spec.isolationEvidenceDigest === undefined
@@ -768,6 +928,7 @@ export function createTrialReceipt(input: {
   readonly tokenCount?: number;
   readonly cost?: number;
   readonly cleanupStatus?: TrialReceipt["cleanupStatus"];
+  readonly productBoundary?: ProductCandidateBoundary;
 }): TrialReceipt {
   if (input.runId.length === 0 || input.trialId.length === 0) {
     throw new TypeError("runId and trialId must not be empty");
@@ -831,6 +992,10 @@ export function createTrialReceipt(input: {
   ) {
     throw new TypeError("unsupported cleanup status");
   }
+  const productBoundary =
+    input.productBoundary === undefined
+      ? undefined
+      : parseProductCandidateBoundary(input.productBoundary);
   const idMaterial = {
     runId: input.runId,
     trialId: input.trialId,
@@ -839,6 +1004,7 @@ export function createTrialReceipt(input: {
     ...(input.failureOwner === undefined ? {} : { failureOwner: input.failureOwner }),
     host: input.host,
     artifacts: input.artifacts,
+    ...(productBoundary === undefined ? {} : productBoundary),
   };
   return Object.freeze({
     id: `trial-receipt-${stableDigest(idMaterial).slice("sha256:".length)}`,
@@ -856,6 +1022,7 @@ export function createTrialReceipt(input: {
     ...(input.cleanupStatus === undefined
       ? {}
       : { cleanupStatus: input.cleanupStatus }),
+    ...(productBoundary === undefined ? {} : productBoundary),
   });
 }
 
@@ -884,6 +1051,58 @@ export function createTrackReport(input: {
   }
   if (input.nativeMetricIds.length === 0) {
     throw new TypeError("track report needs at least one native metric");
+  }
+  const provenanceRecord = input.provenance as Record<string, unknown>;
+  const allowedProvenanceKeys = new Set([
+    "sourceManifestDigest",
+    "runId",
+    "nativeEvidenceDigest",
+    "rightsRiskAcceptanceDigest",
+    "licenseCleared",
+    "rightsExecutionScope",
+    ...PRODUCT_BOUNDARY_KEYS,
+  ]);
+  if (
+    Object.keys(provenanceRecord).some((key) => !allowedProvenanceKeys.has(key)) ||
+    typeof provenanceRecord.runId !== "string" ||
+    provenanceRecord.runId.length === 0
+  ) {
+    throw new TypeError("track report provenance is invalid");
+  }
+  const sourceManifestDigest = digest(
+    provenanceRecord.sourceManifestDigest,
+    "track report source manifest digest",
+  );
+  const nativeEvidenceDigest =
+    provenanceRecord.nativeEvidenceDigest === undefined
+      ? undefined
+      : digest(
+          provenanceRecord.nativeEvidenceDigest,
+          "track report native evidence digest",
+        );
+  const productBoundary = boundaryFromFields(
+    provenanceRecord,
+    "track report provenance",
+  );
+  const hasRightsRiskAcceptance = RIGHTS_RISK_PROVENANCE_KEYS.some((key) =>
+    Object.prototype.hasOwnProperty.call(provenanceRecord, key),
+  );
+  let rightsRiskAcceptanceDigest: Sha256Digest | undefined;
+  if (hasRightsRiskAcceptance) {
+    if (
+      provenanceRecord.rightsRiskAcceptanceDigest === undefined ||
+      provenanceRecord.licenseCleared !== false ||
+      provenanceRecord.rightsExecutionScope !== "private-internal-smoke-only" ||
+      input.trackId !== "ifeval" ||
+      input.claimStatus !== "calibration" ||
+      productBoundary === undefined
+    ) {
+      throw new TypeError("track report rights risk provenance is invalid");
+    }
+    rightsRiskAcceptanceDigest = digest(
+      provenanceRecord.rightsRiskAcceptanceDigest,
+      "track report rights risk acceptance digest",
+    );
   }
   const metricIds = new Set(input.nativeMetricIds);
   if (metricIds.size !== input.nativeMetricIds.length) {
@@ -944,7 +1163,19 @@ export function createTrackReport(input: {
     nativeMetricIds: Object.freeze([...input.nativeMetricIds]),
     denominators,
     metrics,
-    provenance: Object.freeze({ ...input.provenance }),
+    provenance: Object.freeze({
+      sourceManifestDigest,
+      runId: provenanceRecord.runId,
+      ...(nativeEvidenceDigest === undefined ? {} : { nativeEvidenceDigest }),
+      ...(rightsRiskAcceptanceDigest === undefined
+        ? {}
+        : {
+            rightsRiskAcceptanceDigest,
+            licenseCleared: false as const,
+            rightsExecutionScope: "private-internal-smoke-only" as const,
+          }),
+      ...(productBoundary === undefined ? {} : productBoundary),
+    }),
   });
 }
 
@@ -1022,19 +1253,25 @@ export function parseTrackReport(value: unknown): TrackReport {
     }
   }
   const provenance = object(record.provenance, "track report provenance");
+  const allowedProvenanceKeys = new Set([
+    "runId",
+    "sourceManifestDigest",
+    "nativeEvidenceDigest",
+    "rightsRiskAcceptanceDigest",
+    "licenseCleared",
+    "rightsExecutionScope",
+    ...PRODUCT_BOUNDARY_KEYS,
+  ]);
   if (
-    Object.keys(provenance).some(
-      (key) => !["runId", "sourceManifestDigest", "nativeEvidenceDigest"].includes(key),
-    ) ||
-    Object.keys(provenance)
-      .filter((key) => key !== "nativeEvidenceDigest")
-      .sort()
-      .join("\0") !== ["runId", "sourceManifestDigest"].sort().join("\0") ||
+    Object.keys(provenance).some((key) => !allowedProvenanceKeys.has(key)) ||
+    !("runId" in provenance) ||
+    !("sourceManifestDigest" in provenance) ||
     typeof provenance.runId !== "string" ||
     provenance.runId.length === 0
   ) {
     throw new TypeError("track report provenance is invalid");
   }
+  const productBoundary = boundaryFromFields(provenance, "track report provenance");
   if (!CLAIM_STATUSES.includes(record.claimStatus as ClaimStatus)) {
     throw new TypeError("track report claim status is invalid");
   }
@@ -1061,6 +1298,20 @@ export function parseTrackReport(value: unknown): TrackReport {
               "track report native evidence digest",
             ),
           }),
+      ...(provenance.rightsRiskAcceptanceDigest === undefined &&
+      provenance.licenseCleared === undefined &&
+      provenance.rightsExecutionScope === undefined
+        ? {}
+        : {
+            rightsRiskAcceptanceDigest: digest(
+              provenance.rightsRiskAcceptanceDigest,
+              "track report rights risk acceptance digest",
+            ),
+            licenseCleared: provenance.licenseCleared as false,
+            rightsExecutionScope:
+              provenance.rightsExecutionScope as "private-internal-smoke-only",
+          }),
+      ...(productBoundary === undefined ? {} : productBoundary),
     },
   });
 }

@@ -14,7 +14,11 @@ import {
   type TrackExecutionResult,
 } from "./eval-core.ts";
 import type { Sha256Digest } from "./types.ts";
-import { IFEVAL_RUNTIME_LOCK, requireRuntimePython } from "./python-runtime.ts";
+import {
+  IFEVAL_RUNTIME_LOCK,
+  requireRuntimePython,
+  runtimeEnvironment,
+} from "./python-runtime.ts";
 
 export type IfevalProfile = "fixture" | "smoke" | "pilot" | "score";
 
@@ -27,6 +31,184 @@ export const IFEVAL_SOURCE = Object.freeze({
   ]),
   license: "Apache-2.0",
 });
+
+/**
+ * The pinned native checker for smoke key 1040 calls NLTK's `punkt_tab` data.
+ * The pinned nltk_data metadata does not declare a package license and its own
+ * license inventory classifies this package as unclarified. Repository-level
+ * Apache-2.0 therefore is not treated as permission for the data package.
+ */
+export const IFEVAL_NATIVE_RUNTIME_RIGHTS = Object.freeze({
+  asset: "nltk_data/tokenizers/punkt_tab.zip",
+  repository: "https://github.com/nltk/nltk_data",
+  revision: "550b6625bcef1f2abff2ff770a5a0d272c9c6b2a",
+  digest:
+    "sha256:e57f64187974277726a3417ca6f181ec5403676c717672eef6a748a7b20e0106" as Sha256Digest,
+  licenseStatus: "unclarified" as const,
+  policyResult: "rights_hold" as const,
+});
+
+export const IFEVAL_NATIVE_RUNTIME_RIGHTS_HOLD_REASON = `native IFEval runtime dependency ${IFEVAL_NATIVE_RUNTIME_RIGHTS.asset} has unclarified license permission`;
+
+export interface IfevalRightsRiskAcceptance {
+  readonly schema: "ifeval-rights-risk-acceptance-v1";
+  readonly trackId: "ifeval";
+  readonly profile: "smoke";
+  readonly candidateType: "coffee_chat_product";
+  readonly candidateDigest: Sha256Digest;
+  readonly ifevalSourceCommit: typeof IFEVAL_SOURCE.commit;
+  readonly assetRepository: typeof IFEVAL_NATIVE_RUNTIME_RIGHTS.repository;
+  readonly assetRevision: typeof IFEVAL_NATIVE_RUNTIME_RIGHTS.revision;
+  readonly asset: typeof IFEVAL_NATIVE_RUNTIME_RIGHTS.asset;
+  readonly assetDigest: typeof IFEVAL_NATIVE_RUNTIME_RIGHTS.digest;
+  readonly licenseStatus: "unclarified";
+  readonly licenseCleared: false;
+  readonly scope: "private-internal-smoke-only";
+  readonly acceptedBy: "workspace-owner";
+  readonly acceptedAt: string;
+  /** Operator-generated 256-bit private nonce that makes the public digest hiding. */
+  readonly privateNonce: string;
+  readonly acknowledgesNoLicenseGrant: true;
+  readonly acknowledgesNoRedistribution: true;
+  readonly acknowledgesNoPublicNumericClaim: true;
+}
+
+export function parseIfevalRightsRiskAcceptance(
+  value: unknown,
+): IfevalRightsRiskAcceptance {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    throw new TypeError("IFEval rights risk acceptance must be an object");
+  }
+  const receipt = value as Record<string, unknown>;
+  const expectedKeys = [
+    "acknowledgesNoLicenseGrant",
+    "acknowledgesNoPublicNumericClaim",
+    "acknowledgesNoRedistribution",
+    "acceptedBy",
+    "acceptedAt",
+    "asset",
+    "assetDigest",
+    "assetRepository",
+    "assetRevision",
+    "candidateType",
+    "candidateDigest",
+    "ifevalSourceCommit",
+    "licenseCleared",
+    "licenseStatus",
+    "profile",
+    "privateNonce",
+    "schema",
+    "scope",
+    "trackId",
+  ].sort();
+  if (JSON.stringify(Object.keys(receipt).sort()) !== JSON.stringify(expectedKeys)) {
+    throw new TypeError("IFEval rights risk acceptance has unexpected fields");
+  }
+  if (
+    receipt.schema !== "ifeval-rights-risk-acceptance-v1" ||
+    receipt.trackId !== "ifeval" ||
+    receipt.profile !== "smoke" ||
+    receipt.scope !== "private-internal-smoke-only"
+  ) {
+    throw new TypeError("IFEval rights risk acceptance is limited to private smoke");
+  }
+  if (receipt.candidateType !== "coffee_chat_product") {
+    throw new TypeError(
+      "IFEval rights risk acceptance is limited to the Coffee Chat Product candidate",
+    );
+  }
+  if (
+    typeof receipt.candidateDigest !== "string" ||
+    !/^sha256:[0-9a-f]{64}$/u.test(receipt.candidateDigest)
+  ) {
+    throw new TypeError("IFEval rights risk acceptance candidate digest is invalid");
+  }
+  if (receipt.ifevalSourceCommit !== IFEVAL_SOURCE.commit) {
+    throw new TypeError("IFEval rights risk acceptance source identity drifted");
+  }
+  if (
+    receipt.assetRepository !== IFEVAL_NATIVE_RUNTIME_RIGHTS.repository ||
+    receipt.assetRevision !== IFEVAL_NATIVE_RUNTIME_RIGHTS.revision ||
+    receipt.asset !== IFEVAL_NATIVE_RUNTIME_RIGHTS.asset ||
+    receipt.assetDigest !== IFEVAL_NATIVE_RUNTIME_RIGHTS.digest ||
+    receipt.licenseStatus !== "unclarified"
+  ) {
+    throw new TypeError("IFEval rights risk acceptance asset identity drifted");
+  }
+  if (receipt.licenseCleared !== false) {
+    throw new TypeError("IFEval rights risk acceptance licenseCleared must be false");
+  }
+  if (
+    receipt.acknowledgesNoLicenseGrant !== true ||
+    receipt.acknowledgesNoRedistribution !== true ||
+    receipt.acknowledgesNoPublicNumericClaim !== true
+  ) {
+    throw new TypeError("IFEval rights risk acceptance acknowledgements are required");
+  }
+  if (
+    receipt.acceptedBy !== "workspace-owner" ||
+    typeof receipt.acceptedAt !== "string" ||
+    !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?(?:Z|[+-]\d{2}:\d{2})$/u.test(
+      receipt.acceptedAt,
+    ) ||
+    !Number.isFinite(Date.parse(receipt.acceptedAt))
+  ) {
+    throw new TypeError(
+      "IFEval rights risk acceptance operator or acceptedAt is invalid",
+    );
+  }
+  if (
+    typeof receipt.privateNonce !== "string" ||
+    !/^[0-9a-f]{64}$/u.test(receipt.privateNonce)
+  ) {
+    throw new TypeError(
+      "IFEval rights risk acceptance private nonce must be 256-bit lowercase hex",
+    );
+  }
+  return Object.freeze(receipt) as unknown as IfevalRightsRiskAcceptance;
+}
+
+export function ifevalRightsRiskAcceptanceDigest(
+  value: IfevalRightsRiskAcceptance,
+): Sha256Digest {
+  return stableDigest(parseIfevalRightsRiskAcceptance(value));
+}
+
+export function validateIfevalPrivateSmokeRiskAcceptance(input: {
+  readonly profile: IfevalProfile;
+  readonly candidateType: CandidateTransport["kind"];
+  readonly expectedDigest?: Sha256Digest | undefined;
+  readonly expectedCandidateDigest?: Sha256Digest | undefined;
+  readonly receipt?: IfevalRightsRiskAcceptance | undefined;
+}): IfevalRightsRiskAcceptance {
+  if (input.receipt === undefined || input.expectedDigest === undefined) {
+    throw new TypeError(IFEVAL_NATIVE_RUNTIME_RIGHTS_HOLD_REASON);
+  }
+  if (input.profile !== "smoke" || input.candidateType !== "coffee_chat_product") {
+    throw new TypeError(
+      "IFEval rights risk acceptance is limited to the Coffee Chat Product smoke",
+    );
+  }
+  const receipt = parseIfevalRightsRiskAcceptance(input.receipt);
+  if (receipt.candidateDigest !== input.expectedCandidateDigest) {
+    throw new TypeError(
+      "IFEval rights risk acceptance does not match the Product candidate identity",
+    );
+  }
+  if (ifevalRightsRiskAcceptanceDigest(receipt) !== input.expectedDigest) {
+    throw new TypeError("IFEval rights risk acceptance digest does not match RunSpec");
+  }
+  return receipt;
+}
+
+export function ifevalNativeRuntimeRequiresRightsHold(
+  candidateType: CandidateTransport["kind"],
+): boolean {
+  return (
+    candidateType !== "fixture" &&
+    IFEVAL_NATIVE_RUNTIME_RIGHTS.policyResult === "rights_hold"
+  );
+}
 
 export const IFEVAL_PROMPT_COUNT = 541;
 
@@ -269,6 +451,9 @@ function responseText(artifact: PrivateArtifactRef): string {
 }
 
 export interface IFEvalBridgeRunner {
+  readonly preflight?: (input: {
+    readonly sourceRoot: string;
+  }) => Promise<Readonly<Record<string, unknown>>>;
   readonly run: (input: {
     readonly sourceRoot: string;
     readonly inputData: string;
@@ -279,24 +464,63 @@ export interface IFEvalBridgeRunner {
   }) => Promise<void>;
 }
 
+const IFEVAL_BRIDGE_PATH = fileURLToPath(
+  new URL("../integrations/ifeval/bridge.py", import.meta.url),
+);
+
+export async function preflightIfevalRuntimeAsset(
+  sourceRoot: string,
+): Promise<Readonly<Record<string, unknown>>> {
+  const { stdout } = await execFileAsync(
+    requireRuntimePython(sourceRoot),
+    ["-B", IFEVAL_BRIDGE_PATH, "--preflight-only"],
+    {
+      env: runtimeEnvironment(sourceRoot),
+      maxBuffer: 64 * 1024,
+    },
+  );
+  const value = JSON.parse(stdout) as unknown;
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    throw new TypeError("IFEval runtime asset preflight output is invalid");
+  }
+  const record = value as Record<string, unknown>;
+  if (
+    record.schema !== "coffee-chat-eval/ifeval-runtime-asset-preflight-v1" ||
+    record.status !== "verified" ||
+    record.asset !== IFEVAL_NATIVE_RUNTIME_RIGHTS.asset ||
+    record.assetBytes !== 4_319_076 ||
+    record.assetDigest !== IFEVAL_NATIVE_RUNTIME_RIGHTS.digest ||
+    record.integrityOnly !== true ||
+    record.rightsCleared !== false
+  ) {
+    throw new TypeError("IFEval runtime asset preflight identity drifted");
+  }
+  return Object.freeze({ ...record });
+}
+
 function defaultIfevalBridgeRunner(): IFEvalBridgeRunner {
   return {
+    preflight: async ({ sourceRoot }) => preflightIfevalRuntimeAsset(sourceRoot),
     run: async (input) => {
-      await execFileAsync(requireRuntimePython(input.sourceRoot), [
-        fileURLToPath(new URL("../integrations/ifeval/bridge.py", import.meta.url)),
-        "--source-root",
-        input.sourceRoot,
-        "--input-data",
-        input.inputData,
-        "--response-data",
-        input.responseData,
-        "--output",
-        input.output,
-        "--profile",
-        input.profile,
-        "--keys",
-        input.keys.join(","),
-      ]);
+      await execFileAsync(
+        requireRuntimePython(input.sourceRoot),
+        [
+          IFEVAL_BRIDGE_PATH,
+          "--source-root",
+          input.sourceRoot,
+          "--input-data",
+          input.inputData,
+          "--response-data",
+          input.responseData,
+          "--output",
+          input.output,
+          "--profile",
+          input.profile,
+          "--keys",
+          input.keys.join(","),
+        ],
+        { env: runtimeEnvironment(input.sourceRoot) },
+      );
     },
   };
 }
@@ -335,6 +559,14 @@ function metricFromNative(
   return Object.freeze({ numerator, denominator, value: accuracy as number | null });
 }
 
+function runtimePreflightFailureOwner(error: unknown): "host" | "source" {
+  return error !== null &&
+    typeof error === "object" &&
+    (error as { readonly failureOwner?: unknown }).failureOwner === "host"
+    ? "host"
+    : "source";
+}
+
 export function createIfevalTrackExecutor(
   input: { readonly bridge?: IFEvalBridgeRunner } = {},
 ): (context: {
@@ -343,15 +575,57 @@ export function createIfevalTrackExecutor(
     readonly evidenceRoot: string;
     readonly id: string;
     readonly trackId: "ifeval";
+    readonly runSpec?: {
+      readonly candidateType: CandidateTransport["kind"];
+      readonly candidateDigest: Sha256Digest;
+      readonly rightsRiskAcceptanceDigest?: Sha256Digest;
+    };
   };
   readonly source: { readonly sourceRoot: string };
   readonly candidate: CandidateTransport;
+  readonly ifevalRightsRiskAcceptance?: IfevalRightsRiskAcceptance;
   readonly evidence: (input: {
     readonly value: unknown;
     readonly mediaType: string;
   }) => PrivateArtifactRef;
 }) => Promise<TrackExecutionResult> {
   return async (context) => {
+    if (ifevalNativeRuntimeRequiresRightsHold(context.candidate.kind)) {
+      try {
+        validateIfevalPrivateSmokeRiskAcceptance({
+          profile: context.plan.profile,
+          candidateType: context.candidate.kind,
+          expectedDigest: context.plan.runSpec?.rightsRiskAcceptanceDigest,
+          expectedCandidateDigest: context.plan.runSpec?.candidateDigest,
+          receipt: context.ifevalRightsRiskAcceptance,
+        });
+      } catch {
+        const metric = Object.freeze({
+          numerator: null,
+          denominator: null,
+          value: null,
+        });
+        return Object.freeze({
+          executionStatus: "rights_hold" as const,
+          failureOwner: "rights" as const,
+          trialReceipts: Object.freeze([]),
+          metrics: Object.freeze({
+            strictPrompt: metric,
+            strictInstruction: metric,
+            loosePrompt: metric,
+            looseInstruction: metric,
+          }),
+          nativeEvidence: context.evidence({
+            value: {
+              reason: IFEVAL_NATIVE_RUNTIME_RIGHTS_HOLD_REASON,
+              dependency: IFEVAL_NATIVE_RUNTIME_RIGHTS,
+            },
+            mediaType: "application/json",
+          }),
+          cleanupStatus: "complete" as const,
+        });
+      }
+    }
     const bridge =
       input.bridge ??
       (context.plan.profile === "fixture"
@@ -384,6 +658,45 @@ export function createIfevalTrackExecutor(
             },
           }
         : defaultIfevalBridgeRunner());
+    if (context.candidate.kind !== "fixture") {
+      try {
+        if (bridge.preflight === undefined) {
+          throw new TypeError("IFEval live bridge is missing runtime-asset preflight");
+        }
+        const preflight = await bridge.preflight({
+          sourceRoot: context.source.sourceRoot,
+        });
+        context.evidence({ value: preflight, mediaType: "application/json" });
+      } catch (error) {
+        const failureOwner = runtimePreflightFailureOwner(error);
+        const metric = Object.freeze({
+          numerator: null,
+          denominator: null,
+          value: null,
+        });
+        return Object.freeze({
+          executionStatus: "unavailable" as const,
+          failureOwner,
+          trialReceipts: Object.freeze([]),
+          metrics: Object.freeze({
+            strictPrompt: metric,
+            strictInstruction: metric,
+            loosePrompt: metric,
+            looseInstruction: metric,
+          }),
+          nativeEvidence: context.evidence({
+            value: {
+              error:
+                error instanceof Error
+                  ? error.message
+                  : "IFEval runtime asset preflight failed",
+            },
+            mediaType: "application/json",
+          }),
+          cleanupStatus: "complete" as const,
+        });
+      }
+    }
     const inventory = createIfevalInventory(context.plan.profile);
     const inputData = resolve(context.source.sourceRoot, IFEVAL_SOURCE.dataPath);
     const sourceRows = readFileSync(inputData, "utf8")

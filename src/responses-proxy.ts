@@ -6,7 +6,8 @@ import {
   type ServerResponse,
 } from "node:http";
 
-const DEFAULT_UPSTREAM = "https://api.openai.com/v1/responses";
+export const OPENAI_RESPONSES_UPSTREAM_URL =
+  "https://api.openai.com/v1/responses" as const;
 const DEFAULT_MAX_REQUESTS = 16;
 const DEFAULT_MAX_BODY_BYTES = 2 * 1024 * 1024;
 
@@ -18,6 +19,7 @@ export interface ResponsesProxyOptions {
   readonly advertisedHost?: string;
   readonly maxRequests?: number;
   readonly maxBodyBytes?: number;
+  readonly expiresAt?: string;
 }
 
 export interface ResponsesProxyStats {
@@ -114,16 +116,23 @@ export async function startResponsesProxy(
   if (!Number.isInteger(maxBodyBytes) || maxBodyBytes < 1) {
     throw new TypeError("proxy maxBodyBytes must be a positive integer");
   }
+  const expiresAtMs =
+    options.expiresAt === undefined ? undefined : Date.parse(options.expiresAt);
+  if (expiresAtMs !== undefined && Number.isNaN(expiresAtMs)) {
+    throw new TypeError("proxy expiresAt must be a valid timestamp");
+  }
 
-  const upstreamUrl = options.upstreamUrl ?? DEFAULT_UPSTREAM;
+  const upstreamUrl = options.upstreamUrl ?? OPENAI_RESPONSES_UPSTREAM_URL;
   const allowedModels = new Set(options.allowedModels);
   const capabilityToken = randomBytes(32).toString("hex");
   const bindHost = options.bindHost ?? "0.0.0.0";
   const advertisedHost = options.advertisedHost ?? "host.docker.internal";
   let acceptedRequests = 0;
+  let inFlightRequests = 0;
   let rejectedRequests = 0;
 
   const server = createServer(async (request, response) => {
+    let requestReserved = false;
     try {
       const path = new URL(request.url ?? "/", "http://proxy").pathname;
       if (request.method !== "POST" || path !== "/v1/responses") {
@@ -136,12 +145,25 @@ export async function startResponsesProxy(
         json(response, 401, { error: "proxy capability required" });
         return;
       }
-      if (acceptedRequests >= maxRequests) {
+      if (expiresAtMs !== undefined && Date.now() >= expiresAtMs) {
+        rejectedRequests += 1;
+        json(response, 401, { error: "proxy capability expired" });
+        return;
+      }
+      if (acceptedRequests + inFlightRequests >= maxRequests) {
         rejectedRequests += 1;
         json(response, 429, { error: "proxy request budget exhausted" });
         return;
       }
-      const body = await readBody(request, maxBodyBytes);
+      inFlightRequests += 1;
+      requestReserved = true;
+      let body: Buffer;
+      try {
+        body = await readBody(request, maxBodyBytes);
+      } catch (error) {
+        rejectedRequests += 1;
+        throw error;
+      }
       const model = modelFrom(body);
       if (model === undefined) {
         rejectedRequests += 1;
@@ -153,10 +175,17 @@ export async function startResponsesProxy(
         json(response, 403, { error: "model is not allowed for this run" });
         return;
       }
-
+      if (expiresAtMs !== undefined && Date.now() >= expiresAtMs) {
+        rejectedRequests += 1;
+        json(response, 401, { error: "proxy capability expired" });
+        return;
+      }
+      inFlightRequests -= 1;
+      requestReserved = false;
       acceptedRequests += 1;
       const upstream = await fetch(upstreamUrl, {
         method: "POST",
+        redirect: "error",
         headers: {
           authorization: `Bearer ${options.apiKey}`,
           "content-type": request.headers["content-type"] ?? "application/json",
@@ -184,6 +213,8 @@ export async function startResponsesProxy(
       } else {
         response.destroy();
       }
+    } finally {
+      if (requestReserved) inFlightRequests -= 1;
     }
   });
 

@@ -368,7 +368,10 @@ export async function executeTasteBench(input: {
   }
   let submissionCount = 0;
   let judgeCalls = 0;
+  let pointwiseCalls = 0;
+  let pairwiseCalls = 0;
   let phase: "source" | "candidate" | "adapter" | "judge" = "source";
+  let judgeFailureStatus: "failed" | "unavailable" | undefined;
   const candidateArtifacts: PrivateArtifactRef[] = [];
   let nativeEvaluation: unknown;
   try {
@@ -407,9 +410,23 @@ export async function executeTasteBench(input: {
       phase = "adapter";
       const judgeTransport: TasteNativeJudgeTransport = {
         complete: async (request) => {
+          phase = "adapter";
+          if (
+            request === null ||
+            typeof request !== "object" ||
+            Array.isArray(request)
+          ) {
+            throw new TypeError("Taste native Judge request is invalid");
+          }
+          const kind = (request as Record<string, unknown>).kind;
+          if (kind !== "pointwise" && kind !== "pairwise") {
+            throw new TypeError("Taste native Judge request kind is invalid");
+          }
           phase = "judge";
           const verdict = await input.judge.evaluate(request);
           if (verdict.state !== "measured" || verdict.verdict === undefined) {
+            judgeFailureStatus =
+              verdict.state === "unavailable" ? "unavailable" : "failed";
             throw new Error(
               verdict.state === "measured"
                 ? "judge returned no private verdict artifact"
@@ -417,6 +434,8 @@ export async function executeTasteBench(input: {
             );
           }
           judgeCalls += 1;
+          if (kind === "pointwise") pointwiseCalls += 1;
+          else pairwiseCalls += 1;
           return {
             raw: readArtifactText(verdict.verdict),
             metadata: { digest: verdict.verdict.digest },
@@ -428,7 +447,11 @@ export async function executeTasteBench(input: {
         submissions,
         transport: judgeTransport,
       });
-      if (judgeCalls !== 21 * (family.ordinal + 1)) {
+      phase = "adapter";
+      if (
+        pointwiseCalls !== TASTE_POINTWISE_CALLS_PER_FAMILY * (family.ordinal + 1) ||
+        pairwiseCalls !== TASTE_PAIRWISE_CALLS_PER_FAMILY * (family.ordinal + 1)
+      ) {
         // The native evaluator must own the exact 13 pointwise + 8 mirrored
         // pairwise call count; any other count is an adapter error.
         throw new TypeError("Taste native Judge call census does not match 13+8");
@@ -439,9 +462,10 @@ export async function executeTasteBench(input: {
     return Object.freeze({
       track: "coffee-chat-taste" as const,
       executionStatus:
-        owner === "candidate" || owner === "adapter"
+        judgeFailureStatus ??
+        (owner === "candidate" || owner === "adapter"
           ? ("failed" as const)
-          : ("unavailable" as const),
+          : ("unavailable" as const)),
       failureOwner: owner,
       claimStatus: executionClaimStatus(input.profile),
       benchmarkStatus: "not_active" as const,

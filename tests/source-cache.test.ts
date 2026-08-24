@@ -385,6 +385,155 @@ test("source materializer uses an Eval-owned lock identity when uv.lock is absen
   }
 });
 
+test("materialized source verification rejects Eval-owned lock-byte drift", () => {
+  const root = mkdtempSync(join(tmpdir(), "coffee-chat-eval-owned-lock-drift-cache-"));
+  const input = mkdtempSync(
+    join(tmpdir(), "coffee-chat-eval-owned-lock-drift-source-"),
+  );
+  try {
+    const source = join(input, "source");
+    const runtimeLockPath = join(input, "ifeval-runtime-lock.txt");
+    mkdirSync(source, { recursive: true });
+    writeFileSync(join(source, "LICENSE"), "license");
+    writeFileSync(runtimeLockPath, "pinned dependency bytes\n");
+    const manifest = parseSourceManifest({
+      schema: "source-manifest-v1",
+      trackId: "ifeval",
+      source: {
+        repository: "https://example.invalid/ifeval",
+        commit: "1".repeat(40),
+        license: "Apache-2.0",
+        licenseDigest: digest("license"),
+      },
+      allowlist: ["LICENSE"],
+      excludedPaths: ["responses/**"],
+      retention: {
+        source: "cache-only",
+        evidence: "private-content-addressed",
+        public: "aggregate-provenance-only",
+      },
+      publicArtifactPolicy: "receipt-redacted",
+    });
+    materializePinnedSource({
+      manifest,
+      cacheRoot: root,
+      sourceRoot: source,
+      runtimeLockPath,
+    });
+    writeFileSync(runtimeLockPath, "drifted dependency bytes\n");
+    assert.throws(
+      () =>
+        verifyMaterializedSource({
+          manifest,
+          cacheRoot: root,
+          expectedRuntimeLockPath: runtimeLockPath,
+        }),
+      /runtime lock digest drifted/u,
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+    rmSync(input, { recursive: true, force: true });
+  }
+});
+
+test("expected Eval-owned lock is enforced regardless of receipt lock origin", () => {
+  const root = mkdtempSync(join(tmpdir(), "coffee-chat-eval-lock-origin-bypass-"));
+  try {
+    const source = join(root, "source-input");
+    const runtimeLockPath = join(root, "ifeval-runtime-lock.txt");
+    mkdirSync(source, { recursive: true });
+    writeFileSync(join(source, "LICENSE"), "license");
+    writeFileSync(runtimeLockPath, "admitted dependency bytes\n");
+    const manifest = parseSourceManifest({
+      schema: "source-manifest-v1",
+      trackId: "ifeval",
+      source: {
+        repository: "https://example.invalid/ifeval",
+        commit: "3".repeat(40),
+        license: "Apache-2.0",
+        licenseDigest: digest("license"),
+      },
+      allowlist: ["LICENSE"],
+      excludedPaths: ["responses/**"],
+      retention: {
+        source: "cache-only",
+        evidence: "private-content-addressed",
+        public: "aggregate-provenance-only",
+      },
+      publicArtifactPolicy: "receipt-redacted",
+    });
+    const cacheRoot = join(root, "cache");
+    materializeSource({
+      manifest,
+      cacheRoot,
+      sourceRoot: source,
+      runtimeLockDigest: stableDigest("attacker-selected-lock"),
+      runtimeLockOrigin: "source",
+      licenseEvidence: [
+        { path: "LICENSE", digest: digest("license"), license: "Apache-2.0" },
+      ],
+    });
+
+    assert.throws(
+      () =>
+        verifyMaterializedSource({
+          manifest,
+          cacheRoot,
+          expectedRuntimeLockPath: runtimeLockPath,
+        }),
+      /runtime lock digest drifted: Eval-owned lock/u,
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("source materialization verifies a supplied Eval-owned lock before succeeding", () => {
+  const root = mkdtempSync(join(tmpdir(), "coffee-chat-eval-owned-lock-final-cache-"));
+  const input = mkdtempSync(
+    join(tmpdir(), "coffee-chat-eval-owned-lock-final-source-"),
+  );
+  try {
+    const source = join(input, "source");
+    const runtimeLockPath = join(input, "beam-runtime-lock.txt");
+    mkdirSync(source, { recursive: true });
+    writeFileSync(join(source, "LICENSE"), "license");
+    writeFileSync(runtimeLockPath, "current dependency bytes\n");
+    const manifest = parseSourceManifest({
+      schema: "source-manifest-v1",
+      trackId: "beam-record-core",
+      source: {
+        repository: "https://example.invalid/beam",
+        commit: "2".repeat(40),
+        license: "MIT",
+        licenseDigest: digest("license"),
+      },
+      allowlist: ["LICENSE"],
+      excludedPaths: ["secrets/**"],
+      retention: {
+        source: "cache-only",
+        evidence: "private-content-addressed",
+        public: "aggregate-provenance-only",
+      },
+      publicArtifactPolicy: "receipt-redacted",
+    });
+    assert.throws(
+      () =>
+        materializePinnedSource({
+          manifest,
+          cacheRoot: root,
+          sourceRoot: source,
+          runtimeLockPath,
+          runtimeLockDigest: stableDigest("stale runtime lock receipt"),
+        }),
+      /runtime lock digest drifted/u,
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+    rmSync(input, { recursive: true, force: true });
+  }
+});
+
 test("source materializer binds a pinned requirements.txt when uv.lock is absent", () => {
   const root = mkdtempSync(join(tmpdir(), "coffee-chat-eval-requirements-cache-"));
   const input = mkdtempSync(join(tmpdir(), "coffee-chat-eval-requirements-source-"));

@@ -11,9 +11,16 @@ import {
 } from "./eval-core.ts";
 import type { Sha256Digest } from "./types.ts";
 import { fileURLToPath } from "node:url";
-import { BEAM_RUNTIME_LOCK, requireRuntimePython } from "./python-runtime.ts";
+import {
+  BEAM_RUNTIME_LOCK,
+  requireRuntimePython,
+  runtimeEnvironment,
+} from "./python-runtime.ts";
 
 export type BeamProfile = "fixture" | "smoke" | "pilot" | "score";
+
+const BEAM_JUDGE_UNAVAILABLE_REASON = "BEAM Judge broker transport is unavailable";
+const BEAM_JUDGE_FAILED_REASON = "BEAM Judge completion is invalid";
 
 export const BEAM_SOURCE = Object.freeze({
   codeRepository: "https://github.com/mohammadtavakoli78/BEAM",
@@ -200,25 +207,29 @@ function defaultBeamBridge(): BeamBridgeRunner {
     run: async (input) => {
       const { execFile } = await import("node:child_process");
       const { promisify } = await import("node:util");
-      await promisify(execFile)(requireRuntimePython(input.sourceRoot), [
-        fileURLToPath(new URL("../integrations/beam/bridge.py", import.meta.url)),
-        "--source-root",
-        input.sourceRoot,
-        ...(input.dataRoot === undefined ? [] : ["--data-root", input.dataRoot]),
-        "--query-path",
-        input.queryPath,
-        "--response-path",
-        input.responsePath,
-        "--output",
-        input.outputPath,
-        "--tier",
-        BEAM_SOURCE.tier,
-        "--profile",
-        input.profile,
-        ...(input.judgeRuntimePath === undefined
-          ? []
-          : ["--judge-runtime", input.judgeRuntimePath]),
-      ]);
+      await promisify(execFile)(
+        requireRuntimePython(input.sourceRoot),
+        [
+          fileURLToPath(new URL("../integrations/beam/bridge.py", import.meta.url)),
+          "--source-root",
+          input.sourceRoot,
+          ...(input.dataRoot === undefined ? [] : ["--data-root", input.dataRoot]),
+          "--query-path",
+          input.queryPath,
+          "--response-path",
+          input.responsePath,
+          "--output",
+          input.outputPath,
+          "--tier",
+          BEAM_SOURCE.tier,
+          "--profile",
+          input.profile,
+          ...(input.judgeRuntimePath === undefined
+            ? []
+            : ["--judge-runtime", input.judgeRuntimePath]),
+        ],
+        { env: runtimeEnvironment(input.sourceRoot) },
+      );
     },
   };
 }
@@ -243,7 +254,10 @@ function defaultBeamConversationLoader(sourceRoot: string): BeamConversationLoad
           input.conversationId,
           "--extract-conversation",
         ],
-        { maxBuffer: 128 * 1024 * 1024 },
+        {
+          env: runtimeEnvironment(sourceRoot),
+          maxBuffer: 128 * 1024 * 1024,
+        },
       );
       try {
         return JSON.parse(result.stdout) as unknown;
@@ -465,6 +479,39 @@ export function createBeamTrackExecutor(
       string,
       unknown
     >;
+    if (native.schema === "coffee-chat-eval/beam-bridge-outcome-v1") {
+      const keys = Object.keys(native).sort();
+      const outcome =
+        native.executionStatus === "unavailable" &&
+        native.reason === BEAM_JUDGE_UNAVAILABLE_REASON
+          ? ("unavailable" as const)
+          : native.executionStatus === "failed" &&
+              native.reason === BEAM_JUDGE_FAILED_REASON
+            ? ("failed" as const)
+            : undefined;
+      if (
+        JSON.stringify(keys) !==
+          JSON.stringify(["executionStatus", "failureOwner", "reason", "schema"]) ||
+        native.failureOwner !== "judge" ||
+        outcome === undefined
+      ) {
+        throw new TypeError("BEAM Judge outcome is malformed");
+      }
+      return Object.freeze({
+        executionStatus: outcome,
+        failureOwner: "judge" as const,
+        trialReceipts: Object.freeze(trialReceipts),
+        metrics: Object.freeze({
+          execution: Object.freeze({
+            numerator: null,
+            denominator: null,
+            value: null,
+          }),
+        }),
+        nativeEvidence: nativeArtifact,
+        cleanupStatus: "complete" as const,
+      });
+    }
     const expectedJudgeCalls = inventory.reduce((count, item) => {
       const questionBank = questionBankFor(item.conversationId);
       return (

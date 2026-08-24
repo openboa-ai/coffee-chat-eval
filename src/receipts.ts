@@ -1,5 +1,9 @@
 import { stableDigest } from "./identity.ts";
-import type { RunPlan } from "./eval-core.ts";
+import {
+  parseProductCandidateBoundary,
+  type ProductCandidateBoundary,
+  type RunPlan,
+} from "./eval-core.ts";
 import { getEvaluationTrack } from "./track-registry.ts";
 import type { ExecutionStatus, FailureOwner, Sha256Digest } from "./types.ts";
 
@@ -22,7 +26,15 @@ export interface EvidenceReceipt {
   readonly executionStatus: ExecutionStatus;
   readonly claimStatus: RunPlan["claimStatus"];
   readonly failureOwner?: FailureOwner;
+  readonly rightsRiskAcceptanceDigest?: Sha256Digest;
+  readonly licenseCleared?: false;
+  readonly rightsExecutionScope?: "private-internal-smoke-only";
   readonly privateEvidence: PrivateEvidence;
+  readonly candidateMode?: ProductCandidateBoundary["candidateMode"];
+  readonly capabilitiesUsed?: ProductCandidateBoundary["capabilitiesUsed"];
+  readonly productBehaviorExercised?: ProductCandidateBoundary["productBehaviorExercised"];
+  readonly referenceHost?: ProductCandidateBoundary["referenceHost"];
+  readonly productIdentity?: ProductCandidateBoundary["productIdentity"];
 }
 
 export interface PublicEvidenceReceipt {
@@ -35,7 +47,28 @@ export interface PublicEvidenceReceipt {
   readonly executionStatus: ExecutionStatus;
   readonly claimStatus: RunPlan["claimStatus"];
   readonly failureOwner?: FailureOwner;
+  readonly rightsRiskAcceptanceDigest?: Sha256Digest;
+  readonly licenseCleared?: false;
+  readonly rightsExecutionScope?: "private-internal-smoke-only";
+  readonly candidateMode?: ProductCandidateBoundary["candidateMode"];
+  readonly capabilitiesUsed?: ProductCandidateBoundary["capabilitiesUsed"];
+  readonly productBehaviorExercised?: ProductCandidateBoundary["productBehaviorExercised"];
+  readonly referenceHost?: ProductCandidateBoundary["referenceHost"];
+  readonly productIdentity?: ProductCandidateBoundary["productIdentity"];
 }
+
+const PRODUCT_BOUNDARY_KEYS = Object.freeze([
+  "candidateMode",
+  "capabilitiesUsed",
+  "productBehaviorExercised",
+  "referenceHost",
+  "productIdentity",
+] as const);
+const RIGHTS_RISK_PROVENANCE_KEYS = Object.freeze([
+  "rightsRiskAcceptanceDigest",
+  "licenseCleared",
+  "rightsExecutionScope",
+] as const);
 
 const EXECUTION_STATUSES: readonly ExecutionStatus[] = [
   "measured",
@@ -93,6 +126,8 @@ export function createEvidenceReceipt(input: {
   readonly executionStatus: ExecutionStatus;
   readonly failureOwner?: FailureOwner;
   readonly privateEvidence: PrivateEvidence;
+  readonly productBoundary?: ProductCandidateBoundary;
+  readonly rightsRiskAcceptanceValidated?: boolean;
 }): EvidenceReceipt {
   validateFailureOwner(input.executionStatus, input.failureOwner);
   const expectedClaim =
@@ -105,10 +140,39 @@ export function createEvidenceReceipt(input: {
     throw new TypeError("run plan claim status does not match profile");
   }
   const failureOwner = input.failureOwner;
+  const productBoundary =
+    input.productBoundary === undefined
+      ? undefined
+      : parseProductCandidateBoundary(input.productBoundary);
+  let rightsRiskAcceptanceDigest: Sha256Digest | undefined;
+  if (input.rightsRiskAcceptanceValidated === true) {
+    const acceptanceDigest = input.plan.runSpec?.rightsRiskAcceptanceDigest;
+    if (
+      acceptanceDigest === undefined ||
+      !DIGEST.test(acceptanceDigest) ||
+      input.plan.trackId !== "ifeval" ||
+      input.plan.profile !== "smoke" ||
+      input.plan.runSpec?.candidateType !== "coffee_chat_product" ||
+      productBoundary === undefined
+    ) {
+      throw new TypeError(
+        "IFEval rights risk provenance requires the exact Product candidate boundary",
+      );
+    }
+    rightsRiskAcceptanceDigest = acceptanceDigest;
+  }
   const idMaterial = {
     runId: input.plan.id,
     executionStatus: input.executionStatus,
     ...(failureOwner === undefined ? {} : { failureOwner }),
+    ...(rightsRiskAcceptanceDigest === undefined
+      ? {}
+      : {
+          rightsRiskAcceptanceDigest,
+          licenseCleared: false as const,
+          rightsExecutionScope: "private-internal-smoke-only" as const,
+        }),
+    ...(productBoundary === undefined ? {} : productBoundary),
   };
   return Object.freeze({
     id: `receipt-${stableDigest(idMaterial).slice("sha256:".length)}`,
@@ -120,12 +184,52 @@ export function createEvidenceReceipt(input: {
     executionStatus: input.executionStatus,
     claimStatus: input.plan.claimStatus,
     ...(failureOwner === undefined ? {} : { failureOwner }),
+    ...(rightsRiskAcceptanceDigest === undefined
+      ? {}
+      : {
+          rightsRiskAcceptanceDigest,
+          licenseCleared: false as const,
+          rightsExecutionScope: "private-internal-smoke-only" as const,
+        }),
     privateEvidence: Object.freeze({ ...input.privateEvidence }),
+    ...(productBoundary === undefined ? {} : productBoundary),
   });
 }
 
 export function redactEvidenceReceipt(receipt: EvidenceReceipt): PublicEvidenceReceipt {
+  const receiptRecord = receipt as unknown as Record<string, unknown>;
   const failureOwner = receipt.failureOwner;
+  const hasProductBoundary = PRODUCT_BOUNDARY_KEYS.some((key) =>
+    Object.prototype.hasOwnProperty.call(receiptRecord, key),
+  );
+  const productBoundary = hasProductBoundary
+    ? parseProductCandidateBoundary(
+        Object.fromEntries(
+          PRODUCT_BOUNDARY_KEYS.map((key) => [key, receiptRecord[key]]),
+        ),
+        "evidence receipt product boundary",
+      )
+    : undefined;
+  const hasRightsRiskAcceptance = RIGHTS_RISK_PROVENANCE_KEYS.some((key) =>
+    Object.prototype.hasOwnProperty.call(receiptRecord, key),
+  );
+  let rightsRiskAcceptanceDigest: Sha256Digest | undefined;
+  if (hasRightsRiskAcceptance) {
+    if (
+      typeof receipt.rightsRiskAcceptanceDigest !== "string" ||
+      !DIGEST.test(receipt.rightsRiskAcceptanceDigest) ||
+      receipt.licenseCleared !== false ||
+      receipt.rightsExecutionScope !== "private-internal-smoke-only" ||
+      receipt.trackId !== "ifeval" ||
+      receipt.profile !== "smoke" ||
+      productBoundary === undefined
+    ) {
+      throw new TypeError(
+        "evidence receipt rights risk provenance requires the exact Product candidate boundary",
+      );
+    }
+    rightsRiskAcceptanceDigest = receipt.rightsRiskAcceptanceDigest as Sha256Digest;
+  }
   return Object.freeze({
     id: receipt.id,
     runId: receipt.runId,
@@ -136,6 +240,14 @@ export function redactEvidenceReceipt(receipt: EvidenceReceipt): PublicEvidenceR
     executionStatus: receipt.executionStatus,
     claimStatus: receipt.claimStatus,
     ...(failureOwner === undefined ? {} : { failureOwner }),
+    ...(rightsRiskAcceptanceDigest === undefined
+      ? {}
+      : {
+          rightsRiskAcceptanceDigest,
+          licenseCleared: false as const,
+          rightsExecutionScope: "private-internal-smoke-only" as const,
+        }),
+    ...(productBoundary === undefined ? {} : productBoundary),
   });
 }
 
@@ -144,6 +256,11 @@ export function parsePublicEvidenceReceipt(value: unknown): PublicEvidenceReceip
     throw new TypeError("public receipt must be an object");
   }
   const receipt = value as Record<string, unknown>;
+  const hasProductBoundary = PRODUCT_BOUNDARY_KEYS.some((key) => key in receipt);
+  const hasRightsRiskAcceptance =
+    "rightsRiskAcceptanceDigest" in receipt ||
+    "licenseCleared" in receipt ||
+    "rightsExecutionScope" in receipt;
   const expected = [
     "id",
     "runId",
@@ -154,6 +271,10 @@ export function parsePublicEvidenceReceipt(value: unknown): PublicEvidenceReceip
     "executionStatus",
     "claimStatus",
     ...(receipt.failureOwner === undefined ? [] : ["failureOwner"]),
+    ...(hasRightsRiskAcceptance
+      ? ["rightsRiskAcceptanceDigest", "licenseCleared", "rightsExecutionScope"]
+      : []),
+    ...(hasProductBoundary ? PRODUCT_BOUNDARY_KEYS : []),
   ].sort();
   if (JSON.stringify(Object.keys(receipt).sort()) !== JSON.stringify(expected)) {
     throw new TypeError("public receipt has unexpected fields");
@@ -206,6 +327,27 @@ export function parsePublicEvidenceReceipt(value: unknown): PublicEvidenceReceip
     receipt.executionStatus as ExecutionStatus,
     receipt.failureOwner as FailureOwner | undefined,
   );
+  const productBoundary = hasProductBoundary
+    ? parseProductCandidateBoundary(
+        Object.fromEntries(PRODUCT_BOUNDARY_KEYS.map((key) => [key, receipt[key]])),
+        "public receipt product boundary",
+      )
+    : undefined;
+  let rightsRiskAcceptanceDigest: Sha256Digest | undefined;
+  if (hasRightsRiskAcceptance) {
+    if (
+      typeof receipt.rightsRiskAcceptanceDigest !== "string" ||
+      !DIGEST.test(receipt.rightsRiskAcceptanceDigest) ||
+      receipt.licenseCleared !== false ||
+      receipt.rightsExecutionScope !== "private-internal-smoke-only" ||
+      receipt.trackId !== "ifeval" ||
+      receipt.profile !== "smoke" ||
+      productBoundary === undefined
+    ) {
+      throw new TypeError("public receipt rights risk provenance is invalid");
+    }
+    rightsRiskAcceptanceDigest = receipt.rightsRiskAcceptanceDigest as Sha256Digest;
+  }
   return Object.freeze({
     id: receipt.id,
     runId: receipt.runId,
@@ -218,5 +360,13 @@ export function parsePublicEvidenceReceipt(value: unknown): PublicEvidenceReceip
     ...(receipt.failureOwner === undefined
       ? {}
       : { failureOwner: receipt.failureOwner as FailureOwner }),
+    ...(rightsRiskAcceptanceDigest === undefined
+      ? {}
+      : {
+          rightsRiskAcceptanceDigest,
+          licenseCleared: false as const,
+          rightsExecutionScope: "private-internal-smoke-only" as const,
+        }),
+    ...(productBoundary === undefined ? {} : productBoundary),
   });
 }

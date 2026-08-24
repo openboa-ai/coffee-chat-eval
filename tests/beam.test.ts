@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -74,6 +75,58 @@ test("BEAM preserves upstream diagnostic quirks and reports categories independe
   });
   assert.equal(report.categories.temporal_reasoning, null);
   assert.equal(summarizeBeamObservations([]).categories.abstention, null);
+});
+
+test("BEAM bridge rejects response categories outside record-core before evaluation", () => {
+  const script = String.raw`
+import importlib.util
+import json
+import sys
+import tempfile
+from pathlib import Path
+
+bridge_path = sys.argv[1]
+spec = importlib.util.spec_from_file_location("beam_bridge", bridge_path)
+bridge = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(bridge)
+
+with tempfile.TemporaryDirectory() as root_text:
+    root = Path(root_text)
+    source = root / "source"
+    probing_path = source / "chats" / "100K" / "1" / "probing_questions"
+    probing_path.mkdir(parents=True)
+    probing = {
+        category: [{"question": category, "rubric": ["rubric"]}]
+        for category in (*bridge.CATEGORIES, "event_ordering")
+    }
+    (probing_path / "probing_questions.json").write_text(json.dumps(probing))
+    query_path = root / "queries.json"
+    query_path.write_text(json.dumps([{"category": "abstention"}]))
+    category_map = {
+        "abstention": [{"llm_response": "answer"}],
+        "event_ordering": [{"llm_response": "hidden extra scorer"}],
+    }
+    for index, payload in enumerate((category_map, {"100K/1": category_map})):
+        response_path = root / f"responses-{index}.json"
+        response_path.write_text(json.dumps(payload))
+        try:
+            bridge.run(
+                source,
+                query_path,
+                response_path,
+                root / f"output-{index}.json",
+                "fixture",
+            )
+        except ValueError as exc:
+            assert "unadmitted category" in str(exc)
+        else:
+            raise AssertionError("unadmitted BEAM response category must fail closed")
+`;
+  execFileSync("python3", [
+    "-c",
+    script,
+    new URL("../integrations/beam/bridge.py", import.meta.url).pathname,
+  ]);
 });
 
 test("BEAM smoke executor sends six candidate queries and validates eleven native Judge calls", async () => {
@@ -170,6 +223,150 @@ test("BEAM smoke executor sends six candidate queries and validates eleven nativ
     });
     assert.equal(result.trialReceipts.length, 6);
     assert.equal(result.metrics.abstention?.denominator, 1);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("BEAM executor preserves an exact native Judge transport outage", async () => {
+  const root = mkdtempSync(join(tmpdir(), "coffee-chat-beam-judge-outage-"));
+  try {
+    const sourceRoot = join(root, "source", "chats", "100K", "1", "probing_questions");
+    mkdirSync(sourceRoot, { recursive: true });
+    const bank = Object.fromEntries(
+      BEAM_CATEGORIES.map((category, index) => [
+        category,
+        [
+          {
+            question: `${category} question`,
+            rubric: Array.from(
+              { length: index === 1 ? 4 : index === 4 || index === 5 ? 2 : 1 },
+              (_, i) => `rubric-${i}`,
+            ),
+          },
+        ],
+      ]),
+    );
+    writeFileSync(join(sourceRoot, "probing_questions.json"), JSON.stringify(bank));
+    const candidate = createFixtureCandidateTransport(() => "candidate response", {
+      evidenceRoot: root,
+    });
+    const evidence = ({ value, mediaType }: { value: unknown; mediaType: string }) => {
+      const stored = putEvidence(root, JSON.stringify(value), "private");
+      return {
+        path: stored.path,
+        digest: stored.digest,
+        mediaType,
+        bytes: Buffer.byteLength(JSON.stringify(value)),
+      };
+    };
+    const executor = createBeamTrackExecutor({
+      conversationLoader: {
+        load: async ({ conversationId }) => ({
+          conversationId,
+          messages: ["conversation-only"],
+        }),
+      },
+      bridge: {
+        run: async ({ outputPath }) => {
+          writeFileSync(
+            outputPath,
+            JSON.stringify({
+              schema: "coffee-chat-eval/beam-bridge-outcome-v1",
+              executionStatus: "unavailable",
+              failureOwner: "judge",
+              reason: "BEAM Judge broker transport is unavailable",
+            }),
+          );
+        },
+      },
+    });
+    const result = await executor({
+      plan: {
+        profile: "smoke",
+        id: "run-beam-judge-outage",
+        evidenceRoot: root,
+        trackId: "beam-record-core",
+      },
+      source: { sourceRoot: join(root, "source") },
+      candidate,
+      evidence,
+    });
+    assert.equal(result.executionStatus, "unavailable");
+    assert.equal(result.failureOwner, "judge");
+    assert.equal(result.trialReceipts.length, 6);
+    assert.deepEqual(result.metrics, {
+      execution: { numerator: null, denominator: null, value: null },
+    });
+    assert.equal(result.cleanupStatus, "complete");
+
+    const failedExecutor = createBeamTrackExecutor({
+      conversationLoader: {
+        load: async ({ conversationId }) => ({ conversationId, messages: [] }),
+      },
+      bridge: {
+        run: async ({ outputPath }) => {
+          writeFileSync(
+            outputPath,
+            JSON.stringify({
+              schema: "coffee-chat-eval/beam-bridge-outcome-v1",
+              executionStatus: "failed",
+              failureOwner: "judge",
+              reason: "BEAM Judge completion is invalid",
+            }),
+          );
+        },
+      },
+    });
+    const failed = await failedExecutor({
+      plan: {
+        profile: "smoke",
+        id: "run-beam-judge-failed",
+        evidenceRoot: root,
+        trackId: "beam-record-core",
+      },
+      source: { sourceRoot: join(root, "source") },
+      candidate,
+      evidence,
+    });
+    assert.equal(failed.executionStatus, "failed");
+    assert.equal(failed.failureOwner, "judge");
+    assert.equal(failed.trialReceipts.length, 6);
+    assert.deepEqual(failed.metrics, {
+      execution: { numerator: null, denominator: null, value: null },
+    });
+
+    const malformedExecutor = createBeamTrackExecutor({
+      conversationLoader: {
+        load: async ({ conversationId }) => ({ conversationId, messages: [] }),
+      },
+      bridge: {
+        run: async ({ outputPath }) => {
+          writeFileSync(
+            outputPath,
+            JSON.stringify({
+              schema: "coffee-chat-eval/beam-bridge-outcome-v1",
+              executionStatus: "unavailable",
+              failureOwner: "judge",
+            }),
+          );
+        },
+      },
+    });
+    await assert.rejects(
+      malformedExecutor({
+        plan: {
+          profile: "smoke",
+          id: "run-beam-judge-outage-malformed",
+          evidenceRoot: root,
+          trackId: "beam-record-core",
+        },
+        source: { sourceRoot: join(root, "source") },
+        candidate,
+        evidence,
+      }),
+      /Judge outcome is malformed/u,
+    );
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

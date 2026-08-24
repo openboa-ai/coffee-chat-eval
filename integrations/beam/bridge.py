@@ -5,14 +5,17 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import http.client
 import json
 import math
+import os
 import sys
 import types
+import urllib.error
 import urllib.request
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, Callable
 
 
 # The materialized upstream checkout is immutable during a run.
@@ -30,6 +33,24 @@ CATEGORIES = (
     "multi_session_reasoning",
     "temporal_reasoning",
 )
+NLTK_DOWNLOADS_BYPASSED = frozenset(("punkt", "punkt_tab"))
+NLTK_DATA_FORBIDDEN = (
+    "tokenizers/punkt",
+    "tokenizers/punkt.zip",
+    "tokenizers/punkt_tab",
+    "tokenizers/punkt_tab.zip",
+)
+JUDGE_UNAVAILABLE_REASON = "BEAM Judge broker transport is unavailable"
+JUDGE_FAILED_REASON = "BEAM Judge completion is invalid"
+NONTERMINAL_RESPONSE_STATUSES = frozenset(("queued", "in_progress", "incomplete"))
+
+
+class JudgeUnavailableError(RuntimeError):
+    pass
+
+
+class JudgeFailedError(RuntimeError):
+    pass
 
 
 def _install_unused_embedding_stub() -> None:
@@ -57,6 +78,45 @@ def _install_unused_embedding_stub() -> None:
     sys.modules["sentence_transformers"] = module
 
 
+def _install_offline_nltk_guard() -> Callable[[], None]:
+    """Bypass only import-time downloads unused by record-core scorers."""
+    data_root = os.environ.get("NLTK_DATA")
+    if not data_root or not Path(data_root).is_absolute():
+        raise RuntimeError("BEAM requires an absolute NLTK_DATA runtime path")
+    for relative_path in NLTK_DATA_FORBIDDEN:
+        candidate = Path(data_root) / relative_path
+        if candidate.exists() or candidate.is_symlink():
+            raise RuntimeError(f"BEAM Punkt data is not admitted: {relative_path}")
+    import nltk  # type: ignore[import-not-found]
+
+    # Prevent accidental use of ambient user or system NLTK data. The six
+    # admitted scorers are Judge-only and never tokenize; if that changes,
+    # NLTK will fail closed against this evaluator-owned runtime path.
+    nltk.data.path[:] = [data_root]
+    import_downloads: list[str] = []
+
+    def offline_download(resource: str, *_args: Any, **_kwargs: Any) -> bool:
+        if resource not in NLTK_DOWNLOADS_BYPASSED:
+            raise RuntimeError(f"BEAM attempted an unadmitted NLTK download: {resource}")
+        import_downloads.append(resource)
+        return True
+
+    nltk.download = offline_download
+
+    def seal() -> None:
+        if tuple(import_downloads) != ("punkt", "punkt_tab"):
+            raise RuntimeError("BEAM upstream NLTK import calls drifted")
+
+        def blocked_use(*_args: Any, **_kwargs: Any) -> Any:
+            raise RuntimeError("BEAM NLTK use is not admitted after upstream import")
+
+        nltk.download = blocked_use
+        nltk.word_tokenize = blocked_use
+        nltk.sent_tokenize = blocked_use
+
+    return seal
+
+
 def _write_once(path: Path, payload: dict[str, Any]) -> None:
     serialized = (json.dumps(payload, sort_keys=True) + "\n").encode("utf-8")
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -77,11 +137,23 @@ def _query_count(query_path: Path) -> int:
     return len(payload)
 
 
+def _response_category_map(value: Any, label: str) -> dict[str, Any]:
+    if not isinstance(value, dict) or not value:
+        raise ValueError(f"BEAM {label} response categories must be a non-empty object")
+    unadmitted = sorted(str(key) for key in value if key not in CATEGORIES)
+    if unadmitted:
+        raise ValueError(
+            f"BEAM {label} response contains an unadmitted category: "
+            + ", ".join(unadmitted)
+        )
+    if any(not isinstance(responses, list) for responses in value.values()):
+        raise ValueError(f"BEAM {label} response category values must be lists")
+    return value
+
+
 def _response_text(value: Any) -> str:
-    if isinstance(value, str):
-        return value
     if isinstance(value, dict):
-        if isinstance(value.get("output_text"), str):
+        if isinstance(value.get("output_text"), str) and value["output_text"]:
             return value["output_text"]
         output = value.get("output")
         if isinstance(output, list):
@@ -93,7 +165,7 @@ def _response_text(value: Any) -> str:
                             chunks.append(content["text"])
             if chunks:
                 return "".join(chunks)
-    return json.dumps(value)
+    raise JudgeFailedError(JUDGE_FAILED_REASON)
 
 
 def _extract_conversation(data_root: Path, conversation_id: str) -> dict[str, Any]:
@@ -138,23 +210,46 @@ class BrokerJudge:
     def invoke(self, prompt: Any) -> Any:
         if self.calls >= self.max_requests:
             raise RuntimeError("BEAM Judge capability request cap exceeded")
-        body = json.dumps({"model": self.model, "input": prompt}).encode("utf-8")
+        body = json.dumps(
+            {"model": self.model, "input": prompt, "store": False}
+        ).encode("utf-8")
         request = urllib.request.Request(
             self.endpoint,
             data=body,
             headers={"authorization": f"Bearer {self.token}", "content-type": "application/json"},
             method="POST",
         )
-        with urllib.request.urlopen(request, timeout=30) as response:
-            payload = json.loads(response.read().decode("utf-8"))
+        try:
+            with urllib.request.urlopen(request, timeout=30) as response:
+                response_bytes = response.read()
+        except (
+            http.client.HTTPException,
+            urllib.error.HTTPError,
+            urllib.error.URLError,
+            OSError,
+        ) as exc:
+            raise JudgeUnavailableError(JUDGE_UNAVAILABLE_REASON) from exc
+        try:
+            payload = json.loads(response_bytes.decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise JudgeFailedError(JUDGE_FAILED_REASON) from exc
         self.calls += 1
+        if not isinstance(payload, dict):
+            raise JudgeFailedError(JUDGE_FAILED_REASON)
+        status = payload.get("status")
+        if status in NONTERMINAL_RESPONSE_STATUSES:
+            raise JudgeUnavailableError(JUDGE_UNAVAILABLE_REASON)
+        if payload.get("error") is not None:
+            raise JudgeFailedError(JUDGE_FAILED_REASON)
+        if status != "completed":
+            raise JudgeFailedError(JUDGE_FAILED_REASON)
         content = _response_text(payload)
         try:
             parsed = json.loads(content)
         except json.JSONDecodeError as exc:
-            raise ValueError("BEAM Judge returned malformed JSON") from exc
+            raise JudgeFailedError(JUDGE_FAILED_REASON) from exc
         if not isinstance(parsed, dict):
-            raise ValueError("BEAM Judge JSON must be an object")
+            raise JudgeFailedError(JUDGE_FAILED_REASON)
         score = parsed.get("score")
         if (
             isinstance(score, bool)
@@ -162,7 +257,7 @@ class BrokerJudge:
             or not math.isfinite(float(score))
             or float(score) not in {0.0, 0.5, 1.0}
         ):
-            raise ValueError("BEAM Judge score must be exactly 0, 0.5, or 1")
+            raise JudgeFailedError(JUDGE_FAILED_REASON)
         return SimpleNamespace(content=content)
 
 
@@ -254,9 +349,14 @@ def run(
     # accepting that shape while the sampled/full runner writes an explicit
     # conversation -> category map.
     if any(key in CATEGORIES for key in raw_responses):
-        responses_by_conversation: dict[str, dict[str, Any]] = {"100K/1": raw_responses}
+        responses_by_conversation: dict[str, dict[str, Any]] = {
+            "100K/1": _response_category_map(raw_responses, "legacy")
+        }
     else:
-        responses_by_conversation = raw_responses
+        responses_by_conversation = {
+            conversation: _response_category_map(category_map, conversation)
+            for conversation, category_map in raw_responses.items()
+        }
     probing_by_conversation: dict[str, dict[str, Any]] = {}
     for conversation in responses_by_conversation:
         probing_path = (
@@ -319,7 +419,9 @@ def run(
     sys.modules["src.llm"] = types.ModuleType("src.llm")
     sys.modules["src.llm"].gpt_llm = broker
     _install_unused_embedding_stub()
+    seal_nltk = _install_offline_nltk_guard()
     from src.evaluation import run_evaluation  # type: ignore[import-not-found]
+    seal_nltk()
 
     # The six selected scorers are LLM-only. Keep upstream scoring functions
     # intact and bypass only the unused embedding initialisation.
@@ -382,7 +484,28 @@ def main() -> None:
         raise SystemExit("evaluation requires --query-path, --response-path, and --output")
     if args.tier != "100K":
         raise SystemExit("only BEAM 100K is admitted in v1")
-    run(args.source_root, args.query_path, args.response_path, args.output, args.profile, args.data_root, args.judge_runtime)
+    try:
+        run(args.source_root, args.query_path, args.response_path, args.output, args.profile, args.data_root, args.judge_runtime)
+    except JudgeUnavailableError:
+        _write_once(
+            args.output,
+            {
+                "schema": "coffee-chat-eval/beam-bridge-outcome-v1",
+                "executionStatus": "unavailable",
+                "failureOwner": "judge",
+                "reason": JUDGE_UNAVAILABLE_REASON,
+            },
+        )
+    except JudgeFailedError:
+        _write_once(
+            args.output,
+            {
+                "schema": "coffee-chat-eval/beam-bridge-outcome-v1",
+                "executionStatus": "failed",
+                "failureOwner": "judge",
+                "reason": JUDGE_FAILED_REASON,
+            },
+        )
 
 
 if __name__ == "__main__":

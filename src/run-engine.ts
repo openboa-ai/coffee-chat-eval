@@ -1,9 +1,15 @@
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { join, relative, resolve } from "node:path";
+import { isAbsolute, join, relative, resolve } from "node:path";
 
 import {
+  createRunPlan,
+  createTrialReceipt,
   createTrackReport,
+  parseRunSpec,
+  parseSourceManifest,
+  parseProductCandidateBoundary,
+  runProfileCandidateCompatibilityError,
   type CandidateTransport,
   type JudgeTransport,
   type PrivateArtifactRef,
@@ -12,8 +18,15 @@ import {
   type TrackExecutionResult,
   type TrackReport,
   type TrialReceipt,
+  type ProductCandidateBoundary,
 } from "./eval-core.ts";
 import { stableDigest } from "./identity.ts";
+import {
+  IFEVAL_NATIVE_RUNTIME_RIGHTS_HOLD_REASON,
+  type IfevalRightsRiskAcceptance,
+  ifevalNativeRuntimeRequiresRightsHold,
+  validateIfevalPrivateSmokeRiskAcceptance,
+} from "./ifeval.ts";
 import { createEvidenceReceipt, redactEvidenceReceipt } from "./receipts.ts";
 import { putEvidence } from "./evidence.ts";
 import {
@@ -22,27 +35,35 @@ import {
 } from "./source-cache.ts";
 import { verifySourceManifestPins } from "./source-manifests.ts";
 import type { ExecutionStatus, FailureOwner, Sha256Digest } from "./types.ts";
-import type { RuntimeBundleConfig } from "./runtime-config.ts";
-
-export interface EvidenceWriterInput {
-  readonly value: unknown;
-  readonly mediaType: string;
-}
-
-export interface TrackExecutorContext {
-  readonly plan: RunPlan;
-  readonly manifest: SourceManifest;
-  readonly source: MaterializedSourceVerification;
-  readonly candidate: CandidateTransport;
-  readonly judge: JudgeTransport | undefined;
-  /** Ephemeral broker capabilities supplied by `run`; never part of RunSpec identity. */
-  readonly runtime?: RuntimeBundleConfig | undefined;
-  readonly evidence: (input: EvidenceWriterInput) => PrivateArtifactRef;
-}
-
-export type TrackExecutor = (
-  context: TrackExecutorContext,
-) => Promise<TrackExecutionResult>;
+import {
+  COFFEE_CHAT_PRODUCT_CANDIDATE_DIGEST,
+  COFFEE_CHAT_PRODUCT_CALVER,
+  COFFEE_CHAT_PRODUCT_COMMIT,
+  COFFEE_CHAT_PRODUCT_MODEL,
+  COFFEE_CHAT_PRODUCT_PACKAGE_DIGEST,
+  COFFEE_CHAT_PRODUCT_REPOSITORY,
+  COFFEE_CHAT_PRODUCT_SEED,
+  candidateIdentityDigest,
+  judgeIdentityDigest,
+  parseCandidateIdentityConfig,
+  parseJudgeIdentityConfig,
+  parseRuntimeBundleConfig,
+  type CandidateIdentityConfig,
+  type JudgeIdentityConfig,
+  type RuntimeBundleConfig,
+} from "./runtime-config.ts";
+import { evalOwnedRuntimeLockForTrack } from "./python-runtime.ts";
+import type { TrackExecutor } from "./track-executor.ts";
+import { getNativeTrackExecutor } from "./native-executors.ts";
+import {
+  responsesCandidateTransportMatchesRuntime,
+  responsesJudgeTransportMatchesRuntime,
+} from "./transports.ts";
+import {
+  coffeeChatProductCandidateTransportMatchesRuntime,
+  isUnavailableCoffeeChatProductCandidateTransport,
+  verifyCoffeeChatProductPackage,
+} from "./product-host.ts";
 
 export interface ImmutableRunResult {
   readonly plan: RunPlan;
@@ -67,11 +88,61 @@ const SMOKE_JUDGE_CAPS: Readonly<Record<string, number>> = Object.freeze({
   "beam-record-core": 11,
 });
 
+const REJECTED_PLAN_EXECUTOR: TrackExecutor = async () => {
+  throw new TypeError("rejected run plan must not reach a native executor");
+};
+
+function runPlanClaimStatus(profile: RunPlan["profile"]): RunPlan["claimStatus"] {
+  switch (profile) {
+    case "fixture":
+    case "smoke":
+      return "calibration";
+    case "pilot":
+      return "pilot";
+    case "score":
+      return "provisional_internal";
+  }
+}
+
+/**
+ * Rebuild every RunPlan field that is derived from its immutable RunSpec.
+ * This deliberately does not trust the supplied manifest yet, so a manifest
+ * mismatch can still produce the established unavailable/source receipt from
+ * a path-safe plan identity.
+ */
+function rebuildRunPlanEnvelope(plan: RunPlan): RunPlan {
+  if (plan.runSpec === undefined) {
+    throw new TypeError("run plan is missing immutable runSpec");
+  }
+  const runSpec = parseRunSpec(plan.runSpec);
+  if (!isAbsolute(plan.evidenceRoot)) {
+    throw new TypeError("run plan evidenceRoot must be an absolute path");
+  }
+  if (!isAbsolute(plan.cacheRoot)) {
+    throw new TypeError("run plan cacheRoot must be an absolute path");
+  }
+  const sourceManifestDigest = runSpec.sourceManifestDigest;
+  const runSpecDigest = stableDigest(runSpec);
+  return Object.freeze({
+    id: `run-${stableDigest({ sourceManifestDigest, runSpecDigest }).slice("sha256:".length)}`,
+    trackId: runSpec.trackId,
+    profile: runSpec.profile,
+    sourceManifestDigest,
+    runSpecDigest,
+    claimStatus: runPlanClaimStatus(runSpec.profile),
+    executionStatus: "unmeasured" as const,
+    evidenceRoot: resolve(plan.evidenceRoot),
+    cacheRoot: resolve(plan.cacheRoot),
+    runSpec,
+  });
+}
+
 /**
  * Validate ephemeral broker capabilities against the immutable run identity.
- * Identity/model matching is performed by the CLI when it has the separate
- * candidate/Judge identity files; this common check owns scope, expiry, and
- * the least-privilege smoke budgets used by every entry point.
+ * Non-Product identity/model matching is performed by the CLI when it has the
+ * separate candidate/Judge identity files. This common check owns the exact
+ * admitted Product model plus scope, expiry, and the least-privilege smoke
+ * budgets used by every entry point.
  */
 export function validateRuntimeForRun(input: {
   readonly plan: RunPlan;
@@ -86,12 +157,39 @@ export function validateRuntimeForRun(input: {
       reason: "live candidate runtime capability is missing",
     });
   }
+  if (
+    spec.candidateType === "coffee_chat_product" &&
+    runtime.productHost === undefined
+  ) {
+    return Object.freeze({
+      failureOwner: "host" as const,
+      reason: "coffee_chat_product runtime requires the reference product host",
+    });
+  }
+  if (
+    spec.candidateType !== "coffee_chat_product" &&
+    runtime.productHost !== undefined
+  ) {
+    return Object.freeze({
+      failureOwner: "host" as const,
+      reason: "productHost is only valid for coffee_chat_product",
+    });
+  }
   const now = Date.now();
   const candidate = runtime.candidate;
   if (candidate.scope !== "candidate") {
     return Object.freeze({
       failureOwner: "host" as const,
       reason: "candidate runtime scope is invalid",
+    });
+  }
+  if (
+    spec.candidateType === "coffee_chat_product" &&
+    candidate.model !== COFFEE_CHAT_PRODUCT_MODEL
+  ) {
+    return Object.freeze({
+      failureOwner: "host" as const,
+      reason: "candidate runtime model does not match admitted Product identity",
     });
   }
   if (Date.parse(candidate.expiresAt) <= now) {
@@ -266,6 +364,7 @@ function materializedSourceResult(input: {
   readonly candidate: CandidateTransport;
   readonly judge: JudgeTransport | undefined;
   readonly runtime?: RuntimeBundleConfig | undefined;
+  readonly ifevalRightsRiskAcceptance?: IfevalRightsRiskAcceptance | undefined;
   readonly source: MaterializedSourceVerification;
   readonly executor: TrackExecutor;
 }): Promise<TrackExecutionResult> {
@@ -276,35 +375,272 @@ function materializedSourceResult(input: {
     candidate: input.candidate,
     judge: input.judge,
     runtime: input.runtime,
+    ifevalRightsRiskAcceptance: input.ifevalRightsRiskAcceptance,
     evidence: ({ value, mediaType }) =>
       privateArtifact(input.plan.evidenceRoot, value, mediaType),
   });
 }
 
-export async function executeImmutableRun(input: {
+function productBoundaryForCandidate(
+  candidate: CandidateTransport,
+): ProductCandidateBoundary | undefined {
+  return candidate.productBoundary === undefined
+    ? undefined
+    : parseProductCandidateBoundary(candidate.productBoundary);
+}
+
+function decorateTrialReceipts(
+  receipts: readonly TrialReceipt[],
+  productBoundary: ProductCandidateBoundary | undefined,
+): readonly TrialReceipt[] {
+  if (productBoundary === undefined) return receipts;
+  return Object.freeze(
+    receipts.map((receipt) =>
+      createTrialReceipt({
+        runId: receipt.runId,
+        trackId: receipt.trackId,
+        trialId: receipt.trialId,
+        executionStatus: receipt.executionStatus,
+        ...(receipt.failureOwner === undefined
+          ? {}
+          : { failureOwner: receipt.failureOwner }),
+        host: receipt.host,
+        artifacts: receipt.artifacts,
+        metrics: receipt.metrics,
+        ...(receipt.latencyMs === undefined ? {} : { latencyMs: receipt.latencyMs }),
+        ...(receipt.tokenCount === undefined ? {} : { tokenCount: receipt.tokenCount }),
+        ...(receipt.cost === undefined ? {} : { cost: receipt.cost }),
+        ...(receipt.cleanupStatus === undefined
+          ? {}
+          : { cleanupStatus: receipt.cleanupStatus }),
+        productBoundary,
+      }),
+    ),
+  );
+}
+
+export interface ImmutableRunInput {
   readonly plan: RunPlan;
   readonly manifest: SourceManifest;
   readonly candidate: CandidateTransport;
+  /** Normalized immutable identity required for standard live candidates. */
+  readonly candidateIdentity?: CandidateIdentityConfig | undefined;
   readonly judge: JudgeTransport | undefined;
+  /** Normalized immutable identity required for live native-Judge tracks. */
+  readonly judgeIdentity?: JudgeIdentityConfig | undefined;
   readonly runtime?: RuntimeBundleConfig | undefined;
-  readonly executor: TrackExecutor;
-}): Promise<ImmutableRunResult> {
+  readonly ifevalRightsRiskAcceptance?: IfevalRightsRiskAcceptance | undefined;
+  /** Host-owned teardown that must finish before append-only run artifacts finalize. */
+  readonly hostCleanup?: (() => Promise<"complete" | "failed">) | undefined;
+}
+
+function trialProductBoundary(
+  receipt: TrialReceipt,
+): ProductCandidateBoundary | undefined {
+  if (receipt.candidateMode === undefined) return undefined;
+  return parseProductCandidateBoundary({
+    candidateMode: receipt.candidateMode,
+    capabilitiesUsed: receipt.capabilitiesUsed,
+    productBehaviorExercised: receipt.productBehaviorExercised,
+    referenceHost: receipt.referenceHost,
+    productIdentity: receipt.productIdentity,
+  });
+}
+
+function cleanupFailureExecution(input: {
+  readonly execution: TrackExecutionResult;
+  readonly evidence: (value: unknown, mediaType: string) => PrivateArtifactRef;
+}): TrackExecutionResult {
+  return Object.freeze({
+    executionStatus: "invalid" as const,
+    failureOwner: "cleanup" as const,
+    trialReceipts: Object.freeze(
+      input.execution.trialReceipts.map((receipt) => {
+        const productBoundary = trialProductBoundary(receipt);
+        return createTrialReceipt({
+          runId: receipt.runId,
+          trackId: receipt.trackId,
+          trialId: receipt.trialId,
+          executionStatus: "invalid",
+          failureOwner: "cleanup",
+          host: receipt.host,
+          artifacts: receipt.artifacts,
+          metrics: null,
+          ...(receipt.latencyMs === undefined ? {} : { latencyMs: receipt.latencyMs }),
+          ...(receipt.tokenCount === undefined
+            ? {}
+            : { tokenCount: receipt.tokenCount }),
+          ...(receipt.cost === undefined ? {} : { cost: receipt.cost }),
+          cleanupStatus: "failed",
+          ...(productBoundary === undefined ? {} : { productBoundary }),
+        });
+      }),
+    ),
+    metrics: emptyMetrics(),
+    nativeEvidence: input.evidence(
+      {
+        reason: "host or track cleanup failed",
+        owner: "cleanup",
+        priorNativeEvidenceDigest: input.execution.nativeEvidence.digest,
+      },
+      "application/json",
+    ),
+    cleanupStatus: "failed" as const,
+  });
+}
+
+export async function executeImmutableRun(
+  input: ImmutableRunInput,
+): Promise<ImmutableRunResult> {
+  if ("executor" in input) {
+    throw new TypeError("run executor override is not supported");
+  }
+  // Snapshot and rebuild the public plan contract before selecting a native
+  // executor or creating any path derived from a caller-supplied plan ID.
+  // Malformed inputs are rejected without filesystem effects because no safe
+  // canonical receipt identity exists for them.
+  const envelopePlan = rebuildRunPlanEnvelope(input.plan);
+  const manifest = parseSourceManifest(input.manifest);
+  if (stableDigest(manifest) !== envelopePlan.sourceManifestDigest) {
+    return executeImmutableRunWithExecutor({
+      ...input,
+      plan: envelopePlan,
+      manifest,
+      executor: REJECTED_PLAN_EXECUTOR,
+      planPreflightFailure: Object.freeze({
+        owner: "source" as const,
+        reason: "source manifest digest does not match run plan",
+      }),
+    });
+  }
+  let canonicalPlan: RunPlan;
+  try {
+    canonicalPlan = createRunPlan({
+      manifest,
+      spec: envelopePlan.runSpec!,
+      evidenceRoot: envelopePlan.evidenceRoot,
+      cacheRoot: envelopePlan.cacheRoot,
+    });
+  } catch (error) {
+    return executeImmutableRunWithExecutor({
+      ...input,
+      plan: envelopePlan,
+      manifest,
+      executor: REJECTED_PLAN_EXECUTOR,
+      planPreflightFailure: Object.freeze({
+        owner: "verifier" as const,
+        reason: error instanceof Error ? error.message : "run plan contract is invalid",
+      }),
+    });
+  }
+  let planMatches = false;
+  try {
+    planMatches = stableDigest(input.plan) === stableDigest(canonicalPlan);
+  } catch {
+    planMatches = false;
+  }
+  if (!planMatches) {
+    return executeImmutableRunWithExecutor({
+      ...input,
+      plan: canonicalPlan,
+      manifest,
+      executor: REJECTED_PLAN_EXECUTOR,
+      planPreflightFailure: Object.freeze({
+        owner: "verifier" as const,
+        reason: "run plan does not match its canonical manifest and runSpec",
+      }),
+    });
+  }
+  return executeImmutableRunWithExecutor({
+    ...input,
+    plan: canonicalPlan,
+    manifest,
+    executor: getNativeTrackExecutor(canonicalPlan.trackId),
+  });
+}
+
+async function executeImmutableRunWithExecutor(
+  input: ImmutableRunInput & {
+    readonly executor: TrackExecutor;
+    readonly planPreflightFailure?:
+      | {
+          readonly owner: "source" | "verifier";
+          readonly reason: string;
+        }
+      | undefined;
+  },
+): Promise<ImmutableRunResult> {
   const plan = input.plan;
   const runRoot = resolve(plan.evidenceRoot, plan.id);
   mkdirSync(runRoot, { recursive: true });
   const evidence = (value: unknown, mediaType: string) =>
     privateArtifact(plan.evidenceRoot, value, mediaType);
+  let rightsRiskAcceptanceValidated = false;
+  let verifiedProductBoundary: ProductCandidateBoundary | undefined;
+  const finalize = async (
+    execution: TrackExecutionResult,
+    source: MaterializedSourceVerification | undefined,
+  ) => {
+    let hostCleanupStatus: "complete" | "failed" = "complete";
+    if (input.hostCleanup !== undefined) {
+      try {
+        hostCleanupStatus = await input.hostCleanup();
+      } catch {
+        hostCleanupStatus = "failed";
+      }
+    }
+    const finalizedExecution =
+      hostCleanupStatus === "complete" && execution.cleanupStatus === "complete"
+        ? execution
+        : cleanupFailureExecution({ execution, evidence });
+    return finalizeRun({
+      input,
+      execution: finalizedExecution,
+      source,
+      runRoot,
+      rightsRiskAcceptanceValidated,
+      verifiedProductBoundary,
+    });
+  };
+  if (input.planPreflightFailure !== undefined) {
+    const execution = failureExecution({
+      owner: input.planPreflightFailure.owner,
+      reason: input.planPreflightFailure.reason,
+      evidence,
+    });
+    return finalize(execution, undefined);
+  }
   if (plan.runSpec === undefined) {
     const execution = failureExecution({
       owner: "verifier",
       reason: "run plan is missing immutable runSpec",
       evidence,
     });
-    return finalizeRun({ input, execution, source: undefined, runRoot });
+    return finalize(execution, undefined);
   }
   const runSpec = plan.runSpec;
   let execution: TrackExecutionResult;
   let source: MaterializedSourceVerification | undefined;
+  const compatibilityError = runProfileCandidateCompatibilityError(
+    runSpec.profile,
+    runSpec.candidateType,
+  );
+  if (compatibilityError !== undefined) {
+    execution = failureExecution({
+      owner: "verifier",
+      reason: compatibilityError,
+      evidence,
+    });
+    return finalize(execution, source);
+  }
+  if (runSpec.candidateType !== input.candidate.kind) {
+    execution = failureExecution({
+      owner: "verifier",
+      reason: "candidate transport kind does not match run candidateType identity",
+      evidence,
+    });
+    return finalize(execution, source);
+  }
   try {
     if (runSpec.candidateType !== "fixture") {
       const manifestDigest = verifySourceManifestPins(input.manifest);
@@ -319,7 +655,147 @@ export async function executeImmutableRun(input: {
       reason: error instanceof Error ? error.message : "source pin verification failed",
       evidence,
     });
-    return finalizeRun({ input, execution, source, runRoot });
+    return finalize(execution, source);
+  }
+  if (
+    runSpec.candidateType === "coffee_chat_product" &&
+    runSpec.candidateDigest !== COFFEE_CHAT_PRODUCT_CANDIDATE_DIGEST
+  ) {
+    execution = failureExecution({
+      owner: "verifier",
+      reason:
+        "run candidate digest does not match the admitted Product candidate identity",
+      evidence,
+    });
+    return finalize(execution, source);
+  }
+  if (
+    runSpec.candidateType === "coffee_chat_product" &&
+    runSpec.seed !== COFFEE_CHAT_PRODUCT_SEED
+  ) {
+    execution = failureExecution({
+      owner: "verifier",
+      reason: "run Product candidate seed does not match the admitted identity",
+      evidence,
+    });
+    return finalize(execution, source);
+  }
+  let runtime: RuntimeBundleConfig | undefined = input.runtime;
+  if (runSpec.candidateType === "coffee_chat_product") {
+    try {
+      runtime =
+        input.runtime === undefined
+          ? undefined
+          : parseRuntimeBundleConfig(input.runtime);
+    } catch (error) {
+      execution = failureExecution({
+        owner: "host",
+        reason: error instanceof Error ? error.message : "runtime bundle is invalid",
+        evidence,
+      });
+      return finalize(execution, source);
+    }
+  }
+  if (
+    runSpec.candidateType === "coffee_chat_product" &&
+    runtime !== undefined &&
+    runtime.candidate.model !== COFFEE_CHAT_PRODUCT_MODEL
+  ) {
+    execution = failureExecution({
+      owner: "host",
+      reason: "candidate runtime model does not match admitted Product identity",
+      evidence,
+    });
+    return finalize(execution, source);
+  }
+  if (
+    runSpec.candidateType === "coffee_chat_product" &&
+    runtime === undefined &&
+    !(runSpec.trackId === "ifeval" && input.ifevalRightsRiskAcceptance === undefined)
+  ) {
+    execution = failureExecution({
+      owner: "host",
+      reason: "live candidate runtime capability is missing",
+      evidence,
+    });
+    return finalize(execution, source);
+  }
+  if (
+    runSpec.candidateType === "coffee_chat_product" &&
+    runtime !== undefined &&
+    !coffeeChatProductCandidateTransportMatchesRuntime(
+      input.candidate,
+      runtime.candidate,
+      plan.evidenceRoot,
+    )
+  ) {
+    const unavailablePreparation = isUnavailableCoffeeChatProductCandidateTransport(
+      input.candidate,
+    );
+    execution = failureExecution({
+      owner: unavailablePreparation ? "host" : "verifier",
+      reason: unavailablePreparation
+        ? "coffee_chat_product candidate preparation is unavailable"
+        : "coffee_chat_product transport is not bound to the normalized Responses candidate runtime",
+      evidence,
+    });
+    return finalize(execution, source);
+  }
+  const declaredCandidateType = runSpec.candidateType ?? input.candidate.kind;
+  if (
+    runSpec.trackId === "ifeval" &&
+    (ifevalNativeRuntimeRequiresRightsHold(declaredCandidateType) ||
+      ifevalNativeRuntimeRequiresRightsHold(input.candidate.kind))
+  ) {
+    try {
+      const acceptance = validateIfevalPrivateSmokeRiskAcceptance({
+        profile: runSpec.profile,
+        candidateType: input.candidate.kind,
+        expectedDigest: runSpec.rightsRiskAcceptanceDigest,
+        expectedCandidateDigest: runSpec.candidateDigest,
+        receipt: input.ifevalRightsRiskAcceptance,
+      });
+      // Preserve the private receipt under EVIDENCE_ROOT without exposing its
+      // body, operator, timestamp, or local source path in public provenance.
+      evidence(acceptance, "application/json");
+      rightsRiskAcceptanceValidated = true;
+    } catch (error) {
+      execution = failureExecution({
+        owner: "rights",
+        reason:
+          error instanceof Error
+            ? error.message
+            : IFEVAL_NATIVE_RUNTIME_RIGHTS_HOLD_REASON,
+        evidence,
+      });
+      return finalize(execution, source);
+    }
+  } else if (input.ifevalRightsRiskAcceptance !== undefined) {
+    execution = failureExecution({
+      owner: "verifier",
+      reason: "IFEval rights risk acceptance is outside its admitted run scope",
+      evidence,
+    });
+    return finalize(execution, source);
+  }
+  const declaredProductBoundary = productBoundaryForCandidate(input.candidate);
+  if (runSpec.candidateType === "coffee_chat_product") {
+    if (input.candidate.kind !== "coffee_chat_product") {
+      execution = failureExecution({
+        owner: "host",
+        reason: "coffee_chat_product run requires a product candidate transport",
+        evidence,
+      });
+      return finalize(execution, source);
+    }
+    if (declaredProductBoundary === undefined) {
+      execution = failureExecution({
+        owner: "host",
+        reason: "coffee_chat_product transport is missing immutable product provenance",
+        evidence,
+      });
+      return finalize(execution, source);
+    }
   }
   if (
     input.manifest.providerTermsPolicy === "receipt-required" &&
@@ -331,20 +807,20 @@ export async function executeImmutableRun(input: {
       reason: "provider-terms receipt is required",
       evidence,
     });
-    return finalizeRun({ input, execution, source, runRoot });
+    return finalize(execution, source);
   }
-  if (runSpec.candidateType === "coffee_chat_product") {
-    execution = Object.freeze({
-      executionStatus: "not_implemented" as const,
-      trialReceipts: Object.freeze([]),
-      metrics: emptyMetrics(),
-      nativeEvidence: evidence(
-        { reason: "coffee_chat_product is not implemented" },
-        "application/json",
-      ),
-      cleanupStatus: "complete" as const,
+  if (
+    runSpec.candidateType !== "coffee_chat_product" &&
+    (input.candidate.kind === "coffee_chat_product" ||
+      declaredProductBoundary !== undefined ||
+      input.candidate.productHostPreflight !== undefined)
+  ) {
+    execution = failureExecution({
+      owner: "host",
+      reason: "product candidate transport does not match run identity",
+      evidence,
     });
-    return finalizeRun({ input, execution, source, runRoot });
+    return finalize(execution, source);
   }
   if (
     runSpec.candidateType !== "fixture" &&
@@ -355,21 +831,177 @@ export async function executeImmutableRun(input: {
       reason: "isolation evidence is required",
       evidence,
     });
-    return finalizeRun({ input, execution, source, runRoot });
+    return finalize(execution, source);
   }
-  const runtimeFailure = validateRuntimeForRun({ plan, runtime: input.runtime });
+  if (
+    runSpec.candidateType !== "coffee_chat_product" &&
+    runSpec.candidateType !== "fixture" &&
+    runtime !== undefined
+  ) {
+    try {
+      runtime = parseRuntimeBundleConfig(runtime);
+    } catch (error) {
+      execution = failureExecution({
+        owner: "host",
+        reason: error instanceof Error ? error.message : "runtime bundle is invalid",
+        evidence,
+      });
+      return finalize(execution, source);
+    }
+  }
+  const runtimeFailure = validateRuntimeForRun({ plan, runtime });
   if (runtimeFailure !== undefined) {
     execution = failureExecution({
       owner: runtimeFailure.failureOwner,
       reason: runtimeFailure.reason,
       evidence,
     });
-    return finalizeRun({ input, execution, source, runRoot });
+    return finalize(execution, source);
   }
+  let standardCandidateIdentity: CandidateIdentityConfig | undefined;
+  if (
+    runSpec.candidateType === "reference_model" ||
+    runSpec.candidateType === "agent_stack"
+  ) {
+    try {
+      if (input.candidateIdentity === undefined) {
+        throw new TypeError("live standard candidate identity is missing");
+      }
+      standardCandidateIdentity = parseCandidateIdentityConfig(input.candidateIdentity);
+      if (standardCandidateIdentity.candidateType !== runSpec.candidateType) {
+        throw new TypeError("candidate identity type does not match run candidateType");
+      }
+      if (
+        candidateIdentityDigest(standardCandidateIdentity) !== runSpec.candidateDigest
+      ) {
+        throw new TypeError("candidate identity digest does not match run plan");
+      }
+      if (standardCandidateIdentity.seed !== runSpec.seed) {
+        throw new TypeError("candidate identity seed does not match run plan");
+      }
+      if (runtime?.candidate.model !== standardCandidateIdentity.model) {
+        throw new TypeError("candidate runtime model does not match run identity");
+      }
+    } catch (error) {
+      execution = failureExecution({
+        owner: "verifier",
+        reason:
+          error instanceof Error ? error.message : "candidate identity is invalid",
+        evidence,
+      });
+      return finalize(execution, source);
+    }
+  }
+  if (
+    (runSpec.candidateType === "reference_model" ||
+      runSpec.candidateType === "agent_stack") &&
+    (runtime === undefined ||
+      !responsesCandidateTransportMatchesRuntime(
+        input.candidate,
+        runtime.candidate,
+        plan.evidenceRoot,
+        runSpec.candidateDigest,
+      ))
+  ) {
+    execution = failureExecution({
+      owner: "verifier",
+      reason:
+        "live candidate transport is not bound to the normalized Responses candidate runtime",
+      evidence,
+    });
+    return finalize(execution, source);
+  }
+  const liveNativeJudgeRequired =
+    declaredCandidateType !== "fixture" &&
+    (runSpec.trackId === "coffee-chat-taste" || runSpec.trackId === "beam-record-core");
+  let normalizedJudgeIdentity: JudgeIdentityConfig | undefined;
+  if (liveNativeJudgeRequired) {
+    try {
+      if (input.judgeIdentity === undefined) {
+        throw new TypeError("live native Judge identity is missing");
+      }
+      normalizedJudgeIdentity = parseJudgeIdentityConfig(input.judgeIdentity);
+      if (judgeIdentityDigest(normalizedJudgeIdentity) !== runSpec.judgeDigest) {
+        throw new TypeError("Judge identity digest does not match run plan");
+      }
+      if (runtime?.judge?.model !== normalizedJudgeIdentity.model) {
+        throw new TypeError("Judge runtime model does not match run identity");
+      }
+    } catch (error) {
+      execution = failureExecution({
+        owner: "verifier",
+        reason: error instanceof Error ? error.message : "Judge identity is invalid",
+        evidence,
+      });
+      return finalize(execution, source);
+    }
+  }
+  if (
+    liveNativeJudgeRequired &&
+    (input.judge === undefined ||
+      runtime?.judge === undefined ||
+      !responsesJudgeTransportMatchesRuntime(
+        input.judge,
+        runtime.judge,
+        plan.evidenceRoot,
+        runSpec.judgeDigest,
+      ))
+  ) {
+    execution = failureExecution({
+      owner: "verifier",
+      reason:
+        "live native Judge transport is not bound to the normalized Responses Judge runtime",
+      evidence,
+    });
+    return finalize(execution, source);
+  }
+  if (runSpec.candidateType === "coffee_chat_product") {
+    const productHost = runtime?.productHost;
+    if (productHost === undefined) {
+      execution = failureExecution({
+        owner: "host",
+        reason: "coffee_chat_product runtime requires the reference product host",
+        evidence,
+      });
+      return finalize(execution, source);
+    }
+    const verification = await verifyCoffeeChatProductPackage({
+      packageRoot: productHost.packageRoot,
+      identity: {
+        repository: COFFEE_CHAT_PRODUCT_REPOSITORY,
+        commit: COFFEE_CHAT_PRODUCT_COMMIT,
+        calver: COFFEE_CHAT_PRODUCT_CALVER,
+        packageDigest: COFFEE_CHAT_PRODUCT_PACKAGE_DIGEST,
+        mode: "connectivity_only",
+      },
+    });
+    if (verification.state !== "verified") {
+      execution = failureExecution({
+        owner: verification.failureOwner,
+        reason: verification.reason,
+        evidence,
+      });
+      return finalize(execution, source);
+    }
+    if (
+      declaredProductBoundary === undefined ||
+      stableDigest(declaredProductBoundary) !== stableDigest(verification.metadata)
+    ) {
+      execution = failureExecution({
+        owner: "host",
+        reason: "product transport provenance does not match verified package bytes",
+        evidence,
+      });
+      return finalize(execution, source);
+    }
+    verifiedProductBoundary = verification.metadata;
+  }
+  const expectedRuntimeLockPath = evalOwnedRuntimeLockForTrack(input.manifest.trackId);
   try {
     source = verifyMaterializedSource({
       manifest: input.manifest,
       cacheRoot: plan.cacheRoot,
+      ...(expectedRuntimeLockPath === undefined ? {} : { expectedRuntimeLockPath }),
     });
   } catch (error) {
     execution = failureExecution({
@@ -378,10 +1010,22 @@ export async function executeImmutableRun(input: {
         error instanceof Error ? error.message : "materialized source unavailable",
       evidence,
     });
-    return finalizeRun({ input, execution, source, runRoot });
+    return finalize(execution, source);
+  }
+  // Source and Product verification can outlive a short-lived broker
+  // capability. Recheck both candidate and Judge deadlines at the last
+  // evaluator-owned boundary before native code can dispatch either one.
+  const dispatchRuntimeFailure = validateRuntimeForRun({ plan, runtime });
+  if (dispatchRuntimeFailure !== undefined) {
+    execution = failureExecution({
+      owner: dispatchRuntimeFailure.failureOwner,
+      reason: dispatchRuntimeFailure.reason,
+      evidence,
+    });
+    return finalize(execution, source);
   }
   try {
-    execution = await materializedSourceResult({ ...input, source });
+    execution = await materializedSourceResult({ ...input, runtime, source });
   } catch (error) {
     const owner = adapterFailureOwner(error);
     execution = failureExecution({
@@ -390,26 +1034,33 @@ export async function executeImmutableRun(input: {
       evidence,
     });
   }
-  if (execution.cleanupStatus !== "complete") {
-    execution = Object.freeze({
-      ...execution,
-      executionStatus: "invalid" as const,
-      failureOwner: "cleanup" as const,
-    });
-  }
-  return finalizeRun({ input, execution, source, runRoot });
+  execution = Object.freeze({
+    ...execution,
+    trialReceipts: decorateTrialReceipts(
+      execution.trialReceipts,
+      verifiedProductBoundary,
+    ),
+  });
+  return finalize(execution, source);
 }
 
 async function finalizeRun(input: {
   readonly input: {
     readonly plan: RunPlan;
     readonly manifest: SourceManifest;
+    readonly candidate: CandidateTransport;
   };
   readonly execution: TrackExecutionResult;
   readonly source: MaterializedSourceVerification | undefined;
   readonly runRoot: string;
+  readonly rightsRiskAcceptanceValidated: boolean;
+  readonly verifiedProductBoundary: ProductCandidateBoundary | undefined;
 }): Promise<ImmutableRunResult> {
   const { plan } = input.input;
+  const rightsRiskAcceptanceValidated = input.rightsRiskAcceptanceValidated;
+  const productBoundary = input.verifiedProductBoundary;
+  const rightsRiskProvenanceValidated =
+    rightsRiskAcceptanceValidated && productBoundary !== undefined;
   let execution = input.execution;
   try {
     assertArtifact(plan.evidenceRoot, execution.nativeEvidence);
@@ -432,6 +1083,15 @@ async function finalizeRun(input: {
       sourceManifestDigest: plan.sourceManifestDigest,
       runId: plan.id,
       nativeEvidenceDigest: execution.nativeEvidence.digest,
+      ...(!rightsRiskProvenanceValidated ||
+      plan.runSpec?.rightsRiskAcceptanceDigest === undefined
+        ? {}
+        : {
+            rightsRiskAcceptanceDigest: plan.runSpec.rightsRiskAcceptanceDigest,
+            licenseCleared: false as const,
+            rightsExecutionScope: "private-internal-smoke-only" as const,
+          }),
+      ...(productBoundary === undefined ? {} : productBoundary),
     },
   });
   const trackReportPath = join(input.runRoot, "track-report.json");
@@ -451,6 +1111,8 @@ async function finalizeRun(input: {
       judge: plan.runSpec!.judgeDigest,
       secret: execution.nativeEvidence.digest,
     },
+    ...(productBoundary === undefined ? {} : { productBoundary }),
+    rightsRiskAcceptanceValidated: rightsRiskProvenanceValidated,
   });
   const publicReceipt = redactEvidenceReceipt(receipt);
   const publicReceiptPath = join(input.runRoot, "public-receipt.json");
