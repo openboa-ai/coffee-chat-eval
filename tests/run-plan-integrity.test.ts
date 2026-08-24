@@ -241,3 +241,94 @@ test("direct run execution rejects cloned plan identity drift before native disp
     assert.match(observation.reason, /run plan/u, `${observation.name} reason`);
   }
 });
+
+test("digest-bound manifest authority conflicts are verifier failures before candidate dispatch", async () => {
+  const attacks = [
+    {
+      name: "trackId",
+      prepare: (fixture: ReturnType<typeof planFixture>) => {
+        const manifest = parseSourceManifest({
+          ...fixture.manifest,
+          trackId: "agentdojo-security",
+        });
+        const runSpec = parseRunSpec({
+          ...fixture.plan.runSpec!,
+          sourceManifestDigest: stableDigest(manifest),
+        });
+        return Object.freeze({ manifest, runSpec });
+      },
+      reason: /run spec and source manifest track ids must match/u,
+    },
+    {
+      name: "providerTermsDigest",
+      prepare: (fixture: ReturnType<typeof planFixture>) => {
+        const manifest = parseSourceManifest({
+          ...fixture.manifest,
+          providerTermsPolicy: "receipt-required",
+          providerTermsDigest: stableDigest("manifest provider terms"),
+        });
+        const runSpec = parseRunSpec({
+          ...fixture.plan.runSpec!,
+          sourceManifestDigest: stableDigest(manifest),
+          providerTermsDigest: stableDigest("different provider terms"),
+        });
+        return Object.freeze({ manifest, runSpec });
+      },
+      reason: /run spec provider terms digest does not match source manifest/u,
+    },
+  ] as const;
+
+  const observations: Array<{
+    readonly name: string;
+    readonly executionStatus: string;
+    readonly failureOwner: string | undefined;
+    readonly candidateCalls: number;
+  }> = [];
+  for (const attack of attacks) {
+    const fixture = planFixture();
+    let candidateCalls = 0;
+    try {
+      const prepared = attack.prepare(fixture);
+      assert.equal(
+        prepared.runSpec.sourceManifestDigest,
+        stableDigest(prepared.manifest),
+        `${attack.name} setup must bind the manifest bytes into RunSpec`,
+      );
+      const result = await executeImmutableRun({
+        plan: Object.freeze({
+          ...fixture.plan,
+          runSpec: prepared.runSpec,
+        }),
+        manifest: prepared.manifest,
+        candidate: createFixtureCandidateTransport(
+          () => {
+            candidateCalls += 1;
+            return "fixture response";
+          },
+          { evidenceRoot: fixture.plan.evidenceRoot },
+        ),
+        judge: undefined,
+      });
+
+      observations.push({
+        name: attack.name,
+        executionStatus: result.trackReport.executionStatus,
+        failureOwner: result.publicReceipt.failureOwner,
+        candidateCalls,
+      });
+      assert.match(privateFailureReason(result), attack.reason);
+    } finally {
+      rmSync(fixture.root, { recursive: true, force: true });
+    }
+  }
+
+  assert.deepEqual(
+    observations,
+    attacks.map((attack) => ({
+      name: attack.name,
+      executionStatus: "invalid",
+      failureOwner: "verifier",
+      candidateCalls: 0,
+    })),
+  );
+});

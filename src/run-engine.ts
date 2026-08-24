@@ -528,8 +528,8 @@ export async function executeImmutableRun(
       manifest,
       executor: REJECTED_PLAN_EXECUTOR,
       planPreflightFailure: Object.freeze({
-        owner: "source" as const,
-        reason: error instanceof Error ? error.message : "source manifest is invalid",
+        owner: "verifier" as const,
+        reason: error instanceof Error ? error.message : "run plan contract is invalid",
       }),
     });
   }
