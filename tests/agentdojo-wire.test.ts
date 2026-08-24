@@ -3,6 +3,8 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 
+import { createAgentDojoInventory } from "../src/agentdojo.ts";
+
 const bridgePath = fileURLToPath(
   new URL("../integrations/agentdojo/bridge.py", import.meta.url),
 );
@@ -372,4 +374,178 @@ print(json.dumps(captured, sort_keys=True))
     JSON.stringify((observed as { payloads: unknown }).payloads),
     /discarded query|evaluator-only|scorer|injectionGoal|groundTruth/u,
   );
+});
+
+test("AgentDojo separates malformed completed candidate output from broker unavailability", () => {
+  const observed = runPython(String.raw`
+import importlib.util
+import json
+import sys
+import types
+
+agentdojo = types.ModuleType("agentdojo")
+functions_runtime = types.ModuleType("agentdojo.functions_runtime")
+agentdojo_types = types.ModuleType("agentdojo.types")
+
+class FunctionCall:
+    def __init__(self, function, args, id=None):
+        self.function = function
+        self.args = args
+        self.id = id
+
+functions_runtime.FunctionCall = FunctionCall
+agentdojo_types.text_content_block_from_string = lambda content: {"type": "text", "content": content}
+sys.modules["agentdojo"] = agentdojo
+sys.modules["agentdojo.functions_runtime"] = functions_runtime
+sys.modules["agentdojo.types"] = agentdojo_types
+
+spec = importlib.util.spec_from_file_location("coffee_chat_agentdojo_bridge", sys.argv[1])
+bridge = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(bridge)
+
+payloads = {
+    "malformed_arguments": {
+        "status": "completed",
+        "output": [{
+            "type": "function_call",
+            "call_id": "call_1",
+            "name": "lookup",
+            "arguments": "not-json",
+        }],
+    },
+    "duplicate_call_ids": {
+        "status": "completed",
+        "output": [
+            {"type": "function_call", "call_id": "call_1", "name": "lookup", "arguments": "{}"},
+            {"type": "function_call", "call_id": "call_1", "name": "lookup", "arguments": "{}"},
+        ],
+    },
+    "provider_error": {
+        "status": "failed",
+        "error": {"message": "provider failed"},
+        "output": [],
+    },
+    "in_progress": {
+        "status": "in_progress",
+        "error": None,
+        "output": [],
+    },
+    "missing_status": {
+        "error": None,
+        "output": [],
+    },
+}
+
+outcomes = {}
+for label, payload in payloads.items():
+    try:
+        bridge._response_assistant(payload)
+    except Exception as error:
+        outcomes[label] = type(error).__name__
+    else:
+        outcomes[label] = "accepted"
+
+print(json.dumps(outcomes, sort_keys=True))
+`);
+
+  assert.deepEqual(observed, {
+    duplicate_call_ids: "CandidateOutputInvalid",
+    in_progress: "BrokerUnavailable",
+    malformed_arguments: "CandidateOutputInvalid",
+    missing_status: "BrokerUnavailable",
+    provider_error: "BrokerUnavailable",
+  });
+});
+
+test("AgentDojo bridge derives the turn ceiling from each admitted profile", () => {
+  const observed = runPython(String.raw`
+import importlib.util
+import json
+import sys
+
+spec = importlib.util.spec_from_file_location("coffee_chat_agentdojo_bridge", sys.argv[1])
+bridge = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(bridge)
+
+print(json.dumps({
+    "fixture": bridge._candidate_turn_ceiling("fixture", 3),
+    "smoke": bridge._candidate_turn_ceiling("smoke", 3),
+    "pilot": bridge._candidate_turn_ceiling("pilot", 24),
+    "score": bridge._candidate_turn_ceiling("score", 1081),
+}, sort_keys=True))
+`);
+
+  assert.deepEqual(observed, {
+    fixture: 3,
+    pilot: 360,
+    score: 16215,
+    smoke: 45,
+  });
+});
+
+test("AgentDojo score inventory matches the exact pinned task-ID authority", () => {
+  const expected = createAgentDojoInventory("score").map((episode) => ({
+    suite: episode.suite,
+    kind: episode.kind,
+    userTaskId: episode.userTaskId,
+    injectionTaskId: episode.injectionTaskId,
+  }));
+  const slackInjectionTasks = expected
+    .filter(
+      (episode) => episode.suite === "slack" && episode.kind === "injection-control",
+    )
+    .map((episode) => episode.injectionTaskId);
+
+  assert.deepEqual(slackInjectionTasks, [
+    "injection_task_1",
+    "injection_task_2",
+    "injection_task_3",
+    "injection_task_4",
+    "injection_task_5",
+  ]);
+
+  const observed = runPython(String.raw`
+import importlib.util
+import json
+import sys
+
+spec = importlib.util.spec_from_file_location("coffee_chat_agentdojo_bridge", sys.argv[1])
+bridge = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(bridge)
+
+checks = {}
+for label, users, injections in (
+    (
+        "upstream_order",
+        tuple(reversed(bridge.SCORE_USER_TASKS["workspace"])),
+        tuple(reversed(bridge.SCORE_INJECTION_TASKS["workspace"])),
+    ),
+    (
+        "missing_task",
+        bridge.SCORE_USER_TASKS["workspace"][:-1],
+        bridge.SCORE_INJECTION_TASKS["workspace"],
+    ),
+):
+    try:
+        bridge._verify_score_task_ids("workspace", users, injections)
+    except ValueError:
+        checks[label] = "rejected"
+    else:
+        checks[label] = "accepted"
+
+print(json.dumps({
+    "episodes": bridge._episode_ids("score", None, None),
+    "checks": checks,
+}, sort_keys=True))
+`) as {
+    readonly episodes: readonly Record<string, unknown>[];
+    readonly checks: Readonly<Record<string, string>>;
+  };
+
+  assert.equal(observed.episodes.length, 1081);
+  assert.deepEqual(observed.episodes, expected);
+  assert.deepEqual(observed.checks, {
+    missing_task: "rejected",
+    upstream_order: "accepted",
+  });
 });

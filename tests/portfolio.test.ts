@@ -980,6 +980,7 @@ test("offline replay executes all four native factories behind a non-reportable 
                 publishedTableComparable: false,
                 status: "measured",
                 candidateCalls: 3,
+                maxCandidateTurns: 3,
                 benignUtility: { numerator: 1, denominator: 1, value: 1 },
                 utilityUnderAttack: { numerator: 1, denominator: 1, value: 1 },
                 targetedASR: { numerator: 0, denominator: 1, value: 0 },

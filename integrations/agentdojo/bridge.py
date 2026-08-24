@@ -30,9 +30,33 @@ SMOKE_USER_TASKS = {"workspace": ("user_task_0",)}
 SMOKE_INJECTION_TASKS = {"workspace": ("injection_task_0",)}
 PILOT_USER_TASKS = {"workspace": ("user_task_0", "user_task_24", "user_task_26", "user_task_13")}
 PILOT_INJECTION_TASKS = {"workspace": ("injection_task_0", "injection_task_1", "injection_task_4", "injection_task_10")}
+MAX_ITERS = 15
+
+
+def _sequential_task_ids(kind: str, first: int, count: int) -> tuple[str, ...]:
+    return tuple(f"{kind}_task_{index}" for index in range(first, first + count))
+
+
+# Exact task-ID sets admitted from AgentDojo v1.2.2, in Eval-stable order.
+SCORE_USER_TASKS = {
+    "workspace": _sequential_task_ids("user", 0, 40),
+    "travel": _sequential_task_ids("user", 0, 20),
+    "banking": _sequential_task_ids("user", 0, 16),
+    "slack": _sequential_task_ids("user", 0, 21),
+}
+SCORE_INJECTION_TASKS = {
+    "workspace": _sequential_task_ids("injection", 0, 14),
+    "travel": _sequential_task_ids("injection", 0, 7),
+    "banking": _sequential_task_ids("injection", 0, 9),
+    "slack": _sequential_task_ids("injection", 1, 5),
+}
 
 
 class BrokerUnavailable(RuntimeError):
+    pass
+
+
+class CandidateOutputInvalid(RuntimeError):
     pass
 
 
@@ -283,54 +307,54 @@ def _response_assistant(value: Any) -> dict[str, Any]:
     if value.get("error") is not None:
         raise BrokerUnavailable("broker returned a provider error")
     status = value.get("status")
-    if status is not None and status != "completed":
+    if status != "completed":
         raise BrokerUnavailable("broker response is not complete")
     output = value.get("output")
     if not isinstance(output, list):
-        raise BrokerUnavailable("broker response output is missing")
+        raise CandidateOutputInvalid("broker response output is missing")
     items = output
     content: list[dict[str, str]] = []
     calls: list[FunctionCall] = []
     call_ids: set[str] = set()
     for item in items:
         if not isinstance(item, dict):
-            raise BrokerUnavailable("broker response output item is invalid")
+            raise CandidateOutputInvalid("broker response output item is invalid")
         if item.get("type") == "function_call":
             call_id = item.get("call_id")
             name = item.get("name")
             raw_arguments = item.get("arguments")
             if not isinstance(call_id, str) or not call_id or call_id in call_ids:
-                raise BrokerUnavailable("broker function call ID is invalid")
+                raise CandidateOutputInvalid("broker function call ID is invalid")
             if not isinstance(raw_arguments, str):
-                raise BrokerUnavailable("broker function arguments are invalid")
+                raise CandidateOutputInvalid("broker function arguments are invalid")
             try:
                 arguments = json.loads(raw_arguments)
             except json.JSONDecodeError as exc:
-                raise BrokerUnavailable("broker function arguments are invalid") from exc
+                raise CandidateOutputInvalid("broker function arguments are invalid") from exc
             if not isinstance(name, str) or not name or not isinstance(arguments, dict):
-                raise BrokerUnavailable("broker function call is invalid")
+                raise CandidateOutputInvalid("broker function call is invalid")
             call_ids.add(call_id)
             calls.append(FunctionCall(function=name, args=arguments, id=call_id))
             continue
         if item.get("type") in {"reasoning", "computer_call", "file_search_call", "web_search_call"}:
             continue
         if item.get("type") != "message" or item.get("role") != "assistant":
-            raise BrokerUnavailable("broker response output item is unsupported")
+            raise CandidateOutputInvalid("broker response output item is unsupported")
         parts = item.get("content")
         if not isinstance(parts, list):
-            raise BrokerUnavailable("broker assistant content is invalid")
+            raise CandidateOutputInvalid("broker assistant content is invalid")
         for part in parts:
             if not isinstance(part, dict):
-                raise BrokerUnavailable("broker assistant content item is invalid")
+                raise CandidateOutputInvalid("broker assistant content item is invalid")
             if part.get("type") == "output_text" and isinstance(part.get("text"), str):
                 content.append(text_content_block_from_string(part["text"]))
                 continue
             if part.get("type") == "refusal" and isinstance(part.get("refusal"), str):
                 content.append(text_content_block_from_string(part["refusal"]))
                 continue
-            raise BrokerUnavailable("broker assistant content item is unsupported")
+            raise CandidateOutputInvalid("broker assistant content item is unsupported")
     if not content and not calls:
-        raise BrokerUnavailable("broker response contains no assistant output")
+        raise CandidateOutputInvalid("broker response contains no assistant output")
     return {"role": "assistant", "content": content or None, "tool_calls": calls or None}
 
 
@@ -489,6 +513,14 @@ def _metric(numerator: int, denominator: int) -> dict[str, int | float | None]:
     return {"numerator": numerator, "denominator": denominator, "value": None if denominator == 0 else numerator / denominator}
 
 
+def _candidate_turn_ceiling(profile: str, episode_count: int) -> int:
+    if profile == "fixture":
+        return episode_count
+    if profile in {"smoke", "pilot", "score"}:
+        return episode_count * MAX_ITERS
+    raise ValueError("unsupported AgentDojo profile")
+
+
 def _selections(profile: str) -> tuple[dict[str, tuple[str, ...]] | None, dict[str, tuple[str, ...]] | None]:
     if profile in {"smoke", "fixture"}:
         return SMOKE_USER_TASKS, SMOKE_INJECTION_TASKS
@@ -504,6 +536,9 @@ def _episode_ids(
     user_tasks: dict[str, tuple[str, ...]] | None,
     injection_tasks: dict[str, tuple[str, ...]] | None,
 ) -> list[dict[str, str | None]]:
+    if profile == "score":
+        user_tasks = SCORE_USER_TASKS
+        injection_tasks = SCORE_INJECTION_TASKS
     suites = ("workspace",) if profile in {"smoke", "fixture", "pilot"} else SUITES
     episodes: list[dict[str, str | None]] = []
     for suite in suites:
@@ -518,6 +553,19 @@ def _episode_ids(
                 for injection in injections:
                     episodes.append({"suite": suite, "kind": "attacked", "userTaskId": user, "injectionTaskId": injection})
     return episodes
+
+
+def _verify_score_task_ids(
+    suite_name: str,
+    actual_user_tasks: Sequence[str],
+    actual_injection_tasks: Sequence[str],
+) -> None:
+    expected_users = SCORE_USER_TASKS[suite_name]
+    expected_injections = SCORE_INJECTION_TASKS[suite_name]
+    if len(actual_user_tasks) != len(expected_users) or set(actual_user_tasks) != set(expected_users):
+        raise ValueError(f"AgentDojo score user-task IDs drifted for {suite_name}")
+    if len(actual_injection_tasks) != len(expected_injections) or set(actual_injection_tasks) != set(expected_injections):
+        raise ValueError(f"AgentDojo score injection-task IDs drifted for {suite_name}")
 
 
 def run(
@@ -553,7 +601,7 @@ def run(
                 "defense": None,
                 "profile": profile,
                 "candidateCalls": len(episodes),
-                "maxCandidateTurns": 45,
+                "maxCandidateTurns": _candidate_turn_ceiling(profile, len(episodes)),
                 "status": "measured",
                 "publishedTableComparable": False,
                 "benignUtility": _metric(1, 1),
@@ -591,24 +639,14 @@ def run(
     broker = _broker_class()(endpoint, capability, model, max_requests)
     selected_episodes = _episode_ids(profile, user_tasks, injection_tasks)
     if profile == "score":
-        selected_episodes = []
         for suite_name in SUITES:
             suite = get_suite(benchmark_version, suite_name)
-            users = tuple(suite.user_tasks.keys())
-            injections = tuple(suite.injection_tasks.keys())
-            selected_episodes.extend(
-                [{"suite": suite_name, "kind": "benign", "userTaskId": user, "injectionTaskId": None} for user in users]
+            _verify_score_task_ids(
+                suite_name,
+                tuple(suite.user_tasks.keys()),
+                tuple(suite.injection_tasks.keys()),
             )
-            selected_episodes.extend(
-                [{"suite": suite_name, "kind": "injection-control", "userTaskId": None, "injectionTaskId": injection} for injection in injections]
-            )
-            selected_episodes.extend(
-                [
-                    {"suite": suite_name, "kind": "attacked", "userTaskId": user, "injectionTaskId": injection}
-                    for user in users
-                    for injection in injections
-                ]
-            )
+    max_candidate_turns = _candidate_turn_ceiling(profile, len(selected_episodes))
     results: list[dict[str, Any]] = []
     trace_attempt = uuid4().hex
     provider_context_failure = False
@@ -656,6 +694,8 @@ def run(
                     utility = bool(attacked["utility_results"].get(key, False))
                     attack_success = not bool(attacked["security_results"].get(key, True))
                 results.append({**episode, "utility": utility, "attackSuccess": attack_success, "state": "measured"})
+        except CandidateOutputInvalid:
+            failure_owner = "candidate"
         except BrokerUnavailable:
             provider_context_failure = True
             failure_owner = "host"
@@ -678,7 +718,7 @@ def run(
                 "defense": None,
                 "profile": profile,
                 "candidateCalls": broker.calls,
-                "maxCandidateTurns": 45,
+                "maxCandidateTurns": max_candidate_turns,
                 "status": "unavailable" if provider_context_failure else "failed",
                 "failureOwner": failure_owner or "artifact",
                 "providerContextFailure": provider_context_failure,
@@ -701,7 +741,7 @@ def run(
             "defense": None,
             "profile": profile,
             "candidateCalls": broker.calls,
-            "maxCandidateTurns": 45,
+            "maxCandidateTurns": max_candidate_turns,
             "status": "measured",
             "publishedTableComparable": False,
             "benignUtility": _metric(sum(1 for item in benign if item["utility"]), len(benign)),

@@ -26,13 +26,56 @@ export const AGENTDOJO_SOURCE = Object.freeze({
 
 export const AGENTDOJO_ATTACK = "important_instructions_no_model_name" as const;
 export const AGENTDOJO_DEFENSE = "None" as const;
-export const AGENTDOJO_SUITE_COUNTS = Object.freeze({
-  workspace: Object.freeze({ userTasks: 40, injectionTasks: 14 }),
-  travel: Object.freeze({ userTasks: 20, injectionTasks: 7 }),
-  banking: Object.freeze({ userTasks: 16, injectionTasks: 9 }),
-  slack: Object.freeze({ userTasks: 21, injectionTasks: 5 }),
+
+function sequentialTaskIds(
+  kind: "user" | "injection",
+  first: number,
+  count: number,
+): readonly string[] {
+  return Object.freeze(
+    Array.from({ length: count }, (_, index) => `${kind}_task_${first + index}`),
+  );
+}
+
+/** Exact task-ID sets admitted from AgentDojo v1.2.2, in Eval-stable order. */
+export const AGENTDOJO_SUITE_TASK_IDS = Object.freeze({
+  workspace: Object.freeze({
+    userTasks: sequentialTaskIds("user", 0, 40),
+    injectionTasks: sequentialTaskIds("injection", 0, 14),
+  }),
+  travel: Object.freeze({
+    userTasks: sequentialTaskIds("user", 0, 20),
+    injectionTasks: sequentialTaskIds("injection", 0, 7),
+  }),
+  banking: Object.freeze({
+    userTasks: sequentialTaskIds("user", 0, 16),
+    injectionTasks: sequentialTaskIds("injection", 0, 9),
+  }),
+  slack: Object.freeze({
+    userTasks: sequentialTaskIds("user", 0, 21),
+    injectionTasks: sequentialTaskIds("injection", 1, 5),
+  }),
 });
-export type AgentDojoSuite = keyof typeof AGENTDOJO_SUITE_COUNTS;
+export type AgentDojoSuite = keyof typeof AGENTDOJO_SUITE_TASK_IDS;
+
+export const AGENTDOJO_SUITE_COUNTS = Object.freeze({
+  workspace: Object.freeze({
+    userTasks: AGENTDOJO_SUITE_TASK_IDS.workspace.userTasks.length,
+    injectionTasks: AGENTDOJO_SUITE_TASK_IDS.workspace.injectionTasks.length,
+  }),
+  travel: Object.freeze({
+    userTasks: AGENTDOJO_SUITE_TASK_IDS.travel.userTasks.length,
+    injectionTasks: AGENTDOJO_SUITE_TASK_IDS.travel.injectionTasks.length,
+  }),
+  banking: Object.freeze({
+    userTasks: AGENTDOJO_SUITE_TASK_IDS.banking.userTasks.length,
+    injectionTasks: AGENTDOJO_SUITE_TASK_IDS.banking.injectionTasks.length,
+  }),
+  slack: Object.freeze({
+    userTasks: AGENTDOJO_SUITE_TASK_IDS.slack.userTasks.length,
+    injectionTasks: AGENTDOJO_SUITE_TASK_IDS.slack.injectionTasks.length,
+  }),
+});
 
 export const AGENTDOJO_TOTAL_USER_TASKS = Object.values(AGENTDOJO_SUITE_COUNTS).reduce(
   (sum, suite) => sum + suite.userTasks,
@@ -81,26 +124,19 @@ function episode(
 
 function suiteEpisodes(
   suite: AgentDojoSuite,
-  userTasks: number,
-  injectionTasks: number,
+  userTasks: readonly string[],
+  injectionTasks: readonly string[],
 ): AgentDojoEpisode[] {
   const episodes: AgentDojoEpisode[] = [];
-  for (let index = 0; index < userTasks; index += 1) {
-    episodes.push(episode(suite, "benign", `user_task_${index}`, null));
+  for (const userTaskId of userTasks) {
+    episodes.push(episode(suite, "benign", userTaskId, null));
   }
-  for (let index = 0; index < injectionTasks; index += 1) {
-    episodes.push(episode(suite, "injection-control", null, `injection_task_${index}`));
+  for (const injectionTaskId of injectionTasks) {
+    episodes.push(episode(suite, "injection-control", null, injectionTaskId));
   }
-  for (let userIndex = 0; userIndex < userTasks; userIndex += 1) {
-    for (let injectionIndex = 0; injectionIndex < injectionTasks; injectionIndex += 1) {
-      episodes.push(
-        episode(
-          suite,
-          "attacked",
-          `user_task_${userIndex}`,
-          `injection_task_${injectionIndex}`,
-        ),
-      );
+  for (const userTaskId of userTasks) {
+    for (const injectionTaskId of injectionTasks) {
+      episodes.push(episode(suite, "attacked", userTaskId, injectionTaskId));
     }
   }
   return episodes;
@@ -144,8 +180,9 @@ export function createAgentDojoInventory(
     }
     return Object.freeze(episodes);
   }
-  const episodes = Object.entries(AGENTDOJO_SUITE_COUNTS).flatMap(([suite, counts]) =>
-    suiteEpisodes(suite as AgentDojoSuite, counts.userTasks, counts.injectionTasks),
+  const episodes = Object.entries(AGENTDOJO_SUITE_TASK_IDS).flatMap(
+    ([suite, taskIds]) =>
+      suiteEpisodes(suite as AgentDojoSuite, taskIds.userTasks, taskIds.injectionTasks),
   );
   return Object.freeze(episodes);
 }
@@ -348,6 +385,7 @@ function defaultAgentDojoBridge(): AgentDojoBridgeRunner {
 function agentDojoMetric(
   native: Record<string, unknown>,
   key: string,
+  expectedDenominator: number,
 ): {
   readonly numerator: number;
   readonly denominator: number;
@@ -365,8 +403,8 @@ function agentDojoMetric(
   ) {
     throw new TypeError(`AgentDojo native metric is malformed: ${key}`);
   }
-  if (metric.denominator !== 1) {
-    throw new TypeError(`AgentDojo smoke denominator must be one: ${key}`);
+  if (metric.denominator !== expectedDenominator) {
+    throw new TypeError(`AgentDojo native denominator is invalid: ${key}`);
   }
   return Object.freeze({
     numerator: metric.numerator,
@@ -475,12 +513,30 @@ export function createAgentDojoTrackExecutor(
         "AgentDojo native identity or public comparability flag drifted",
       );
     }
-    const episodes = native.episodes;
-    if (!Array.isArray(episodes) || episodes.length !== inventory.length) {
-      throw new TypeError(
-        "AgentDojo native episode census does not match sampled inventory",
-      );
+    const measured =
+      native.status === "measured" &&
+      native.failureOwner === undefined &&
+      native.providerContextFailure === undefined;
+    const providerUnavailable =
+      native.status === "unavailable" &&
+      native.failureOwner === "host" &&
+      native.providerContextFailure === true;
+    const failedOwner =
+      native.failureOwner === "candidate" ||
+      native.failureOwner === "adapter" ||
+      native.failureOwner === "artifact"
+        ? native.failureOwner
+        : undefined;
+    const failed =
+      native.status === "failed" &&
+      failedOwner !== undefined &&
+      native.providerContextFailure === false;
+    if (!measured && !providerUnavailable && !failed) {
+      throw new TypeError("AgentDojo native failure taxonomy is invalid");
     }
+    const episodes = native.episodes;
+    if (!Array.isArray(episodes) || episodes.length > inventory.length)
+      throw new TypeError("AgentDojo native episode census exceeds inventory");
     const expected = inventory.map(
       (episode) =>
         `${episode.suite}/${episode.kind}/${episode.userTaskId ?? "-"}/${episode.injectionTaskId ?? "-"}`,
@@ -492,10 +548,26 @@ export function createAgentDojoTrackExecutor(
       const record = value as Record<string, unknown>;
       return `${record.suite}/${record.kind}/${record.userTaskId ?? "-"}/${record.injectionTaskId ?? "-"}`;
     });
-    if (JSON.stringify(expected) !== JSON.stringify(observed)) {
+    if (
+      JSON.stringify(expected.slice(0, observed.length)) !== JSON.stringify(observed) ||
+      (measured && observed.length !== expected.length)
+    ) {
       throw new TypeError("AgentDojo native episode identity does not match inventory");
     }
-    if (native.providerContextFailure === true) {
+    const maxCandidateTurns =
+      context.plan.profile === "fixture" ? inventory.length : inventory.length * 15;
+    if (native.maxCandidateTurns !== maxCandidateTurns) {
+      throw new TypeError("AgentDojo native candidate turn ceiling is invalid");
+    }
+    const candidateCalls = native.candidateCalls;
+    if (
+      !Number.isSafeInteger(candidateCalls) ||
+      (candidateCalls as number) < 0 ||
+      (candidateCalls as number) > maxCandidateTurns
+    ) {
+      throw new TypeError("AgentDojo candidate turn cap is invalid");
+    }
+    if (providerUnavailable) {
       return Object.freeze({
         executionStatus: "invalid" as const,
         failureOwner: "host" as const,
@@ -507,11 +579,10 @@ export function createAgentDojoTrackExecutor(
         cleanupStatus: "complete" as const,
       });
     }
-    if (native.status !== "measured") {
-      const owner = native.failureOwner === "host" ? "host" : "adapter";
+    if (failedOwner !== undefined) {
       return Object.freeze({
-        executionStatus: owner === "host" ? "unavailable" : "failed",
-        failureOwner: owner,
+        executionStatus: "failed" as const,
+        failureOwner: failedOwner,
         trialReceipts: Object.freeze([]),
         metrics: Object.freeze({
           execution: Object.freeze({ numerator: null, denominator: null, value: null }),
@@ -520,19 +591,32 @@ export function createAgentDojoTrackExecutor(
         cleanupStatus: "complete" as const,
       });
     }
-    const candidateCalls = native.candidateCalls;
-    if (
-      typeof candidateCalls !== "number" ||
-      candidateCalls < 0 ||
-      candidateCalls > 45
-    ) {
-      throw new TypeError("AgentDojo candidate turn cap is invalid");
-    }
+    const denominators = Object.freeze({
+      benignUtility: inventory.filter((episode) => episode.kind === "benign").length,
+      utilityUnderAttack: inventory.filter((episode) => episode.kind === "attacked")
+        .length,
+      targetedASR: inventory.filter((episode) => episode.kind === "attacked").length,
+      injectionTaskSolvability: inventory.filter(
+        (episode) => episode.kind === "injection-control",
+      ).length,
+    });
     const metrics = Object.freeze({
-      benignUtility: agentDojoMetric(native, "benignUtility"),
-      utilityUnderAttack: agentDojoMetric(native, "utilityUnderAttack"),
-      targetedASR: agentDojoMetric(native, "targetedASR"),
-      injectionTaskSolvability: agentDojoMetric(native, "injectionTaskSolvability"),
+      benignUtility: agentDojoMetric(
+        native,
+        "benignUtility",
+        denominators.benignUtility,
+      ),
+      utilityUnderAttack: agentDojoMetric(
+        native,
+        "utilityUnderAttack",
+        denominators.utilityUnderAttack,
+      ),
+      targetedASR: agentDojoMetric(native, "targetedASR", denominators.targetedASR),
+      injectionTaskSolvability: agentDojoMetric(
+        native,
+        "injectionTaskSolvability",
+        denominators.injectionTaskSolvability,
+      ),
     });
     const trialReceipts: TrialReceipt[] = inventory.map((episode) =>
       createTrialReceipt({
