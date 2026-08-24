@@ -742,11 +742,34 @@ async function prepareCandidateTransportWithVerifier(
 }
 
 export async function prepareCoffeeChatProductCandidateTransport(input: {
-  readonly packageRoot: string;
+  readonly packageRoot?: string | undefined;
   readonly identity: CoffeeChatProductIdentity;
   readonly delegate: CandidateTransport;
 }): Promise<PreparedCoffeeChatProductCandidateTransport> {
-  return prepareCandidateTransportWithVerifier(input, verifyCoffeeChatProductPackage);
+  if (input.packageRoot === undefined) {
+    try {
+      validateAdmittedIdentity(input.identity);
+    } catch (error) {
+      return unavailableCandidatePreparation(
+        input.identity,
+        error instanceof SafeVerificationError
+          ? error.message
+          : "Product candidate identity is invalid",
+      );
+    }
+    return unavailableCandidatePreparation(
+      input.identity,
+      "coffee_chat_product runtime requires the reference product host",
+    );
+  }
+  return prepareCandidateTransportWithVerifier(
+    {
+      packageRoot: input.packageRoot,
+      identity: input.identity,
+      delegate: input.delegate,
+    },
+    verifyCoffeeChatProductPackage,
+  );
 }
 
 async function prepareInteractiveTransportWithVerifier(

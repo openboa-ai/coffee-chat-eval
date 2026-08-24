@@ -491,6 +491,48 @@ test("v1 CLI keeps private Product host runtime out of identity and unverified r
       serialized,
       /packageRoot|candidate-private-token|judge-private-token/u,
     );
+
+    const runtimeWithoutProductHostPath = join(root, "runtime-no-product-host.json");
+    writeFileSync(
+      runtimeWithoutProductHostPath,
+      JSON.stringify({
+        schema: "runtime-bundle-v1",
+        candidate: {
+          schema: "runtime-capability-v1",
+          scope: "candidate",
+          endpoint: "http://127.0.0.1:4311",
+          capabilityToken: "candidate-private-token",
+          model: "gpt-5.6-luna",
+          expiresAt: "2099-01-01T00:00:00.000Z",
+          maxRequests: 3,
+        },
+        judge: {
+          schema: "runtime-capability-v1",
+          scope: "judge",
+          endpoint: "http://127.0.0.1:4312",
+          capabilityToken: "judge-private-token",
+          model: "gpt-5.6-luna",
+          expiresAt: "2099-01-01T00:00:00.000Z",
+          maxRequests: 21,
+        },
+      }),
+    );
+    const missingHostReceipt = JSON.parse(
+      invoke(
+        cwd.pathname,
+        "run",
+        "--plan",
+        planPath,
+        "--runtime-config",
+        runtimeWithoutProductHostPath,
+        "--evidence-root",
+        join(root, "missing-host-evidence"),
+      ),
+    );
+    assert.equal(missingHostReceipt.executionStatus, "unavailable");
+    assert.equal(missingHostReceipt.failureOwner, "host");
+    assert.equal(missingHostReceipt.candidateMode, undefined);
+    assert.equal(missingHostReceipt.productIdentity, undefined);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

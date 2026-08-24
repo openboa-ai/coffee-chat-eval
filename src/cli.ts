@@ -650,11 +650,13 @@ export async function runCli(args: readonly string[]): Promise<void> {
                 });
         const candidate =
           candidateIdentity.candidateType !== "coffee_chat_product" ||
-          runtime?.productHost === undefined
+          runtime === undefined
             ? baseCandidate
             : (
                 await prepareCoffeeChatProductCandidateTransport({
-                  packageRoot: runtime.productHost.packageRoot,
+                  ...(runtime?.productHost === undefined
+                    ? {}
+                    : { packageRoot: runtime.productHost.packageRoot }),
                   identity: candidateIdentity.product,
                   delegate: baseCandidate,
                 })

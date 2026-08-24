@@ -24,6 +24,7 @@ import type {
 } from "../src/eval-core.ts";
 import {
   calculateProductPackageDigest,
+  prepareCoffeeChatProductCandidateTransport,
   ProductHostUnavailableError,
   productHostTestOnly,
   verifyCoffeeChatProductPackage,
@@ -486,6 +487,47 @@ test("transport factory returns an unavailable host transport instead of throwin
   } finally {
     await rm(fixture.root, { recursive: true, force: true });
   }
+});
+
+test("Product transport factory preserves Product identity when the reference host is missing", async () => {
+  let delegateCalls = 0;
+  const identity = {
+    repository: REPOSITORY,
+    commit: "e1ac82de77ab12b9b2499771a194ef3db356b3a6",
+    calver: "2026.8.23",
+    packageDigest:
+      "sha256:e39384e00af5d8d5a71aedcde0d960bd4c6797ed227eab9f08d3134b4d712d41",
+    mode: "connectivity_only",
+  } as const;
+  const prepared = await prepareCoffeeChatProductCandidateTransport({
+    identity,
+    delegate: {
+      kind: "agent_stack",
+      run: async () => {
+        delegateCalls += 1;
+        return measuredResult();
+      },
+    },
+  });
+  assert.equal(prepared.state, "unavailable");
+  if (prepared.state !== "unavailable") return;
+  assert.equal(prepared.failureOwner, "host");
+  assert.equal(
+    prepared.reason,
+    "coffee_chat_product runtime requires the reference product host",
+  );
+  assert.equal(prepared.transport.kind, "coffee_chat_product");
+  assertMetadata(prepared.transport.productBoundary, identity);
+  assert.deepEqual(prepared.transport.productHostPreflight, {
+    state: "unavailable",
+    reason: "coffee_chat_product runtime requires the reference product host",
+  });
+  assert.deepEqual(await prepared.transport.run({ prompt: "must not delegate" }), {
+    state: "unavailable",
+    reason: "coffee_chat_product runtime requires the reference product host",
+    failureOwner: "host",
+  });
+  assert.equal(delegateCalls, 0);
 });
 
 test("interactive preflight failure reports unavailable host before a session can run", async () => {
