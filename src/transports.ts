@@ -1,5 +1,14 @@
 import { stableDigest } from "./identity.ts";
 import { putEvidence, type EvidenceRecord } from "./evidence.ts";
+import {
+  candidateIdentityDigest,
+  judgeIdentityDigest,
+  parseCandidateIdentityConfig,
+  parseJudgeIdentityConfig,
+  type CandidateIdentityConfig,
+  type JudgeIdentityConfig,
+} from "./runtime-config.ts";
+import type { Sha256Digest } from "./types.ts";
 import type {
   CandidateTransport,
   JudgeTransport,
@@ -13,6 +22,7 @@ interface ResponsesCandidateBinding {
   readonly capabilityToken: string;
   readonly model: string;
   readonly evidenceRoot: string;
+  readonly candidateIdentityDigest?: Sha256Digest;
 }
 
 const responsesCandidateBindings = new WeakMap<
@@ -25,14 +35,16 @@ interface ResponsesJudgeBinding {
   readonly capabilityToken: string;
   readonly model: string;
   readonly evidenceRoot: string;
+  readonly judgeIdentityDigest?: Sha256Digest;
 }
 
 const responsesJudgeBindings = new WeakMap<JudgeTransport, ResponsesJudgeBinding>();
 
 /**
  * Proves object identity plus the exact scoped runtime captured by the
- * Responses factory. The binding itself stays module-private so structural
- * CandidateTransport objects and object spreads cannot mint it.
+ * Responses factory. Standard live runs also supply the immutable identity
+ * digest; Product delegates use their separate canonical Product wrapper.
+ * The binding stays module-private so structural objects cannot mint it.
  */
 export function responsesCandidateTransportMatchesRuntime(
   candidate: CandidateTransport,
@@ -42,6 +54,7 @@ export function responsesCandidateTransportMatchesRuntime(
     readonly model: string;
   },
   evidenceRoot: string,
+  expectedCandidateIdentityDigest?: Sha256Digest,
 ): boolean {
   const binding = responsesCandidateBindings.get(candidate);
   return (
@@ -49,13 +62,16 @@ export function responsesCandidateTransportMatchesRuntime(
     binding.endpoint === runtime.endpoint &&
     binding.capabilityToken === runtime.capabilityToken &&
     binding.model === runtime.model &&
-    binding.evidenceRoot === evidenceRoot
+    binding.evidenceRoot === evidenceRoot &&
+    (expectedCandidateIdentityDigest === undefined ||
+      binding.candidateIdentityDigest === expectedCandidateIdentityDigest)
   );
 }
 
 /**
  * Proves that a Judge was minted by the Responses factory for the exact
- * normalized scoped runtime. Structural copies cannot inherit the binding.
+ * normalized scoped runtime and, when required, immutable Judge identity.
+ * Structural copies cannot inherit the binding.
  */
 export function responsesJudgeTransportMatchesRuntime(
   judge: JudgeTransport,
@@ -65,6 +81,7 @@ export function responsesJudgeTransportMatchesRuntime(
     readonly model: string;
   },
   evidenceRoot: string,
+  expectedJudgeIdentityDigest?: Sha256Digest,
 ): boolean {
   const binding = responsesJudgeBindings.get(judge);
   return (
@@ -72,7 +89,9 @@ export function responsesJudgeTransportMatchesRuntime(
     binding.endpoint === runtime.endpoint &&
     binding.capabilityToken === runtime.capabilityToken &&
     binding.model === runtime.model &&
-    binding.evidenceRoot === evidenceRoot
+    binding.evidenceRoot === evidenceRoot &&
+    (expectedJudgeIdentityDigest === undefined ||
+      binding.judgeIdentityDigest === expectedJudgeIdentityDigest)
   );
 }
 
@@ -509,6 +528,7 @@ export function createResponsesCandidateTransport(input: {
   readonly capability: string;
   readonly model: string;
   readonly evidenceRoot: string;
+  readonly candidateIdentity?: CandidateIdentityConfig;
 }): CandidateTransport {
   const kind = input.kind;
   const endpoint = input.endpoint;
@@ -522,11 +542,28 @@ export function createResponsesCandidateTransport(input: {
   }
   if (capability.length === 0) throw new TypeError("scoped capability is required");
   if (model.length === 0) throw new TypeError("candidate model is required");
+  const candidateIdentity =
+    input.candidateIdentity === undefined
+      ? undefined
+      : parseCandidateIdentityConfig(input.candidateIdentity);
+  if (candidateIdentity !== undefined && candidateIdentity.candidateType !== kind) {
+    throw new TypeError(
+      "Responses candidate identity type does not match transport kind",
+    );
+  }
+  if (candidateIdentity !== undefined && candidateIdentity.model !== model) {
+    throw new TypeError(
+      "Responses candidate identity model does not match transport model",
+    );
+  }
   const binding: ResponsesCandidateBinding = Object.freeze({
     endpoint,
     capabilityToken: capability,
     model,
     evidenceRoot,
+    ...(candidateIdentity === undefined
+      ? {}
+      : { candidateIdentityDigest: candidateIdentityDigest(candidateIdentity) }),
   });
   const transport: CandidateTransport = Object.freeze({
     kind,
@@ -586,6 +623,7 @@ export function createResponsesJudgeTransport(input: {
   readonly capability: string;
   readonly model: string;
   readonly evidenceRoot: string;
+  readonly judgeIdentity?: JudgeIdentityConfig;
 }): JudgeTransport {
   const endpoint = input.endpoint;
   const capability = input.capability;
@@ -593,11 +631,23 @@ export function createResponsesJudgeTransport(input: {
   const evidenceRoot = input.evidenceRoot;
   if (capability.length === 0) throw new TypeError("scoped capability is required");
   if (model.length === 0) throw new TypeError("judge model is required");
+  const judgeIdentity =
+    input.judgeIdentity === undefined
+      ? undefined
+      : parseJudgeIdentityConfig(input.judgeIdentity);
+  if (judgeIdentity !== undefined && judgeIdentity.model !== model) {
+    throw new TypeError(
+      "Responses Judge identity model does not match transport model",
+    );
+  }
   const binding: ResponsesJudgeBinding = Object.freeze({
     endpoint,
     capabilityToken: capability,
     model,
     evidenceRoot,
+    ...(judgeIdentity === undefined
+      ? {}
+      : { judgeIdentityDigest: judgeIdentityDigest(judgeIdentity) }),
   });
   const transport: JudgeTransport = Object.freeze({
     kind: "sealed-judge" as const,

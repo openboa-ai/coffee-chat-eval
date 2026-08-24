@@ -40,7 +40,13 @@ import {
   COFFEE_CHAT_PRODUCT_PACKAGE_DIGEST,
   COFFEE_CHAT_PRODUCT_REPOSITORY,
   COFFEE_CHAT_PRODUCT_SEED,
+  candidateIdentityDigest,
+  judgeIdentityDigest,
+  parseCandidateIdentityConfig,
+  parseJudgeIdentityConfig,
   parseRuntimeBundleConfig,
+  type CandidateIdentityConfig,
+  type JudgeIdentityConfig,
   type RuntimeBundleConfig,
 } from "./runtime-config.ts";
 import { evalOwnedRuntimeLockForTrack } from "./python-runtime.ts";
@@ -365,7 +371,11 @@ export interface ImmutableRunInput {
   readonly plan: RunPlan;
   readonly manifest: SourceManifest;
   readonly candidate: CandidateTransport;
+  /** Normalized immutable identity required for standard live candidates. */
+  readonly candidateIdentity?: CandidateIdentityConfig | undefined;
   readonly judge: JudgeTransport | undefined;
+  /** Normalized immutable identity required for live native-Judge tracks. */
+  readonly judgeIdentity?: JudgeIdentityConfig | undefined;
   readonly runtime?: RuntimeBundleConfig | undefined;
   readonly ifevalRightsRiskAcceptance?: IfevalRightsRiskAcceptance | undefined;
   /** Host-owned teardown that must finish before append-only run artifacts finalize. */
@@ -724,6 +734,40 @@ async function executeImmutableRunWithExecutor(
     });
     return finalize(execution, source);
   }
+  let standardCandidateIdentity: CandidateIdentityConfig | undefined;
+  if (
+    runSpec.candidateType === "reference_model" ||
+    runSpec.candidateType === "agent_stack"
+  ) {
+    try {
+      if (input.candidateIdentity === undefined) {
+        throw new TypeError("live standard candidate identity is missing");
+      }
+      standardCandidateIdentity = parseCandidateIdentityConfig(input.candidateIdentity);
+      if (standardCandidateIdentity.candidateType !== runSpec.candidateType) {
+        throw new TypeError("candidate identity type does not match run candidateType");
+      }
+      if (
+        candidateIdentityDigest(standardCandidateIdentity) !== runSpec.candidateDigest
+      ) {
+        throw new TypeError("candidate identity digest does not match run plan");
+      }
+      if (standardCandidateIdentity.seed !== runSpec.seed) {
+        throw new TypeError("candidate identity seed does not match run plan");
+      }
+      if (runtime?.candidate.model !== standardCandidateIdentity.model) {
+        throw new TypeError("candidate runtime model does not match run identity");
+      }
+    } catch (error) {
+      execution = failureExecution({
+        owner: "verifier",
+        reason:
+          error instanceof Error ? error.message : "candidate identity is invalid",
+        evidence,
+      });
+      return finalize(execution, source);
+    }
+  }
   if (
     (runSpec.candidateType === "reference_model" ||
       runSpec.candidateType === "agent_stack") &&
@@ -732,6 +776,7 @@ async function executeImmutableRunWithExecutor(
         input.candidate,
         runtime.candidate,
         plan.evidenceRoot,
+        runSpec.candidateDigest,
       ))
   ) {
     execution = failureExecution({
@@ -745,6 +790,28 @@ async function executeImmutableRunWithExecutor(
   const liveNativeJudgeRequired =
     declaredCandidateType !== "fixture" &&
     (runSpec.trackId === "coffee-chat-taste" || runSpec.trackId === "beam-record-core");
+  let normalizedJudgeIdentity: JudgeIdentityConfig | undefined;
+  if (liveNativeJudgeRequired) {
+    try {
+      if (input.judgeIdentity === undefined) {
+        throw new TypeError("live native Judge identity is missing");
+      }
+      normalizedJudgeIdentity = parseJudgeIdentityConfig(input.judgeIdentity);
+      if (judgeIdentityDigest(normalizedJudgeIdentity) !== runSpec.judgeDigest) {
+        throw new TypeError("Judge identity digest does not match run plan");
+      }
+      if (runtime?.judge?.model !== normalizedJudgeIdentity.model) {
+        throw new TypeError("Judge runtime model does not match run identity");
+      }
+    } catch (error) {
+      execution = failureExecution({
+        owner: "verifier",
+        reason: error instanceof Error ? error.message : "Judge identity is invalid",
+        evidence,
+      });
+      return finalize(execution, source);
+    }
+  }
   if (
     liveNativeJudgeRequired &&
     (input.judge === undefined ||
@@ -753,6 +820,7 @@ async function executeImmutableRunWithExecutor(
         input.judge,
         runtime.judge,
         plan.evidenceRoot,
+        runSpec.judgeDigest,
       ))
   ) {
     execution = failureExecution({

@@ -41,6 +41,10 @@ import {
   COFFEE_CHAT_PRODUCT_CANDIDATE_IDENTITY,
   COFFEE_CHAT_PRODUCT_MODEL,
   COFFEE_CHAT_PRODUCT_SEED,
+  candidateIdentityDigest,
+  judgeIdentityDigest,
+  parseCandidateIdentityConfig,
+  parseJudgeIdentityConfig,
   parseRuntimeBundleConfig,
 } from "../src/runtime-config.ts";
 import { IFEVAL_RUNTIME_LOCK, requireRuntimePython } from "../src/python-runtime.ts";
@@ -198,6 +202,21 @@ function filesBelow(root: string): readonly string[] {
 
 type NativeJudgeTrack = "coffee-chat-taste" | "beam-record-core";
 
+function standardCandidateIdentity(
+  candidateType: "reference_model" | "agent_stack" = "agent_stack",
+) {
+  return parseCandidateIdentityConfig({
+    schema: "candidate-config-v1",
+    candidateType,
+    harness:
+      candidateType === "reference_model"
+        ? "responses-reference-model-v1"
+        : "responses-agent-stack-v1",
+    model: "gpt-5.6-luna",
+    seed: 7,
+  });
+}
+
 function liveJudgeBindingFixture(trackId: NativeJudgeTrack) {
   const root = mkdtempSync(
     join(tmpdir(), `coffee-chat-eval-${trackId}-judge-binding-`),
@@ -205,13 +224,19 @@ function liveJudgeBindingFixture(trackId: NativeJudgeTrack) {
   const manifest = getSourceManifest(trackId);
   const judgeCalls = trackId === "coffee-chat-taste" ? 21 : 11;
   const candidateCalls = trackId === "coffee-chat-taste" ? 3 : 6;
+  const candidateIdentity = standardCandidateIdentity();
+  const judgeIdentity = parseJudgeIdentityConfig({
+    schema: "judge-config-v1",
+    transport: "responses",
+    model: "gpt-5.6-luna",
+  });
   const spec = parseRunSpec({
     schema: "run-spec-v1",
     trackId,
     profile: "smoke",
     sourceManifestDigest: stableDigest(manifest),
-    candidateDigest: stableDigest(`${trackId}-candidate`),
-    judgeDigest: stableDigest(`${trackId}-judge`),
+    candidateDigest: candidateIdentityDigest(candidateIdentity),
+    judgeDigest: judgeIdentityDigest(judgeIdentity),
     attackDigest: stableDigest("attack"),
     defenseDigest: stableDigest("defense"),
     configurationDigest: stableDigest(`${trackId}-configuration`),
@@ -252,7 +277,7 @@ function liveJudgeBindingFixture(trackId: NativeJudgeTrack) {
       maxRequests: judgeCalls,
     },
   });
-  return { root, manifest, plan, runtime };
+  return { root, manifest, plan, runtime, candidateIdentity, judgeIdentity };
 }
 
 async function executeUntrustedJudge(input: {
@@ -269,12 +294,15 @@ async function executeUntrustedJudge(input: {
     capability: runtime.candidate.capabilityToken,
     model: runtime.candidate.model,
     evidenceRoot: fixture.plan.evidenceRoot,
+    candidateIdentity: fixture.candidateIdentity,
   });
   const result = await executeImmutableRun({
     plan: fixture.plan,
     manifest: fixture.manifest,
     candidate,
+    candidateIdentity: fixture.candidateIdentity,
     judge: input.judge,
+    judgeIdentity: fixture.judgeIdentity,
     runtime,
   });
   return { fixture, result };
@@ -311,6 +339,7 @@ test("live native-Judge tracks reject arbitrary Judge transports before evaluati
 test("live standard candidates require a factory-bound Responses transport before native dispatch", async () => {
   for (const candidateType of ["reference_model", "agent_stack"] as const) {
     const fixture = liveJudgeBindingFixture("coffee-chat-taste");
+    const candidateIdentity = standardCandidateIdentity(candidateType);
     let candidateCalls = 0;
     try {
       const plan = Object.freeze({
@@ -318,6 +347,7 @@ test("live standard candidates require a factory-bound Responses transport befor
         runSpec: Object.freeze({
           ...fixture.plan.runSpec!,
           candidateType,
+          candidateDigest: candidateIdentityDigest(candidateIdentity),
         }),
       });
       const judgeRuntime = fixture.runtime.judge!;
@@ -326,6 +356,7 @@ test("live standard candidates require a factory-bound Responses transport befor
         capability: judgeRuntime.capabilityToken,
         model: judgeRuntime.model,
         evidenceRoot: plan.evidenceRoot,
+        judgeIdentity: fixture.judgeIdentity,
       });
       const result = await executeImmutableRun({
         plan,
@@ -341,7 +372,9 @@ test("live standard candidates require a factory-bound Responses transport befor
             };
           },
         },
+        candidateIdentity,
         judge,
+        judgeIdentity: fixture.judgeIdentity,
         runtime: fixture.runtime,
       });
 
@@ -368,6 +401,7 @@ test("live standard candidates preserve the factory binding through run validati
       capability: candidateRuntime.capabilityToken,
       model: candidateRuntime.model,
       evidenceRoot: fixture.plan.evidenceRoot,
+      candidateIdentity: fixture.candidateIdentity,
     });
     const judgeRuntime = fixture.runtime.judge!;
     const judge = createResponsesJudgeTransport({
@@ -375,12 +409,15 @@ test("live standard candidates preserve the factory binding through run validati
       capability: judgeRuntime.capabilityToken,
       model: judgeRuntime.model,
       evidenceRoot: fixture.plan.evidenceRoot,
+      judgeIdentity: fixture.judgeIdentity,
     });
     const result = await executeImmutableRun({
       plan: fixture.plan,
       manifest: fixture.manifest,
       candidate,
+      candidateIdentity: fixture.candidateIdentity,
       judge,
+      judgeIdentity: fixture.judgeIdentity,
       runtime: fixture.runtime,
     });
 
@@ -416,6 +453,7 @@ test("live standard candidates reject copied bindings and runtime or evidence dr
           drift.kind === "evidence"
             ? `${fixture.plan.evidenceRoot}-drifted`
             : fixture.plan.evidenceRoot,
+        candidateIdentity: fixture.candidateIdentity,
       });
       const candidate = drift.kind === "copy" ? { ...minted } : minted;
       const runtime =
@@ -431,12 +469,15 @@ test("live standard candidates reject copied bindings and runtime or evidence dr
         capability: judgeRuntime.capabilityToken,
         model: judgeRuntime.model,
         evidenceRoot: fixture.plan.evidenceRoot,
+        judgeIdentity: fixture.judgeIdentity,
       });
       const result = await executeImmutableRun({
         plan: fixture.plan,
         manifest: fixture.manifest,
         candidate,
+        candidateIdentity: fixture.candidateIdentity,
         judge,
+        judgeIdentity: fixture.judgeIdentity,
         runtime,
       });
 
@@ -444,7 +485,7 @@ test("live standard candidates reject copied bindings and runtime or evidence dr
       assert.equal(result.publicReceipt.failureOwner, "verifier");
       assert.match(
         privateFailureReason(result),
-        /candidate transport is not bound to the normalized Responses candidate runtime/u,
+        /candidate (?:runtime model does not match run identity|transport is not bound to the normalized Responses candidate runtime)/u,
       );
     } finally {
       rmSync(fixture.root, { recursive: true, force: true });
@@ -461,6 +502,7 @@ test("live native-Judge tracks reject a structural copy of a factory transport",
       capability: fixture.runtime.judge!.capabilityToken,
       model: fixture.runtime.judge!.model,
       evidenceRoot: fixture.plan.evidenceRoot,
+      judgeIdentity: fixture.judgeIdentity,
     });
     const copied: JudgeTransport = {
       ...minted,
@@ -499,6 +541,7 @@ test("live native-Judge tracks reject endpoint, capability, or model runtime dri
       capability: fixture.runtime.judge!.capabilityToken,
       model: fixture.runtime.judge!.model,
       evidenceRoot: fixture.plan.evidenceRoot,
+      judgeIdentity: fixture.judgeIdentity,
     });
     const runtime = parseRuntimeBundleConfig({
       ...fixture.runtime,
@@ -513,7 +556,10 @@ test("live native-Judge tracks reject endpoint, capability, or model runtime dri
       });
       assert.equal(result.trackReport.executionStatus, "invalid");
       assert.equal(result.publicReceipt.failureOwner, "verifier");
-      assert.match(privateFailureReason(result), /Judge transport is not bound/u);
+      assert.match(
+        privateFailureReason(result),
+        /Judge (?:runtime model does not match run identity|transport is not bound)/u,
+      );
     } finally {
       rmSync(fixture.root, { recursive: true, force: true });
     }

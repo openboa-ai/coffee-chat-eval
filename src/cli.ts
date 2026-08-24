@@ -648,6 +648,10 @@ export async function runCli(args: readonly string[]): Promise<void> {
                   capability: runtime.candidate.capabilityToken,
                   model: runtime.candidate.model,
                   evidenceRoot: plan.evidenceRoot,
+                  ...(candidateIdentity.candidateType === "reference_model" ||
+                  candidateIdentity.candidateType === "agent_stack"
+                    ? { candidateIdentity }
+                    : {}),
                 });
         const candidate =
           candidateIdentity.candidateType !== "coffee_chat_product" ||
@@ -675,12 +679,15 @@ export async function runCli(args: readonly string[]): Promise<void> {
                 capability: runtime.judge.capabilityToken,
                 model: runtime.judge.model,
                 evidenceRoot: plan.evidenceRoot,
+                judgeIdentity,
               });
         const result = await executeImmutableRun({
           plan,
           manifest,
           candidate,
+          candidateIdentity,
           judge,
+          judgeIdentity,
           runtime,
           ...(ifevalRightsRiskAcceptance === undefined
             ? {}

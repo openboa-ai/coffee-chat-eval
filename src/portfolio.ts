@@ -93,7 +93,9 @@ export interface PortfolioTrackInput {
   readonly plan: RunPlan;
   readonly manifest: SourceManifest;
   readonly candidate: CandidateTransport;
+  readonly candidateIdentity?: CandidateIdentityConfig | undefined;
   readonly judge: JudgeTransport | undefined;
+  readonly judgeIdentity?: JudgeIdentityConfig | undefined;
   readonly runtime?: RuntimeBundleConfig | undefined;
   readonly ifevalRightsRiskAcceptance?: IfevalRightsRiskAcceptance | undefined;
   readonly close?: (() => Promise<void>) | undefined;
@@ -400,7 +402,9 @@ async function executePortfolioTrack(
       plan: track.plan,
       manifest: track.manifest,
       candidate: track.candidate,
+      candidateIdentity: track.candidateIdentity,
       judge: track.judge,
+      judgeIdentity: track.judgeIdentity,
       runtime: track.runtime,
       ...(track.ifevalRightsRiskAcceptance === undefined
         ? {}
@@ -1028,6 +1032,10 @@ async function createPortfolioTrackInput(input: {
           capability: runtime!.candidate.capabilityToken,
           model: runtime!.candidate.model,
           evidenceRoot: input.evidenceRoot,
+          ...(track.candidateIdentity.candidateType === "reference_model" ||
+          track.candidateIdentity.candidateType === "agent_stack"
+            ? { candidateIdentity: track.candidateIdentity }
+            : {}),
         });
   const candidate =
     track.candidateIdentity.candidateType !== "coffee_chat_product" ||
@@ -1052,13 +1060,16 @@ async function createPortfolioTrackInput(input: {
           capability: runtime.judge.capabilityToken,
           model: runtime.judge.model,
           evidenceRoot: input.evidenceRoot,
+          judgeIdentity: track.judgeIdentity,
         });
   return Object.freeze({
     trackId: track.trackId,
     plan: track.plan,
     manifest: track.manifest,
     candidate,
+    candidateIdentity: track.candidateIdentity,
     judge,
+    judgeIdentity: track.judgeIdentity,
     runtime,
     ...(track.ifevalRightsRiskAcceptance === undefined
       ? {}
