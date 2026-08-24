@@ -384,7 +384,7 @@ test("non-fixture provider runs require a terms receipt and fail closed", () => 
   }
 });
 
-test("v1 CLI plans and runs a product candidate with private host runtime kept out of identity", () => {
+test("v1 CLI keeps private Product host runtime out of identity and unverified receipts", () => {
   const cwd = new URL("..", import.meta.url);
   const root = mkdtempSync(join(tmpdir(), "coffee-chat-eval-product-cli-"));
   try {
@@ -482,9 +482,10 @@ test("v1 CLI plans and runs a product candidate with private host runtime kept o
     );
     assert.equal(receipt.executionStatus, "unavailable");
     assert.equal(receipt.failureOwner, "host");
-    assert.equal(receipt.candidateMode, "connectivity_only");
-    assert.deepEqual(receipt.capabilitiesUsed, []);
-    assert.equal(receipt.productBehaviorExercised, false);
+    assert.equal(receipt.candidateMode, undefined);
+    assert.equal(receipt.capabilitiesUsed, undefined);
+    assert.equal(receipt.productBehaviorExercised, undefined);
+    assert.equal(receipt.productIdentity, undefined);
     const serialized = JSON.stringify(receipt);
     assert.doesNotMatch(
       serialized,

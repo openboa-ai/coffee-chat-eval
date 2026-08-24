@@ -32,10 +32,17 @@ import {
 } from "./source-cache.ts";
 import { verifySourceManifestPins } from "./source-manifests.ts";
 import type { ExecutionStatus, FailureOwner, Sha256Digest } from "./types.ts";
-import type { RuntimeBundleConfig } from "./runtime-config.ts";
+import {
+  COFFEE_CHAT_PRODUCT_CALVER,
+  COFFEE_CHAT_PRODUCT_COMMIT,
+  COFFEE_CHAT_PRODUCT_PACKAGE_DIGEST,
+  COFFEE_CHAT_PRODUCT_REPOSITORY,
+  type RuntimeBundleConfig,
+} from "./runtime-config.ts";
 import { evalOwnedRuntimeLockForTrack } from "./python-runtime.ts";
 import type { TrackExecutor } from "./track-executor.ts";
 import { getNativeTrackExecutor } from "./native-executors.ts";
+import { verifyCoffeeChatProductPackage } from "./product-host.ts";
 
 export interface ImmutableRunResult {
   readonly plan: RunPlan;
@@ -364,6 +371,7 @@ async function executeImmutableRunWithExecutor(
   const evidence = (value: unknown, mediaType: string) =>
     privateArtifact(plan.evidenceRoot, value, mediaType);
   let rightsRiskAcceptanceValidated = false;
+  let verifiedProductBoundary: ProductCandidateBoundary | undefined;
   const finalize = (
     execution: TrackExecutionResult,
     source: MaterializedSourceVerification | undefined,
@@ -374,6 +382,7 @@ async function executeImmutableRunWithExecutor(
       source,
       runRoot,
       rightsRiskAcceptanceValidated,
+      verifiedProductBoundary,
     });
   if (plan.runSpec === undefined) {
     const execution = failureExecution({
@@ -459,7 +468,7 @@ async function executeImmutableRunWithExecutor(
     });
     return finalize(execution, source);
   }
-  const productBoundary = productBoundaryForCandidate(input.candidate);
+  const declaredProductBoundary = productBoundaryForCandidate(input.candidate);
   if (runSpec.candidateType === "coffee_chat_product") {
     if (input.candidate.kind !== "coffee_chat_product") {
       execution = failureExecution({
@@ -469,7 +478,7 @@ async function executeImmutableRunWithExecutor(
       });
       return finalize(execution, source);
     }
-    if (productBoundary === undefined) {
+    if (declaredProductBoundary === undefined) {
       execution = failureExecution({
         owner: "host",
         reason: "coffee_chat_product transport is missing immutable product provenance",
@@ -490,21 +499,11 @@ async function executeImmutableRunWithExecutor(
     });
     return finalize(execution, source);
   }
-  if (runSpec.candidateType === "coffee_chat_product") {
-    if (input.candidate.productHostPreflight?.state !== "verified") {
-      execution = failureExecution({
-        owner: "host",
-        reason:
-          input.candidate.productHostPreflight?.reason ??
-          "coffee_chat_product package preflight is missing",
-        evidence,
-      });
-      return finalize(execution, source);
-    }
-  } else if (
-    input.candidate.kind === "coffee_chat_product" ||
-    productBoundary !== undefined ||
-    input.candidate.productHostPreflight !== undefined
+  if (
+    runSpec.candidateType !== "coffee_chat_product" &&
+    (input.candidate.kind === "coffee_chat_product" ||
+      declaredProductBoundary !== undefined ||
+      input.candidate.productHostPreflight !== undefined)
   ) {
     execution = failureExecution({
       owner: "host",
@@ -532,6 +531,47 @@ async function executeImmutableRunWithExecutor(
       evidence,
     });
     return finalize(execution, source);
+  }
+  if (runSpec.candidateType === "coffee_chat_product") {
+    const productHost = input.runtime?.productHost;
+    if (productHost === undefined) {
+      execution = failureExecution({
+        owner: "host",
+        reason: "coffee_chat_product runtime requires the reference product host",
+        evidence,
+      });
+      return finalize(execution, source);
+    }
+    const verification = await verifyCoffeeChatProductPackage({
+      packageRoot: productHost.packageRoot,
+      identity: {
+        repository: COFFEE_CHAT_PRODUCT_REPOSITORY,
+        commit: COFFEE_CHAT_PRODUCT_COMMIT,
+        calver: COFFEE_CHAT_PRODUCT_CALVER,
+        packageDigest: COFFEE_CHAT_PRODUCT_PACKAGE_DIGEST,
+        mode: "connectivity_only",
+      },
+    });
+    if (verification.state !== "verified") {
+      execution = failureExecution({
+        owner: verification.failureOwner,
+        reason: verification.reason,
+        evidence,
+      });
+      return finalize(execution, source);
+    }
+    if (
+      declaredProductBoundary === undefined ||
+      stableDigest(declaredProductBoundary) !== stableDigest(verification.metadata)
+    ) {
+      execution = failureExecution({
+        owner: "host",
+        reason: "product transport provenance does not match verified package bytes",
+        evidence,
+      });
+      return finalize(execution, source);
+    }
+    verifiedProductBoundary = verification.metadata;
   }
   const expectedRuntimeLockPath = evalOwnedRuntimeLockForTrack(input.manifest.trackId);
   try {
@@ -563,7 +603,7 @@ async function executeImmutableRunWithExecutor(
     ...execution,
     trialReceipts: decorateTrialReceipts(
       execution.trialReceipts,
-      productBoundaryForCandidate(input.candidate),
+      verifiedProductBoundary,
     ),
   });
   if (execution.cleanupStatus !== "complete") {
@@ -586,14 +626,11 @@ async function finalizeRun(input: {
   readonly source: MaterializedSourceVerification | undefined;
   readonly runRoot: string;
   readonly rightsRiskAcceptanceValidated: boolean;
+  readonly verifiedProductBoundary: ProductCandidateBoundary | undefined;
 }): Promise<ImmutableRunResult> {
   const { plan } = input.input;
   const rightsRiskAcceptanceValidated = input.rightsRiskAcceptanceValidated;
-  const productBoundary =
-    plan.runSpec?.profile === "smoke" &&
-    plan.runSpec.candidateType === "coffee_chat_product"
-      ? productBoundaryForCandidate(input.input.candidate)
-      : undefined;
+  const productBoundary = input.verifiedProductBoundary;
   const rightsRiskProvenanceValidated =
     rightsRiskAcceptanceValidated && productBoundary !== undefined;
   let execution = input.execution;

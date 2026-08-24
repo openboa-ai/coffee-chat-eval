@@ -254,6 +254,10 @@ test("Responses candidate requests the exact Taste CandidateSubmission JSON shap
       "uncertainty",
     ]);
     assert.equal(decisionSchema.additionalProperties, false);
+    const decisionProperties = decisionSchema.properties as Record<string, unknown>;
+    for (const field of ["evidenceUse", "tradeoffs", "constraints"] as const) {
+      assert.equal((decisionProperties[field] as Record<string, unknown>).minItems, 1);
+    }
     if (result.state !== "measured" || result.output === undefined) return;
     assert.equal(await readFile(result.output.path, "utf8"), rawSubmission);
   } finally {
@@ -413,10 +417,11 @@ test("Responses candidate preserves valid input arrays, tools, and tool calls", 
   }
 });
 
-test("Responses transports reject incomplete, error, and outputless HTTP 200 envelopes", async () => {
+test("Responses transports preserve unavailable envelopes and reject terminal failures", async () => {
   const root = await mkdtemp(join(tmpdir(), "coffee-chat-eval-envelope-failure-"));
   const broker = await startCaptureBroker([
     { status: "incomplete", error: null, output: [] },
+    { status: "in_progress", error: null, output: [] },
     { status: "failed", error: { message: "provider failed" }, output: [] },
     { status: "completed", error: null, output: [] },
     { status: "incomplete", error: null, output: [] },
@@ -437,7 +442,11 @@ test("Responses transports reject incomplete, error, and outputless HTTP 200 env
     });
 
     const candidateResult = await candidate.run("candidate input");
-    assert.equal(candidateResult.state, "failed");
+    assert.equal(candidateResult.state, "unavailable");
+    assert.equal(candidateResult.failureOwner, "candidate");
+    const candidateInProgress = await candidate.run("candidate input in progress");
+    assert.equal(candidateInProgress.state, "unavailable");
+    assert.equal(candidateInProgress.failureOwner, "candidate");
     const judgeError = await judge.evaluate({ prompt: "judge failed" });
     assert.equal(judgeError.state, "failed");
     const judgeOutputless = await judge.evaluate({ prompt: "judge outputless" });

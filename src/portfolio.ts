@@ -325,20 +325,21 @@ function projectIfevalRightsBoundary(input: {
   });
 }
 
-function rightsBoundaryForTrack(
-  track: PortfolioTrackInput,
+function rightsBoundaryFromResult(
+  result: ImmutableRunResult,
 ): PortfolioIfevalRightsBoundary | undefined {
-  if (track.ifevalRightsRiskAcceptance === undefined) return undefined;
-  const spec = track.plan.runSpec;
-  if (spec === undefined) {
-    throw new TypeError("IFEval rights risk acceptance requires an immutable RunSpec");
+  const provenance = result.trackReport.provenance;
+  if (provenance.rightsRiskAcceptanceDigest === undefined) return undefined;
+  if (
+    provenance.licenseCleared !== false ||
+    provenance.rightsExecutionScope !== "private-internal-smoke-only"
+  ) {
+    throw new TypeError("finalized IFEval rights provenance is incomplete");
   }
-  return projectIfevalRightsBoundary({
-    profile: spec.profile,
-    candidateType: spec.candidateType,
-    candidateDigest: spec.candidateDigest,
-    rightsRiskAcceptanceDigest: spec.rightsRiskAcceptanceDigest,
-    receipt: track.ifevalRightsRiskAcceptance,
+  return Object.freeze({
+    rightsRiskAcceptanceDigest: provenance.rightsRiskAcceptanceDigest,
+    licenseCleared: false as const,
+    rightsExecutionScope: "private-internal-smoke-only" as const,
   });
 }
 
@@ -358,6 +359,8 @@ function productBoundaryFromResult(
 
 function projectPublicResultDigests(input: {
   readonly trackId: EvaluationTrackId;
+  readonly plannedCandidateType: CandidateTransport["kind"] | undefined;
+  readonly actualCandidateType: CandidateTransport["kind"];
   readonly productBoundary: ProductCandidateBoundary | undefined;
   readonly nativeEvidenceDigest: Sha256Digest;
   readonly trackReportDigest: Sha256Digest;
@@ -370,6 +373,8 @@ function projectPublicResultDigests(input: {
 }> {
   const withholdPrivateResults =
     input.trackId === "coffee-chat-taste" ||
+    input.plannedCandidateType === "coffee_chat_product" ||
+    input.actualCandidateType === "coffee_chat_product" ||
     (input.productBoundary?.candidateMode === "connectivity_only" &&
       input.productBoundary.productBehaviorExercised === false);
   if (withholdPrivateResults) {
@@ -390,7 +395,7 @@ async function executePortfolioTrack(
   closeTrack: () => Promise<"complete" | "failed">,
 ): Promise<PortfolioTrackReceipt> {
   let result: ImmutableRunResult | undefined;
-  let proxyCleanupStatus: "complete" | "failed" = "complete";
+  let proxyCleanupStatus: "complete" | "failed";
   try {
     result = await executeImmutableRun({
       plan: track.plan,
@@ -415,9 +420,11 @@ async function executePortfolioTrack(
       : Object.freeze({});
   const usage = trialUsage(result);
   const productBoundary = productBoundaryFromResult(result);
-  const rightsBoundary = rightsBoundaryForTrack(track);
+  const rightsBoundary = rightsBoundaryFromResult(result);
   const resultDigests = projectPublicResultDigests({
     trackId: track.trackId,
+    plannedCandidateType: track.plan.runSpec?.candidateType,
+    actualCandidateType: track.candidate.kind,
     productBoundary,
     nativeEvidenceDigest: result.nativeEvidence.digest,
     trackReportDigest: digest(result.trackReport),

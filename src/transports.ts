@@ -254,6 +254,9 @@ function jsonSchemaFormat(name: string, schema: JsonObject): JsonObject {
 }
 
 const nonemptyStringSchema = Object.freeze({ type: "string", minLength: 1 });
+// The pinned Bench validator uses nonemptyArray for evidenceUse, tradeoffs,
+// and constraints. Keep the provider schema at least as strict as that native
+// CandidateSubmission contract so invalid completions never reach the Judge.
 const candidateSubmissionFormat = jsonSchemaFormat(
   "coffee_chat_candidate_submission",
   Object.freeze({
@@ -463,7 +466,10 @@ export function createResponsesCandidateTransport(input: {
         };
       } catch (error) {
         return {
-          state: "failed" as const,
+          state:
+            error instanceof ResponsesEnvelopeError
+              ? error.outcome
+              : ("failed" as const),
           reason: error instanceof Error ? error.message : "candidate broker failed",
           failureOwner: "candidate" as const,
         };

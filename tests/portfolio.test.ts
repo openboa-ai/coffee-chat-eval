@@ -33,6 +33,7 @@ import { createBeamTrackExecutor, BEAM_CATEGORIES } from "../src/beam.ts";
 import { createAgentDojoTrackExecutor } from "../src/agentdojo.ts";
 import { BEAM_RUNTIME_LOCK, IFEVAL_RUNTIME_LOCK } from "../src/python-runtime.ts";
 import { materializeSource } from "../src/source-cache.ts";
+import { getSourceManifest } from "../src/source-manifests.ts";
 import type { EvaluationTrackId } from "../src/track-registry.ts";
 import {
   candidateIdentityDigest,
@@ -665,6 +666,8 @@ test("portfolio withholds reversible private-result digests for Product connecti
   const trialReceiptsDigest = stableDigest("execution receipts");
   const projected = portfolioTestOnly.projectPublicResultDigests({
     trackId: "ifeval",
+    plannedCandidateType: "coffee_chat_product",
+    actualCandidateType: "coffee_chat_product",
     productBoundary: {
       candidateMode: "connectivity_only",
       capabilitiesUsed: [],
@@ -689,6 +692,180 @@ test("portfolio withholds reversible private-result digests for Product connecti
   });
   assert.equal("nativeEvidenceDigest" in projected, false);
   assert.equal("trackReportDigest" in projected, false);
+});
+
+test("portfolio withholds result digests when either planned or actual candidate is Product", () => {
+  for (const [plannedCandidateType, actualCandidateType] of [
+    ["agent_stack", "coffee_chat_product"],
+    ["coffee_chat_product", "agent_stack"],
+  ] as const) {
+    const projected = portfolioTestOnly.projectPublicResultDigests({
+      trackId: "ifeval",
+      plannedCandidateType,
+      actualCandidateType,
+      productBoundary: undefined,
+      nativeEvidenceDigest: stableDigest("private native result"),
+      trackReportDigest: stableDigest("private track report"),
+      trialReceiptsDigest: stableDigest("safe trial receipts"),
+    });
+    assert.equal(projected.privateResultDigestsWithheld, true);
+    assert.equal("nativeEvidenceDigest" in projected, false);
+    assert.equal("trackReportDigest" in projected, false);
+  }
+});
+
+test("portfolio exposes rights and result digests only after finalized Product verification", async () => {
+  const root = mkdtempSync(join(tmpdir(), "coffee-chat-portfolio-early-failure-"));
+  try {
+    const candidateIdentity = parseCandidateIdentityConfig({
+      schema: "candidate-config-v1",
+      candidateType: "coffee_chat_product",
+      harness: "eval-skills-reference-host-v1",
+      model: "gpt-5.6-luna",
+      seed: 7,
+      product: {
+        repository: "https://github.com/openboa-ai/coffee-chat",
+        commit: "e1ac82de77ab12b9b2499771a194ef3db356b3a6",
+        calver: "2026.8.23",
+        packageDigest:
+          "sha256:e39384e00af5d8d5a71aedcde0d960bd4c6797ed227eab9f08d3134b4d712d41",
+        mode: "connectivity_only",
+      },
+    });
+    assert.equal(candidateIdentity.candidateType, "coffee_chat_product");
+    if (candidateIdentity.candidateType !== "coffee_chat_product") return;
+    const candidateDigest = candidateIdentityDigest(candidateIdentity);
+    const acceptance = parseIfevalRightsRiskAcceptance({
+      schema: "ifeval-rights-risk-acceptance-v1",
+      trackId: "ifeval",
+      profile: "smoke",
+      candidateType: "coffee_chat_product",
+      candidateDigest,
+      ifevalSourceCommit: "e6890f85757dd84e27ca6df2dd30651dafad28e0",
+      assetRepository: "https://github.com/nltk/nltk_data",
+      assetRevision: "550b6625bcef1f2abff2ff770a5a0d272c9c6b2a",
+      asset: "nltk_data/tokenizers/punkt_tab.zip",
+      assetDigest:
+        "sha256:e57f64187974277726a3417ca6f181ec5403676c717672eef6a748a7b20e0106",
+      licenseStatus: "unclarified",
+      licenseCleared: false,
+      scope: "private-internal-smoke-only",
+      acceptedBy: "workspace-owner",
+      acceptedAt: "2026-08-24T01:55:00+09:00",
+      privateNonce: "d".repeat(64),
+      acknowledgesNoLicenseGrant: true,
+      acknowledgesNoRedistribution: true,
+      acknowledgesNoPublicNumericClaim: true,
+    });
+    const acceptanceDigest = ifevalRightsRiskAcceptanceDigest(acceptance);
+    const productBoundary = {
+      candidateMode: "connectivity_only" as const,
+      capabilitiesUsed: [] as const,
+      productBehaviorExercised: false as const,
+      referenceHost: "eval-skills-reference-host-v1" as const,
+      productIdentity: {
+        repository: candidateIdentity.product.repository,
+        commit: candidateIdentity.product.commit,
+        calver: candidateIdentity.product.calver,
+        packageDigest: candidateIdentity.product.packageDigest,
+      },
+    };
+    const caseCensus: Readonly<
+      Record<EvaluationTrackId, Readonly<Record<string, number>>>
+    > = {
+      "coffee-chat-taste": { families: 1, submissions: 3, judgeCalls: 21 },
+      "beam-record-core": { conversations: 1, queries: 6 },
+      ifeval: { prompts: 9 },
+      "agentdojo-security": {
+        benign: 1,
+        injectionControls: 1,
+        attackedPairs: 1,
+        episodes: 3,
+      },
+    };
+    const tracks = (Object.keys(PORTFOLIO_SMOKE_CENSUS) as EvaluationTrackId[]).map(
+      (trackId, index) => {
+        const manifest = getSourceManifest(trackId);
+        const spec = parseRunSpec({
+          schema: "run-spec-v1",
+          trackId,
+          profile: "smoke",
+          sourceManifestDigest: stableDigest(manifest),
+          candidateDigest,
+          judgeDigest: stableDigest({ trackId, role: "judge" }),
+          attackDigest: stableDigest({ trackId, role: "attack" }),
+          defenseDigest: stableDigest({ trackId, role: "defense" }),
+          configurationDigest: stableDigest({ trackId, profile: "smoke" }),
+          ...(manifest.providerTermsDigest === undefined
+            ? {}
+            : {
+                providerTermsDigest: manifest.providerTermsDigest,
+                providerTermsReceiptDigest: stableDigest({
+                  trackId,
+                  role: "provider-terms-receipt",
+                }),
+              }),
+          ...(trackId === "ifeval"
+            ? { rightsRiskAcceptanceDigest: acceptanceDigest }
+            : {}),
+          candidateType: "coffee_chat_product",
+          caseCensus: caseCensus[trackId],
+          isolationEvidenceDigest: stableDigest({ trackId, role: "isolation" }),
+        });
+        const plan = createRunPlan({
+          manifest,
+          spec,
+          evidenceRoot: join(root, "evidence"),
+          cacheRoot: join(root, "missing-cache"),
+        });
+        const driftedManifest = Object.freeze({
+          ...manifest,
+          source: Object.freeze({
+            ...manifest.source,
+            commit: String(index + 5).repeat(40),
+          }),
+        });
+        return {
+          trackId,
+          plan,
+          manifest: driftedManifest,
+          candidate: {
+            kind: "coffee_chat_product" as const,
+            productBoundary,
+            productHostPreflight: { state: "verified" as const },
+            run: async () => ({ state: "unmeasured" as const, reason: "must-not-run" }),
+          },
+          judge: undefined,
+          ...(trackId === "ifeval" ? { ifevalRightsRiskAcceptance: acceptance } : {}),
+        };
+      },
+    );
+
+    const receipt = await executePortfolioSmoke({
+      tracks,
+      evidenceRoot: join(root, "evidence"),
+    });
+    const ifeval = receipt.tracks.find((track) => track.trackId === "ifeval");
+    assert.equal(ifeval?.executionStatus, "unavailable");
+    assert.equal(ifeval?.rightsRiskAcceptanceDigest, undefined);
+    assert.equal(ifeval?.licenseCleared, undefined);
+    assert.equal(ifeval?.rightsExecutionScope, undefined);
+    assert.equal(ifeval?.nativeEvidenceDigest, undefined);
+    assert.equal(ifeval?.trackReportDigest, undefined);
+    assert.equal(ifeval?.privateResultDigestsWithheld, true);
+    const persisted = JSON.parse(readFileSync(receipt.publicReceiptPath, "utf8")) as {
+      readonly tracks: readonly Record<string, unknown>[];
+    };
+    const persistedIfeval = persisted.tracks.find(
+      (track) => track.trackId === "ifeval",
+    );
+    assert.equal(persistedIfeval?.rightsRiskAcceptanceDigest, undefined);
+    assert.equal(persistedIfeval?.nativeEvidenceDigest, undefined);
+    assert.equal(persistedIfeval?.trackReportDigest, undefined);
+    assert.equal(persistedIfeval?.privateResultDigestsWithheld, true);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
 });
 
 test("offline replay executes all four native factories behind a non-reportable test boundary", async () => {

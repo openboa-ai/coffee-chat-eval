@@ -39,9 +39,10 @@ const PRODUCT_BOUNDARY: ProductCandidateBoundary = Object.freeze({
   referenceHost: "eval-skills-reference-host-v1",
   productIdentity: Object.freeze({
     repository: "https://github.com/openboa-ai/coffee-chat",
-    commit: "a".repeat(40),
+    commit: "e1ac82de77ab12b9b2499771a194ef3db356b3a6",
     calver: "2026.8.23",
-    packageDigest: ("sha256:" + "b".repeat(64)) as `sha256:${string}`,
+    packageDigest:
+      "sha256:e39384e00af5d8d5a71aedcde0d960bd4c6797ed227eab9f08d3134b4d712d41",
   }),
 });
 
@@ -597,8 +598,9 @@ test("live runs fail closed when a scoped runtime is missing or expired", async 
   }
 });
 
-test("product smoke official artifacts reflect only the canonical executor outcome", async () => {
+test("a forged Product preflight marker cannot mint connectivity provenance", async () => {
   const fixture = productRunFixture("smoke");
+  let candidateCalls = 0;
   try {
     const result = await executeImmutableRun({
       plan: fixture.plan,
@@ -607,18 +609,26 @@ test("product smoke official artifacts reflect only the canonical executor outco
         kind: "coffee_chat_product",
         productBoundary: PRODUCT_BOUNDARY,
         productHostPreflight: { state: "verified" },
-        run: async () => ({ state: "unmeasured", reason: "unused" }),
+        run: async () => {
+          candidateCalls += 1;
+          return { state: "unmeasured", reason: "must-not-run" } as const;
+        },
       },
       judge: undefined,
       runtime: fixture.runtime,
     });
 
     assert.equal(result.trackReport.executionStatus, "unavailable");
-    assert.equal(result.publicReceipt.failureOwner, "judge");
-    assert.equal(result.trackReport.provenance.candidateMode, "connectivity_only");
-    assert.deepEqual(result.trackReport.provenance.capabilitiesUsed, []);
-    assert.equal(result.trackReport.provenance.productBehaviorExercised, false);
-    assert.equal(result.publicReceipt.candidateMode, "connectivity_only");
+    assert.equal(result.publicReceipt.failureOwner, "host");
+    assert.equal(candidateCalls, 0);
+    assert.equal(result.trackReport.provenance.candidateMode, undefined);
+    assert.equal(result.trackReport.provenance.capabilitiesUsed, undefined);
+    assert.equal(result.trackReport.provenance.productBehaviorExercised, undefined);
+    assert.equal(result.trackReport.provenance.productIdentity, undefined);
+    assert.equal(result.publicReceipt.candidateMode, undefined);
+    assert.equal(result.publicReceipt.capabilitiesUsed, undefined);
+    assert.equal(result.publicReceipt.productBehaviorExercised, undefined);
+    assert.equal(result.publicReceipt.productIdentity, undefined);
     const receipts = JSON.parse(readFileSync(result.trialReceiptsPath, "utf8"));
     assert.deepEqual(receipts, []);
     const serialized = JSON.stringify({
@@ -729,9 +739,10 @@ test("run engine rejects agent_stack transport under reference_model identity", 
   }
 });
 
-test("product smoke fails unavailable/host when package preflight is absent or invalid", async () => {
+test("product smoke trusts verified package bytes rather than transport preflight markers", async () => {
   for (const preflight of [
     undefined,
+    { state: "verified" as const },
     { state: "unavailable" as const, reason: "package digest drift" },
   ]) {
     const fixture = productRunFixture("smoke");
@@ -750,7 +761,8 @@ test("product smoke fails unavailable/host when package preflight is absent or i
       });
       assert.equal(result.trackReport.executionStatus, "unavailable");
       assert.equal(result.publicReceipt.failureOwner, "host");
-      assert.equal(result.publicReceipt.candidateMode, "connectivity_only");
+      assert.equal(result.publicReceipt.candidateMode, undefined);
+      assert.equal(result.trackReport.provenance.productIdentity, undefined);
     } finally {
       rmSync(fixture.root, { recursive: true, force: true });
     }
