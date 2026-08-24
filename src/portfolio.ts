@@ -395,7 +395,6 @@ async function executePortfolioTrack(
   closeTrack: () => Promise<"complete" | "failed">,
 ): Promise<PortfolioTrackReceipt> {
   let result: ImmutableRunResult | undefined;
-  let proxyCleanupStatus: "complete" | "failed";
   try {
     result = await executeImmutableRun({
       plan: track.plan,
@@ -406,14 +405,13 @@ async function executePortfolioTrack(
       ...(track.ifevalRightsRiskAcceptance === undefined
         ? {}
         : { ifevalRightsRiskAcceptance: track.ifevalRightsRiskAcceptance }),
+      hostCleanup: closeTrack,
     });
   } finally {
-    proxyCleanupStatus = await closeTrack();
+    if (result === undefined) await closeTrack();
   }
-  const cleanupStatus =
-    proxyCleanupStatus === "complete" ? result.cleanupStatus : "failed";
-  const executionStatus =
-    cleanupStatus === "complete" ? result.trackReport.executionStatus : "invalid";
+  const cleanupStatus = result.cleanupStatus;
+  const executionStatus = result.trackReport.executionStatus;
   const observed =
     executionStatus === "measured"
       ? observedCensus(track.trackId, result)

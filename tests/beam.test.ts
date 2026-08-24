@@ -300,6 +300,42 @@ test("BEAM executor preserves an exact native Judge transport outage", async () 
     });
     assert.equal(result.cleanupStatus, "complete");
 
+    const failedExecutor = createBeamTrackExecutor({
+      conversationLoader: {
+        load: async ({ conversationId }) => ({ conversationId, messages: [] }),
+      },
+      bridge: {
+        run: async ({ outputPath }) => {
+          writeFileSync(
+            outputPath,
+            JSON.stringify({
+              schema: "coffee-chat-eval/beam-bridge-outcome-v1",
+              executionStatus: "failed",
+              failureOwner: "judge",
+              reason: "BEAM Judge completion is invalid",
+            }),
+          );
+        },
+      },
+    });
+    const failed = await failedExecutor({
+      plan: {
+        profile: "smoke",
+        id: "run-beam-judge-failed",
+        evidenceRoot: root,
+        trackId: "beam-record-core",
+      },
+      source: { sourceRoot: join(root, "source") },
+      candidate,
+      evidence,
+    });
+    assert.equal(failed.executionStatus, "failed");
+    assert.equal(failed.failureOwner, "judge");
+    assert.equal(failed.trialReceipts.length, 6);
+    assert.deepEqual(failed.metrics, {
+      execution: { numerator: null, denominator: null, value: null },
+    });
+
     const malformedExecutor = createBeamTrackExecutor({
       conversationLoader: {
         load: async ({ conversationId }) => ({ conversationId, messages: [] }),
@@ -329,7 +365,7 @@ test("BEAM executor preserves an exact native Judge transport outage", async () 
         candidate,
         evidence,
       }),
-      /Judge unavailable outcome is malformed/u,
+      /Judge outcome is malformed/u,
     );
   } finally {
     rmSync(root, { recursive: true, force: true });

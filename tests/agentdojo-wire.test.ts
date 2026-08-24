@@ -150,7 +150,7 @@ try:
             {"type": "function_call", "call_id": "call_1", "name": "lookup", "arguments": "{}"},
         ]
     })
-except bridge.BrokerUnavailable as error:
+except bridge.CandidateOutputInvalid as error:
     cases["reasoning"] = str(error)
 else:
     cases["reasoning"] = "accepted"
@@ -420,6 +420,26 @@ payloads = {
             {"type": "function_call", "call_id": "call_1", "name": "lookup", "arguments": "{}"},
         ],
     },
+    "missing_reasoning_replay_metadata": {
+        "status": "completed",
+        "output": [
+            {"type": "reasoning", "id": "rs_1", "summary": [], "status": "completed"},
+            {"type": "function_call", "call_id": "call_1", "name": "lookup", "arguments": "{}"},
+        ],
+    },
+    "malformed_reasoning_replay_metadata": {
+        "status": "completed",
+        "output": [
+            {
+                "type": "reasoning",
+                "id": "rs_1",
+                "summary": [],
+                "encrypted_content": "encrypted",
+                "status": "incomplete",
+            },
+            {"type": "function_call", "call_id": "call_1", "name": "lookup", "arguments": "{}"},
+        ],
+    },
     "provider_error": {
         "status": "failed",
         "error": {"message": "provider failed"},
@@ -440,6 +460,7 @@ outcomes = {}
 for label, payload in payloads.items():
     try:
         bridge._response_assistant(payload)
+        bridge._response_replay_group(payload)
     except Exception as error:
         outcomes[label] = type(error).__name__
     else:
@@ -452,6 +473,8 @@ print(json.dumps(outcomes, sort_keys=True))
     duplicate_call_ids: "CandidateOutputInvalid",
     in_progress: "BrokerUnavailable",
     malformed_arguments: "CandidateOutputInvalid",
+    malformed_reasoning_replay_metadata: "CandidateOutputInvalid",
+    missing_reasoning_replay_metadata: "CandidateOutputInvalid",
     missing_status: "BrokerUnavailable",
     provider_error: "BrokerUnavailable",
   });
@@ -533,12 +556,20 @@ class Response:
     def read(self):
         return json.dumps({
             "status": "completed",
-            "output": [{
-                "type": "function_call",
-                "call_id": "call_1",
-                "name": "lookup",
-                "arguments": "not-json",
-            }],
+            "output": [
+                {
+                    "type": "reasoning",
+                    "id": "rs_1",
+                    "summary": [],
+                    "status": "completed",
+                },
+                {
+                    "type": "function_call",
+                    "call_id": "call_1",
+                    "name": "lookup",
+                    "arguments": "{}",
+                },
+            ],
         }).encode("utf-8")
 
 bridge.urllib.request.urlopen = lambda _request, timeout: Response()
@@ -567,6 +598,7 @@ print(json.dumps({
     "candidate": {
         "provider": getattr(candidate_broker, "provider_context_failure", None),
         "adapter": getattr(candidate_broker, "adapter_input_failure", None),
+        "candidate": getattr(candidate_broker, "candidate_output_failure", None),
     },
 }, sort_keys=True))
 `);
@@ -574,7 +606,7 @@ print(json.dumps({
   assert.deepEqual(observed, {
     adapter: { adapter: true, provider: false },
     cap: { adapter: false, exception: "BrokerUnavailable", provider: true },
-    candidate: { adapter: false, provider: false },
+    candidate: { adapter: false, candidate: true, provider: false },
     provider: { adapter: false, provider: true },
   });
 });
@@ -598,8 +630,10 @@ base_pipeline = types.ModuleType("agentdojo.agent_pipeline.base_pipeline_element
 agent_pipeline = types.ModuleType("agentdojo.agent_pipeline.agent_pipeline")
 attacks = types.ModuleType("agentdojo.attacks")
 benchmark = types.ModuleType("agentdojo.benchmark")
+functions_runtime = types.ModuleType("agentdojo.functions_runtime")
 logging_module = types.ModuleType("agentdojo.logging")
 load_suites = types.ModuleType("agentdojo.task_suite.load_suites")
+agentdojo_types = types.ModuleType("agentdojo.types")
 
 class BasePipelineElement:
     pass
@@ -621,13 +655,20 @@ class OutputLogger:
     def __exit__(self, *_args):
         return False
 
+class FunctionCall:
+    def __init__(self, function, args, id=None):
+        self.function = function
+        self.args = args
+        self.id = id
+
 mode = ""
 
 def benchmark_without(pipeline, _suite, **_kwargs):
     provider_failure = mode.startswith("provider-")
+    candidate_failure = mode.startswith("candidate-")
     messages = (
         [{"role": "user", "content": [{"type": "text", "content": "safe task"}]}]
-        if provider_failure
+        if provider_failure or candidate_failure
         else [{
             "role": "tool",
             "content": [{"type": "text", "content": "orphan result"}],
@@ -644,7 +685,11 @@ def benchmark_without(pipeline, _suite, **_kwargs):
                 SimpleNamespace(functions={}),
                 messages=messages,
             )
-        except (bridge.BrokerUnavailable, bridge.AdapterInputInvalid):
+        except (
+            bridge.BrokerUnavailable,
+            bridge.AdapterInputInvalid,
+            bridge.CandidateOutputInvalid,
+        ):
             if mode.endswith("-direct") and (attempt == attempts - 1):
                 raise
     return {
@@ -666,11 +711,41 @@ agent_pipeline.PipelineConfig = PipelineConfig
 attacks.load_attack = lambda *_args: SimpleNamespace()
 benchmark.benchmark_suite_without_injections = benchmark_without
 benchmark.benchmark_suite_with_injections = benchmark_with
+functions_runtime.FunctionCall = FunctionCall
 logging_module.OutputLogger = OutputLogger
 load_suites.get_suite = lambda *_args: SimpleNamespace(user_tasks={}, injection_tasks={})
-bridge.urllib.request.urlopen = lambda *_args, **_kwargs: (_ for _ in ()).throw(
-    urllib.error.URLError("provider down")
-)
+agentdojo_types.text_content_block_from_string = lambda content: {"type": "text", "content": content}
+
+class CandidateResponse:
+    def __enter__(self):
+        return self
+    def __exit__(self, *_args):
+        return False
+    def read(self):
+        return json.dumps({
+            "status": "completed",
+            "output": [
+                {
+                    "type": "reasoning",
+                    "id": "rs_1",
+                    "summary": [],
+                    "status": "completed",
+                },
+                {
+                    "type": "function_call",
+                    "call_id": "call_1",
+                    "name": "lookup",
+                    "arguments": "{}",
+                },
+            ],
+        }).encode("utf-8")
+
+def urlopen(*_args, **_kwargs):
+    if mode.startswith("candidate-"):
+        return CandidateResponse()
+    raise urllib.error.URLError("provider down")
+
+bridge.urllib.request.urlopen = urlopen
 
 modules = {
     "agentdojo": types.ModuleType("agentdojo"),
@@ -679,9 +754,11 @@ modules = {
     "agentdojo.agent_pipeline.agent_pipeline": agent_pipeline,
     "agentdojo.attacks": attacks,
     "agentdojo.benchmark": benchmark,
+    "agentdojo.functions_runtime": functions_runtime,
     "agentdojo.logging": logging_module,
     "agentdojo.task_suite": types.ModuleType("agentdojo.task_suite"),
     "agentdojo.task_suite.load_suites": load_suites,
+    "agentdojo.types": agentdojo_types,
 }
 sys.modules.update(modules)
 
@@ -693,6 +770,9 @@ for current_mode in (
     "adapter-direct",
     "adapter-contaminated",
     "adapter-contaminated-then-direct",
+    "candidate-direct",
+    "candidate-contaminated",
+    "candidate-contaminated-then-direct",
 ):
     mode = current_mode
     with tempfile.TemporaryDirectory() as directory:
@@ -752,6 +832,27 @@ print(json.dumps(outcomes, sort_keys=True))
     "adapter-direct": {
       episodeCount: 0,
       failureOwner: "adapter",
+      hasMetrics: false,
+      providerContextFailure: false,
+      status: "failed",
+    },
+    "candidate-contaminated": {
+      episodeCount: 3,
+      failureOwner: "candidate",
+      hasMetrics: false,
+      providerContextFailure: false,
+      status: "failed",
+    },
+    "candidate-contaminated-then-direct": {
+      episodeCount: 0,
+      failureOwner: "candidate",
+      hasMetrics: false,
+      providerContextFailure: false,
+      status: "failed",
+    },
+    "candidate-direct": {
+      episodeCount: 0,
+      failureOwner: "candidate",
       hasMetrics: false,
       providerContextFailure: false,
       status: "failed",

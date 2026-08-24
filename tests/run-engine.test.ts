@@ -319,6 +319,106 @@ test("run engine resolves the canonical executor and writes private evidence plu
   }
 });
 
+test("run engine finalizes host cleanup before writing any run artifact", async () => {
+  const root = mkdtempSync(join(tmpdir(), "coffee-chat-eval-run-cleanup-"));
+  let cleanupCalls = 0;
+  try {
+    const sourceInput = join(root, "source-input");
+    const inputDataDirectory = join(sourceInput, "instruction_following_eval", "data");
+    mkdirSync(inputDataDirectory, { recursive: true });
+    writeFileSync(join(sourceInput, "LICENSE"), "license");
+    writeFileSync(
+      join(inputDataDirectory, "input_data.jsonl"),
+      `${JSON.stringify({ key: 1000, prompt: "fixture prompt" })}\n`,
+    );
+    const manifest = parseSourceManifest({
+      schema: "source-manifest-v1",
+      trackId: "ifeval",
+      source: {
+        repository: "https://example.invalid/ifeval",
+        commit: "b".repeat(40),
+        license: "Apache-2.0",
+        licenseDigest: digest("license"),
+      },
+      allowlist: ["LICENSE", "instruction_following_eval/data/input_data.jsonl"],
+      excludedPaths: ["responses/**"],
+      retention: {
+        source: "cache-only",
+        evidence: "private-content-addressed",
+        public: "aggregate-provenance-only",
+      },
+      publicArtifactPolicy: "receipt-redacted",
+    });
+    const cacheRoot = join(root, "cache");
+    materializeSource({
+      manifest,
+      cacheRoot,
+      sourceRoot: sourceInput,
+      runtimeLockDigest: digest(readFileSync(IFEVAL_RUNTIME_LOCK, "utf8")),
+      runtimeLockOrigin: "eval-owned",
+      expectedRuntimeLockPath: IFEVAL_RUNTIME_LOCK,
+      licenseEvidence: [
+        { path: "LICENSE", digest: digest("license"), license: "Apache-2.0" },
+      ],
+    });
+    const spec = parseRunSpec({
+      schema: "run-spec-v1",
+      trackId: "ifeval",
+      profile: "fixture",
+      sourceManifestDigest: stableDigest(manifest),
+      candidateDigest: stableDigest("candidate"),
+      judgeDigest: stableDigest("judge"),
+      attackDigest: stableDigest("attack"),
+      defenseDigest: stableDigest("defense"),
+      configurationDigest: stableDigest("configuration"),
+      candidateType: "fixture",
+      caseCensus: { prompts: 1 },
+    });
+    const plan = createRunPlan({
+      manifest,
+      spec,
+      evidenceRoot: join(root, "evidence"),
+      cacheRoot,
+    });
+    const result = await executeImmutableRun({
+      plan,
+      manifest,
+      candidate: createFixtureCandidateTransport(() => "fixture response", {
+        evidenceRoot: plan.evidenceRoot,
+      }),
+      judge: undefined,
+      hostCleanup: async () => {
+        cleanupCalls += 1;
+        return "failed";
+      },
+    });
+
+    assert.equal(cleanupCalls, 1);
+    assert.equal(result.cleanupStatus, "failed");
+    assert.equal(result.trackReport.executionStatus, "invalid");
+    assert.deepEqual(result.trackReport.metrics, {
+      execution: { numerator: null, denominator: null, value: null },
+    });
+    assert.equal(result.publicReceipt.executionStatus, "invalid");
+    assert.equal(result.publicReceipt.failureOwner, "cleanup");
+    const trials = JSON.parse(readFileSync(result.trialReceiptsPath, "utf8")) as Array<
+      Record<string, unknown>
+    >;
+    assert.equal(trials.length, 1);
+    assert.equal(trials[0]?.executionStatus, "invalid");
+    assert.equal(trials[0]?.failureOwner, "cleanup");
+    assert.equal(trials[0]?.cleanupStatus, "failed");
+    assert.equal(trials[0]?.metrics, null);
+    const cleanupEvidence = JSON.parse(
+      readFileSync(result.nativeEvidence.path, "utf8"),
+    ) as Record<string, unknown>;
+    assert.equal(cleanupEvidence.owner, "cleanup");
+    assert.match(String(cleanupEvidence.priorNativeEvidenceDigest), /^sha256:/u);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("run engine rejects a drifted admitted Eval-owned runtime lock before dispatch", async () => {
   const root = mkdtempSync(join(tmpdir(), "coffee-chat-eval-run-lock-drift-"));
   try {

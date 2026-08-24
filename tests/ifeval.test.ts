@@ -276,7 +276,7 @@ test("IFEval injected bridges cannot bypass the native rights hold for a live ca
   }
 });
 
-test("IFEval accepted Product smoke preflights runtime data before nine candidate calls", async () => {
+test("IFEval accepted Product smoke preserves host and source runtime preflight ownership", async () => {
   const root = mkdtempSync(join(tmpdir(), "coffee-chat-ifeval-risk-accepted-"));
   try {
     const sourceRoot = join(root, "source");
@@ -354,7 +354,27 @@ test("IFEval accepted Product smoke preflights runtime data before nine candidat
       evidence: evidenceWriter,
     });
     assert.equal(unavailable.executionStatus, "unavailable");
-    assert.equal(unavailable.failureOwner, "source");
+    assert.equal(unavailable.failureOwner, "host");
+    assert.equal(blockedCandidateCalls, 0);
+
+    const sourceUnavailable = await createIfevalTrackExecutor({
+      bridge: {
+        preflight: async () => {
+          throw new Error("IFEval runtime asset source drifted");
+        },
+        run: async () => {
+          throw new Error("must not run after source preflight failure");
+        },
+      },
+    })({
+      plan,
+      source: { sourceRoot },
+      candidate: { ...blockedFixture, kind: "coffee_chat_product" },
+      ifevalRightsRiskAcceptance: acceptance,
+      evidence: evidenceWriter,
+    });
+    assert.equal(sourceUnavailable.executionStatus, "unavailable");
+    assert.equal(sourceUnavailable.failureOwner, "source");
     assert.equal(blockedCandidateCalls, 0);
 
     const fixture = createFixtureCandidateTransport(

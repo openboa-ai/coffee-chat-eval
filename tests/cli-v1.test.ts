@@ -78,6 +78,76 @@ test("v1 CLI supports source verify/plan/run/report with track and profile flags
   }
 });
 
+test("v1 CLI fails closed when a Product receipt and sibling TrackReport boundaries drift", () => {
+  const cwd = new URL("..", import.meta.url);
+  const root = mkdtempSync(join(tmpdir(), "coffee-chat-eval-report-boundary-"));
+  try {
+    const receiptPath = join(root, "public-receipt.json");
+    writeFileSync(
+      receiptPath,
+      JSON.stringify({
+        id: "receipt-product-boundary",
+        runId: "run-product-boundary",
+        trackId: "ifeval",
+        profile: "smoke",
+        sourceManifestDigest: `sha256:${"a".repeat(64)}`,
+        runSpecDigest: `sha256:${"b".repeat(64)}`,
+        executionStatus: "measured",
+        claimStatus: "calibration",
+        candidateMode: "connectivity_only",
+        capabilitiesUsed: [],
+        productBehaviorExercised: false,
+        referenceHost: "eval-skills-reference-host-v1",
+        productIdentity: {
+          repository: "https://github.com/openboa-ai/coffee-chat",
+          commit: "e1ac82de77ab12b9b2499771a194ef3db356b3a6",
+          calver: "2026.8.23",
+          packageDigest:
+            "sha256:e39384e00af5d8d5a71aedcde0d960bd4c6797ed227eab9f08d3134b4d712d41",
+        },
+      }),
+    );
+    writeFileSync(
+      join(root, "track-report.json"),
+      JSON.stringify({
+        trackId: "ifeval",
+        claimStatus: "calibration",
+        executionStatus: "measured",
+        nativeMetricIds: ["strictPrompt"],
+        denominators: { strictPrompt: 1 },
+        metrics: {
+          strictPrompt: { numerator: 1, denominator: 1, value: 1 },
+        },
+        provenance: {
+          sourceManifestDigest: `sha256:${"a".repeat(64)}`,
+          runId: "run-product-boundary",
+        },
+      }),
+    );
+
+    const failure = spawnSync(
+      process.execPath,
+      [
+        "--experimental-strip-types",
+        "src/cli.ts",
+        "report",
+        "--run",
+        receiptPath,
+        "--visibility",
+        "public",
+      ],
+      { cwd: cwd.pathname, encoding: "utf8" },
+    );
+
+    assert.notEqual(failure.status, 0);
+    assert.match(failure.stderr, /track report does not match the public receipt/u);
+    assert.equal(failure.stdout, "");
+    assert.doesNotMatch(failure.stdout, /strictPrompt:|value:|1\/1/u);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("v1 CLI rejects fixture candidates for live profiles", () => {
   const cwd = new URL("..", import.meta.url);
   const root = mkdtempSync(join(tmpdir(), "coffee-chat-eval-profile-contract-"));

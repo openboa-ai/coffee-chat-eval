@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { formatTrackReport } from "../src/report.ts";
+import { assertTrackReportMatchesReceipt, formatTrackReport } from "../src/report.ts";
 import { createTrackReport } from "../src/eval-core.ts";
+import { parsePublicEvidenceReceipt } from "../src/receipts.ts";
 
 const PRODUCT_BOUNDARY = Object.freeze({
   candidateMode: "connectivity_only" as const,
@@ -101,4 +102,102 @@ test("public risk-accepted IFEval reports disclose the boundary but suppress met
   assert.match(output, /withheld/u);
   assert.doesNotMatch(output, /strictPrompt:|1\/1|workspace-owner/u);
   assert.match(formatTrackReport(report, "internal"), /strictPrompt: 1\/1/u);
+});
+
+test("TrackReport linkage requires exact receipt Product and rights boundaries", () => {
+  const sourceManifestDigest = ("sha256:" + "a".repeat(64)) as `sha256:${string}`;
+  const rightsRiskAcceptanceDigest = ("sha256:" + "b".repeat(64)) as `sha256:${string}`;
+  const receipt = parsePublicEvidenceReceipt({
+    id: "receipt-product-rights",
+    runId: "run-product-rights",
+    trackId: "ifeval",
+    profile: "smoke",
+    sourceManifestDigest,
+    runSpecDigest: "sha256:" + "c".repeat(64),
+    executionStatus: "measured",
+    claimStatus: "calibration",
+    rightsRiskAcceptanceDigest,
+    licenseCleared: false,
+    rightsExecutionScope: "private-internal-smoke-only",
+    ...PRODUCT_BOUNDARY,
+  });
+  const reportInput = {
+    trackId: "ifeval" as const,
+    claimStatus: "calibration" as const,
+    executionStatus: "measured" as const,
+    nativeMetricIds: ["strictPrompt"],
+    metrics: {
+      strictPrompt: { numerator: 1, denominator: 1, value: 1 },
+    },
+  };
+  const matching = createTrackReport({
+    ...reportInput,
+    provenance: {
+      sourceManifestDigest,
+      runId: "run-product-rights",
+      rightsRiskAcceptanceDigest,
+      licenseCleared: false,
+      rightsExecutionScope: "private-internal-smoke-only",
+      ...PRODUCT_BOUNDARY,
+    },
+  });
+  assert.doesNotThrow(() => assertTrackReportMatchesReceipt(matching, receipt));
+
+  const missingProductAndRights = createTrackReport({
+    ...reportInput,
+    provenance: { sourceManifestDigest, runId: "run-product-rights" },
+  });
+  assert.throws(
+    () => assertTrackReportMatchesReceipt(missingProductAndRights, receipt),
+    /track report does not match the public receipt/u,
+  );
+
+  const missingRights = createTrackReport({
+    ...reportInput,
+    provenance: {
+      sourceManifestDigest,
+      runId: "run-product-rights",
+      ...PRODUCT_BOUNDARY,
+    },
+  });
+  assert.throws(
+    () => assertTrackReportMatchesReceipt(missingRights, receipt),
+    /track report does not match the public receipt/u,
+  );
+
+  const mismatchedRights = createTrackReport({
+    ...reportInput,
+    provenance: {
+      sourceManifestDigest,
+      runId: "run-product-rights",
+      rightsRiskAcceptanceDigest: ("sha256:" + "d".repeat(64)) as `sha256:${string}`,
+      licenseCleared: false,
+      rightsExecutionScope: "private-internal-smoke-only",
+      ...PRODUCT_BOUNDARY,
+    },
+  });
+  assert.throws(
+    () => assertTrackReportMatchesReceipt(mismatchedRights, receipt),
+    /track report does not match the public receipt/u,
+  );
+
+  const mismatchedProductIdentity = createTrackReport({
+    ...reportInput,
+    provenance: {
+      sourceManifestDigest,
+      runId: "run-product-rights",
+      rightsRiskAcceptanceDigest,
+      licenseCleared: false,
+      rightsExecutionScope: "private-internal-smoke-only",
+      ...PRODUCT_BOUNDARY,
+      productIdentity: {
+        ...PRODUCT_BOUNDARY.productIdentity,
+        commit: "f".repeat(40),
+      },
+    },
+  });
+  assert.throws(
+    () => assertTrackReportMatchesReceipt(mismatchedProductIdentity, receipt),
+    /track report does not match the public receipt/u,
+  );
 });

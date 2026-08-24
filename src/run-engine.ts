@@ -346,6 +346,63 @@ export interface ImmutableRunInput {
   readonly judge: JudgeTransport | undefined;
   readonly runtime?: RuntimeBundleConfig | undefined;
   readonly ifevalRightsRiskAcceptance?: IfevalRightsRiskAcceptance | undefined;
+  /** Host-owned teardown that must finish before append-only run artifacts finalize. */
+  readonly hostCleanup?: (() => Promise<"complete" | "failed">) | undefined;
+}
+
+function trialProductBoundary(
+  receipt: TrialReceipt,
+): ProductCandidateBoundary | undefined {
+  if (receipt.candidateMode === undefined) return undefined;
+  return parseProductCandidateBoundary({
+    candidateMode: receipt.candidateMode,
+    capabilitiesUsed: receipt.capabilitiesUsed,
+    productBehaviorExercised: receipt.productBehaviorExercised,
+    referenceHost: receipt.referenceHost,
+    productIdentity: receipt.productIdentity,
+  });
+}
+
+function cleanupFailureExecution(input: {
+  readonly execution: TrackExecutionResult;
+  readonly evidence: (value: unknown, mediaType: string) => PrivateArtifactRef;
+}): TrackExecutionResult {
+  return Object.freeze({
+    executionStatus: "invalid" as const,
+    failureOwner: "cleanup" as const,
+    trialReceipts: Object.freeze(
+      input.execution.trialReceipts.map((receipt) => {
+        const productBoundary = trialProductBoundary(receipt);
+        return createTrialReceipt({
+          runId: receipt.runId,
+          trackId: receipt.trackId,
+          trialId: receipt.trialId,
+          executionStatus: "invalid",
+          failureOwner: "cleanup",
+          host: receipt.host,
+          artifacts: receipt.artifacts,
+          metrics: null,
+          ...(receipt.latencyMs === undefined ? {} : { latencyMs: receipt.latencyMs }),
+          ...(receipt.tokenCount === undefined
+            ? {}
+            : { tokenCount: receipt.tokenCount }),
+          ...(receipt.cost === undefined ? {} : { cost: receipt.cost }),
+          cleanupStatus: "failed",
+          ...(productBoundary === undefined ? {} : { productBoundary }),
+        });
+      }),
+    ),
+    metrics: emptyMetrics(),
+    nativeEvidence: input.evidence(
+      {
+        reason: "host or track cleanup failed",
+        owner: "cleanup",
+        priorNativeEvidenceDigest: input.execution.nativeEvidence.digest,
+      },
+      "application/json",
+    ),
+    cleanupStatus: "failed" as const,
+  });
 }
 
 export async function executeImmutableRun(
@@ -372,18 +429,31 @@ async function executeImmutableRunWithExecutor(
     privateArtifact(plan.evidenceRoot, value, mediaType);
   let rightsRiskAcceptanceValidated = false;
   let verifiedProductBoundary: ProductCandidateBoundary | undefined;
-  const finalize = (
+  const finalize = async (
     execution: TrackExecutionResult,
     source: MaterializedSourceVerification | undefined,
-  ) =>
-    finalizeRun({
+  ) => {
+    let hostCleanupStatus: "complete" | "failed" = "complete";
+    if (input.hostCleanup !== undefined) {
+      try {
+        hostCleanupStatus = await input.hostCleanup();
+      } catch {
+        hostCleanupStatus = "failed";
+      }
+    }
+    const finalizedExecution =
+      hostCleanupStatus === "complete" && execution.cleanupStatus === "complete"
+        ? execution
+        : cleanupFailureExecution({ execution, evidence });
+    return finalizeRun({
       input,
-      execution,
+      execution: finalizedExecution,
       source,
       runRoot,
       rightsRiskAcceptanceValidated,
       verifiedProductBoundary,
     });
+  };
   if (plan.runSpec === undefined) {
     const execution = failureExecution({
       owner: "verifier",
@@ -606,13 +676,6 @@ async function executeImmutableRunWithExecutor(
       verifiedProductBoundary,
     ),
   });
-  if (execution.cleanupStatus !== "complete") {
-    execution = Object.freeze({
-      ...execution,
-      executionStatus: "invalid" as const,
-      failureOwner: "cleanup" as const,
-    });
-  }
   return finalize(execution, source);
 }
 

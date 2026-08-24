@@ -202,6 +202,29 @@ test("portfolio marks a track invalid when production-path proxy cleanup fails",
     const beam = receipt.tracks.find((track) => track.trackId === "beam-record-core");
     assert.equal(beam?.cleanupStatus, "failed");
     assert.equal(beam?.executionStatus, "invalid");
+    assert.ok(beam);
+    const beamRunRoot = join(root, beam.runId);
+    const beamPublicReceipt = JSON.parse(
+      readFileSync(join(beamRunRoot, "public-receipt.json"), "utf8"),
+    ) as Record<string, unknown>;
+    assert.equal(beamPublicReceipt.executionStatus, "invalid");
+    assert.equal(beamPublicReceipt.failureOwner, "cleanup");
+    const beamTrackReport = JSON.parse(
+      readFileSync(join(beamRunRoot, "track-report.json"), "utf8"),
+    ) as Record<string, unknown>;
+    assert.equal(beamTrackReport.executionStatus, "invalid");
+    assert.deepEqual(beamTrackReport.metrics, {
+      execution: { numerator: null, denominator: null, value: null },
+    });
+    const beamTrials = JSON.parse(
+      readFileSync(join(beamRunRoot, "trial-receipts.json"), "utf8"),
+    ) as Array<Record<string, unknown>>;
+    for (const trial of beamTrials) {
+      assert.equal(trial.executionStatus, "invalid");
+      assert.equal(trial.failureOwner, "cleanup");
+      assert.equal(trial.cleanupStatus, "failed");
+      assert.equal(trial.metrics, null);
+    }
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

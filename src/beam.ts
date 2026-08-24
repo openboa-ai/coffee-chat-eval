@@ -19,6 +19,9 @@ import {
 
 export type BeamProfile = "fixture" | "smoke" | "pilot" | "score";
 
+const BEAM_JUDGE_UNAVAILABLE_REASON = "BEAM Judge broker transport is unavailable";
+const BEAM_JUDGE_FAILED_REASON = "BEAM Judge completion is invalid";
+
 export const BEAM_SOURCE = Object.freeze({
   codeRepository: "https://github.com/mohammadtavakoli78/BEAM",
   codeCommit: "3e12035532eb85768f1a7cd779832b650c4b2ef9",
@@ -478,17 +481,24 @@ export function createBeamTrackExecutor(
     >;
     if (native.schema === "coffee-chat-eval/beam-bridge-outcome-v1") {
       const keys = Object.keys(native).sort();
+      const outcome =
+        native.executionStatus === "unavailable" &&
+        native.reason === BEAM_JUDGE_UNAVAILABLE_REASON
+          ? ("unavailable" as const)
+          : native.executionStatus === "failed" &&
+              native.reason === BEAM_JUDGE_FAILED_REASON
+            ? ("failed" as const)
+            : undefined;
       if (
         JSON.stringify(keys) !==
           JSON.stringify(["executionStatus", "failureOwner", "reason", "schema"]) ||
-        native.executionStatus !== "unavailable" ||
         native.failureOwner !== "judge" ||
-        native.reason !== "BEAM Judge broker transport is unavailable"
+        outcome === undefined
       ) {
-        throw new TypeError("BEAM Judge unavailable outcome is malformed");
+        throw new TypeError("BEAM Judge outcome is malformed");
       }
       return Object.freeze({
-        executionStatus: "unavailable" as const,
+        executionStatus: outcome,
         failureOwner: "judge" as const,
         trialReceipts: Object.freeze(trialReceipts),
         metrics: Object.freeze({

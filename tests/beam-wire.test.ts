@@ -130,11 +130,11 @@ print(json.dumps(outcomes))
     },
     { type: "RuntimeError", message: "BEAM Judge completion reported an error" },
     { type: "RuntimeError", message: "BEAM Judge completion reported an error" },
-    { type: "ValueError", message: "BEAM Judge completion has no usable output" },
-    { type: "ValueError", message: "BEAM Judge returned malformed JSON" },
+    { type: "JudgeFailedError", message: "BEAM Judge completion is invalid" },
+    { type: "JudgeFailedError", message: "BEAM Judge completion is invalid" },
     {
-      type: "ValueError",
-      message: "BEAM Judge score must be exactly 0, 0.5, or 1",
+      type: "JudgeFailedError",
+      message: "BEAM Judge completion is invalid",
     },
   ]);
 });
@@ -214,7 +214,7 @@ print(json.dumps(outcomes))
       type: "JudgeUnavailableError",
       message: "BEAM Judge broker transport is unavailable",
     },
-    { type: "ValueError", message: "BEAM Judge returned malformed JSON" },
+    { type: "JudgeFailedError", message: "BEAM Judge completion is invalid" },
   ]);
 });
 
@@ -289,5 +289,136 @@ with tempfile.TemporaryDirectory() as directory:
     incomplete: unavailable,
     in_progress: unavailable,
     queued: unavailable,
+  });
+});
+
+test("BEAM bridge main maps invalid completed Judge verdicts to the exact failed outcome", () => {
+  const result = runPython(String.raw`
+import importlib.util
+import json
+import sys
+import tempfile
+from pathlib import Path
+
+spec = importlib.util.spec_from_file_location("beam_bridge", sys.argv[1])
+bridge = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(bridge)
+
+payloads = {
+    "missing_output": {"status": "completed", "error": None, "output": []},
+    "malformed_json": {"status": "completed", "error": None, "output_text": "not-json"},
+    "invalid_score": {
+        "status": "completed",
+        "error": None,
+        "output_text": json.dumps({"score": 0.25}),
+    },
+}
+
+with tempfile.TemporaryDirectory() as directory:
+    root = Path(directory)
+    current = {"payload": None}
+
+    class Response:
+        def __enter__(self):
+            return self
+        def __exit__(self, *_args):
+            return False
+        def read(self):
+            return json.dumps(current["payload"]).encode("utf-8")
+
+    bridge.urllib.request.urlopen = lambda _request, timeout: Response()
+
+    def invoke_invalid_verdict(*_args, **_kwargs):
+        judge = bridge.BrokerJudge({
+            "scope": "judge",
+            "endpoint": "http://127.0.0.1/responses",
+            "capabilityToken": "scoped",
+            "model": "gpt-5.6-luna",
+            "maxRequests": 1,
+        })
+        judge.invoke("rubric prompt")
+
+    bridge.run = invoke_invalid_verdict
+    outcomes = {}
+    for label, payload in payloads.items():
+        current["payload"] = payload
+        output = root / f"beam-native-{label}.json"
+        sys.argv = [
+            "bridge.py",
+            "--source-root", str(root),
+            "--data-root", str(root),
+            "--query-path", str(root / "queries.json"),
+            "--response-path", str(root / "responses.json"),
+            "--output", str(output),
+            "--tier", "100K",
+            "--profile", "smoke",
+            "--judge-runtime", str(root / "judge.json"),
+        ]
+        bridge.main()
+        outcomes[label] = json.loads(output.read_text(encoding="utf-8"))
+    print(json.dumps(outcomes, sort_keys=True))
+`);
+
+  const failed = {
+    schema: "coffee-chat-eval/beam-bridge-outcome-v1",
+    executionStatus: "failed",
+    failureOwner: "judge",
+    reason: "BEAM Judge completion is invalid",
+  };
+  assert.deepEqual(result, {
+    invalid_score: failed,
+    malformed_json: failed,
+    missing_output: failed,
+  });
+});
+
+test("BEAM bridge main does not relabel adapter scoring drift as a Judge failure", () => {
+  const result = runPython(String.raw`
+import importlib.util
+import json
+import sys
+import tempfile
+from pathlib import Path
+
+spec = importlib.util.spec_from_file_location("beam_bridge", sys.argv[1])
+bridge = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(bridge)
+
+with tempfile.TemporaryDirectory() as directory:
+    root = Path(directory)
+    output = root / "beam-native.json"
+
+    def adapter_invalid(*_args, **_kwargs):
+        raise ValueError("BEAM native category denominator mismatch: abstention")
+
+    bridge.run = adapter_invalid
+    sys.argv = [
+        "bridge.py",
+        "--source-root", str(root),
+        "--data-root", str(root),
+        "--query-path", str(root / "queries.json"),
+        "--response-path", str(root / "responses.json"),
+        "--output", str(output),
+        "--tier", "100K",
+        "--profile", "smoke",
+        "--judge-runtime", str(root / "judge.json"),
+    ]
+    try:
+        bridge.main()
+    except Exception as error:
+        observed = {
+            "type": type(error).__name__,
+            "message": str(error),
+            "outcomeWritten": output.exists(),
+        }
+    else:
+        observed = {"type": "accepted", "outcomeWritten": output.exists()}
+    print(json.dumps(observed, sort_keys=True))
+`);
+
+  assert.deepEqual(result, {
+    type: "ValueError",
+    message: "BEAM native category denominator mismatch: abstention",
+    outcomeWritten: false,
   });
 });

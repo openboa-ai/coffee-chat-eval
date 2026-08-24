@@ -28,6 +28,7 @@ import {
   redactEvidenceReceipt,
 } from "./receipts.ts";
 import {
+  assertTrackReportMatchesReceipt,
   formatDryRunReport,
   formatEvidenceReport,
   formatTrackReport,
@@ -769,14 +770,7 @@ export async function runCli(args: readonly string[]): Promise<void> {
       const trackReport = parseTrackReport(
         readBoundedJson(trackReportPath, CORE_BYTES, "track report"),
       );
-      if (
-        trackReport.trackId !== receipt.trackId ||
-        trackReport.provenance.runId !== receipt.runId ||
-        trackReport.claimStatus !== receipt.claimStatus ||
-        trackReport.executionStatus !== receipt.executionStatus
-      ) {
-        throw new TypeError("track report does not match the public receipt");
-      }
+      assertTrackReportMatchesReceipt(trackReport, receipt);
       process.stdout.write(`${formatTrackReport(trackReport, visibility)}\n`);
     } else {
       process.stdout.write(`${formatEvidenceReport(receipt)}\n`);

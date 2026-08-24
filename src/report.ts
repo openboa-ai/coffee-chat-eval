@@ -2,6 +2,52 @@ import type { DryRunRegistry } from "./registry.ts";
 import type { PublicEvidenceReceipt } from "./receipts.ts";
 import type { TrackReport } from "./eval-core.ts";
 
+type ReportBoundary = TrackReport["provenance"] | PublicEvidenceReceipt;
+
+function productBoundaryMatches(left: ReportBoundary, right: ReportBoundary): boolean {
+  const leftPresent = left.candidateMode !== undefined;
+  const rightPresent = right.candidateMode !== undefined;
+  if (!leftPresent || !rightPresent) return leftPresent === rightPresent;
+  return (
+    left.candidateMode === right.candidateMode &&
+    JSON.stringify(left.capabilitiesUsed) === JSON.stringify(right.capabilitiesUsed) &&
+    left.productBehaviorExercised === right.productBehaviorExercised &&
+    left.referenceHost === right.referenceHost &&
+    left.productIdentity?.repository === right.productIdentity?.repository &&
+    left.productIdentity?.commit === right.productIdentity?.commit &&
+    left.productIdentity?.calver === right.productIdentity?.calver &&
+    left.productIdentity?.packageDigest === right.productIdentity?.packageDigest
+  );
+}
+
+function rightsBoundaryMatches(left: ReportBoundary, right: ReportBoundary): boolean {
+  const leftPresent = left.rightsRiskAcceptanceDigest !== undefined;
+  const rightPresent = right.rightsRiskAcceptanceDigest !== undefined;
+  if (!leftPresent || !rightPresent) return leftPresent === rightPresent;
+  return (
+    left.rightsRiskAcceptanceDigest === right.rightsRiskAcceptanceDigest &&
+    left.licenseCleared === right.licenseCleared &&
+    left.rightsExecutionScope === right.rightsExecutionScope
+  );
+}
+
+export function assertTrackReportMatchesReceipt(
+  report: TrackReport,
+  receipt: PublicEvidenceReceipt,
+): void {
+  if (
+    report.trackId !== receipt.trackId ||
+    report.provenance.runId !== receipt.runId ||
+    report.provenance.sourceManifestDigest !== receipt.sourceManifestDigest ||
+    report.claimStatus !== receipt.claimStatus ||
+    report.executionStatus !== receipt.executionStatus ||
+    !productBoundaryMatches(report.provenance, receipt) ||
+    !rightsBoundaryMatches(report.provenance, receipt)
+  ) {
+    throw new TypeError("track report does not match the public receipt");
+  }
+}
+
 export function formatDryRunReport(registry: DryRunRegistry): string {
   const entries = registry.entries
     .map((entry) => `- ${entry.id}: ${entry.status} (${entry.reason})`)

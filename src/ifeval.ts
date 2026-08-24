@@ -559,6 +559,14 @@ function metricFromNative(
   return Object.freeze({ numerator, denominator, value: accuracy as number | null });
 }
 
+function runtimePreflightFailureOwner(error: unknown): "host" | "source" {
+  return error !== null &&
+    typeof error === "object" &&
+    (error as { readonly failureOwner?: unknown }).failureOwner === "host"
+    ? "host"
+    : "source";
+}
+
 export function createIfevalTrackExecutor(
   input: { readonly bridge?: IFEvalBridgeRunner } = {},
 ): (context: {
@@ -660,6 +668,7 @@ export function createIfevalTrackExecutor(
         });
         context.evidence({ value: preflight, mediaType: "application/json" });
       } catch (error) {
+        const failureOwner = runtimePreflightFailureOwner(error);
         const metric = Object.freeze({
           numerator: null,
           denominator: null,
@@ -667,7 +676,7 @@ export function createIfevalTrackExecutor(
         });
         return Object.freeze({
           executionStatus: "unavailable" as const,
-          failureOwner: "source" as const,
+          failureOwner,
           trialReceipts: Object.freeze([]),
           metrics: Object.freeze({
             strictPrompt: metric,

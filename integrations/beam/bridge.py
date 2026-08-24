@@ -40,10 +40,15 @@ NLTK_DATA_FORBIDDEN = (
     "tokenizers/punkt_tab.zip",
 )
 JUDGE_UNAVAILABLE_REASON = "BEAM Judge broker transport is unavailable"
+JUDGE_FAILED_REASON = "BEAM Judge completion is invalid"
 NONTERMINAL_RESPONSE_STATUSES = frozenset(("queued", "in_progress", "incomplete"))
 
 
 class JudgeUnavailableError(RuntimeError):
+    pass
+
+
+class JudgeFailedError(RuntimeError):
     pass
 
 
@@ -159,7 +164,7 @@ def _response_text(value: Any) -> str:
                             chunks.append(content["text"])
             if chunks:
                 return "".join(chunks)
-    raise ValueError("BEAM Judge completion has no usable output")
+    raise JudgeFailedError(JUDGE_FAILED_REASON)
 
 
 def _extract_conversation(data_root: Path, conversation_id: str) -> dict[str, Any]:
@@ -233,9 +238,9 @@ class BrokerJudge:
         try:
             parsed = json.loads(content)
         except json.JSONDecodeError as exc:
-            raise ValueError("BEAM Judge returned malformed JSON") from exc
+            raise JudgeFailedError(JUDGE_FAILED_REASON) from exc
         if not isinstance(parsed, dict):
-            raise ValueError("BEAM Judge JSON must be an object")
+            raise JudgeFailedError(JUDGE_FAILED_REASON)
         score = parsed.get("score")
         if (
             isinstance(score, bool)
@@ -243,7 +248,7 @@ class BrokerJudge:
             or not math.isfinite(float(score))
             or float(score) not in {0.0, 0.5, 1.0}
         ):
-            raise ValueError("BEAM Judge score must be exactly 0, 0.5, or 1")
+            raise JudgeFailedError(JUDGE_FAILED_REASON)
         return SimpleNamespace(content=content)
 
 
@@ -480,6 +485,16 @@ def main() -> None:
                 "executionStatus": "unavailable",
                 "failureOwner": "judge",
                 "reason": JUDGE_UNAVAILABLE_REASON,
+            },
+        )
+    except JudgeFailedError:
+        _write_once(
+            args.output,
+            {
+                "schema": "coffee-chat-eval/beam-bridge-outcome-v1",
+                "executionStatus": "failed",
+                "failureOwner": "judge",
+                "reason": JUDGE_FAILED_REASON,
             },
         )
 

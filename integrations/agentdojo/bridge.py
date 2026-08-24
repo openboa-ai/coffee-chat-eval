@@ -391,7 +391,7 @@ def _response_replay_group(value: dict[str, Any]) -> dict[str, Any] | None:
                 or not encrypted_content
                 or status not in {None, "completed"}
             ):
-                raise BrokerUnavailable("broker reasoning replay item is invalid")
+                raise CandidateOutputInvalid("broker reasoning replay item is invalid")
             replay_item: dict[str, Any] = {
                 "type": "reasoning",
                 "id": reasoning_id,
@@ -407,7 +407,7 @@ def _response_replay_group(value: dict[str, Any]) -> dict[str, Any] | None:
             name = item.get("name")
             arguments = item.get("arguments")
             if not isinstance(call_id, str) or not isinstance(name, str) or not isinstance(arguments, str):
-                raise BrokerUnavailable("broker function replay item is invalid")
+                raise CandidateOutputInvalid("broker function replay item is invalid")
             replay_item = {
                 "type": "function_call",
                 "call_id": call_id,
@@ -423,7 +423,7 @@ def _response_replay_group(value: dict[str, Any]) -> dict[str, Any] | None:
             message_id = item.get("id")
             status = item.get("status")
             if not isinstance(message_id, str) or not message_id or status != "completed":
-                raise BrokerUnavailable("broker assistant replay item is invalid")
+                raise CandidateOutputInvalid("broker assistant replay item is invalid")
             replay_items.append(
                 {
                     "type": "message",
@@ -434,7 +434,7 @@ def _response_replay_group(value: dict[str, Any]) -> dict[str, Any] | None:
                 }
             )
             continue
-        raise BrokerUnavailable("broker replay output item is unsupported")
+        raise CandidateOutputInvalid("broker replay output item is unsupported")
     return {"callIds": call_ids, "items": replay_items}
 
 
@@ -456,6 +456,7 @@ class BrokerLLMElement:
         self.calls = 0
         self.provider_context_failure = False
         self.adapter_input_failure = False
+        self.candidate_output_failure = False
         self.provider_context_failure_count = 0
         self.adapter_input_failure_count = 0
 
@@ -511,6 +512,9 @@ class BrokerLLMElement:
         except BrokerUnavailable:
             self.provider_context_failure = True
             self.provider_context_failure_count += 1
+            raise
+        except CandidateOutputInvalid:
+            self.candidate_output_failure = True
             raise
         self.calls += 1
         return "", runtime, env, [*messages, assistant], next_extra_args
@@ -746,6 +750,7 @@ def run(
     if (
         contaminated_provider_context
         or contaminated_adapter_input
+        or broker.candidate_output_failure
         or direct_provider_context_failure
         or direct_adapter_input_failure
         or failure_owner is not None
@@ -759,6 +764,11 @@ def run(
             failure_owner = "adapter"
         elif direct_provider_context_failure:
             status = "unavailable"
+        elif direct_adapter_input_failure:
+            status = "failed"
+        elif broker.candidate_output_failure:
+            status = "failed"
+            failure_owner = "candidate"
         else:
             status = "failed"
         _write_once(
