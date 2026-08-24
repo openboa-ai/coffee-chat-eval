@@ -596,6 +596,37 @@ test("Responses candidate rejects a malformed successful broker response as fail
   }
 });
 
+test("Responses Judge fails malformed successful responses but preserves broker outages", async () => {
+  const root = await mkdtemp(join(tmpdir(), "coffee-chat-eval-judge-protocol-"));
+  const malformedBroker = await startRawBroker("not-json");
+  const unavailableBroker = await startRawBroker("service unavailable", 503);
+  try {
+    const malformedJudge = createResponsesJudgeTransport({
+      endpoint: malformedBroker.endpoint,
+      capability: "judge-capability",
+      model: "gpt-5.6-luna",
+      evidenceRoot: root,
+    });
+    const malformed = await malformedJudge.evaluate({ prompt: "judge malformed" });
+    assert.equal(malformed.state, "failed");
+    assert.equal(malformed.failureOwner, "judge");
+
+    const unavailableJudge = createResponsesJudgeTransport({
+      endpoint: unavailableBroker.endpoint,
+      capability: "judge-capability",
+      model: "gpt-5.6-luna",
+      evidenceRoot: root,
+    });
+    const unavailable = await unavailableJudge.evaluate({ prompt: "judge outage" });
+    assert.equal(unavailable.state, "unavailable");
+    assert.equal(unavailable.failureOwner, "judge");
+  } finally {
+    await malformedBroker.close();
+    await unavailableBroker.close();
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test("Responses candidate preserves the configured standard candidate kind", () => {
   for (const kind of ["reference_model", "agent_stack"] as const) {
     const transport = createResponsesCandidateTransport({

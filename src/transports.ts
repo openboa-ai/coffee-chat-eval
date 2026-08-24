@@ -548,9 +548,11 @@ export function createResponsesJudgeTransport(input: {
       } catch (error) {
         return {
           state:
-            error instanceof ResponsesEnvelopeError && error.outcome === "failed"
-              ? ("failed" as const)
-              : ("unavailable" as const),
+            error instanceof ResponsesEnvelopeError
+              ? error.outcome
+              : error instanceof BrokerSessionUnavailableError
+                ? ("unavailable" as const)
+                : ("failed" as const),
           reason: error instanceof Error ? error.message : "judge broker failed",
           failureOwner: "judge" as const,
         };
