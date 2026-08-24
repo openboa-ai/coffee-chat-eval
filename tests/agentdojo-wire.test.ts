@@ -376,7 +376,7 @@ print(json.dumps(captured, sort_keys=True))
   );
 });
 
-test("AgentDojo separates malformed completed candidate output from broker unavailability", () => {
+test("AgentDojo separates terminal candidate output from broker unavailability", () => {
   const observed = runPython(String.raw`
 import importlib.util
 import json
@@ -404,6 +404,7 @@ bridge = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(bridge)
 
 payloads = {
+    "non_object": [],
     "malformed_arguments": {
         "status": "completed",
         "output": [{
@@ -440,13 +441,38 @@ payloads = {
             {"type": "function_call", "call_id": "call_1", "name": "lookup", "arguments": "{}"},
         ],
     },
-    "provider_error": {
+    "failed_with_error": {
         "status": "failed",
         "error": {"message": "provider failed"},
         "output": [],
     },
+    "failed_without_error": {
+        "status": "failed",
+        "error": None,
+        "output": [],
+    },
+    "completed_with_error": {
+        "status": "completed",
+        "error": {"message": "provider failed"},
+        "output": [],
+    },
+    "queued": {
+        "status": "queued",
+        "error": None,
+        "output": [],
+    },
     "in_progress": {
         "status": "in_progress",
+        "error": None,
+        "output": [],
+    },
+    "incomplete": {
+        "status": "incomplete",
+        "error": None,
+        "output": [],
+    },
+    "unknown_status": {
+        "status": "cancelled",
         "error": None,
         "output": [],
     },
@@ -470,13 +496,19 @@ print(json.dumps(outcomes, sort_keys=True))
 `);
 
   assert.deepEqual(observed, {
+    completed_with_error: "CandidateOutputInvalid",
     duplicate_call_ids: "CandidateOutputInvalid",
+    failed_with_error: "CandidateOutputInvalid",
+    failed_without_error: "CandidateOutputInvalid",
+    incomplete: "BrokerUnavailable",
     in_progress: "BrokerUnavailable",
     malformed_arguments: "CandidateOutputInvalid",
     malformed_reasoning_replay_metadata: "CandidateOutputInvalid",
     missing_reasoning_replay_metadata: "CandidateOutputInvalid",
-    missing_status: "BrokerUnavailable",
-    provider_error: "BrokerUnavailable",
+    missing_status: "CandidateOutputInvalid",
+    non_object: "CandidateOutputInvalid",
+    queued: "BrokerUnavailable",
+    unknown_status: "CandidateOutputInvalid",
   });
 });
 
@@ -555,21 +587,9 @@ class Response:
         return False
     def read(self):
         return json.dumps({
-            "status": "completed",
-            "output": [
-                {
-                    "type": "reasoning",
-                    "id": "rs_1",
-                    "summary": [],
-                    "status": "completed",
-                },
-                {
-                    "type": "function_call",
-                    "call_id": "call_1",
-                    "name": "lookup",
-                    "arguments": "{}",
-                },
-            ],
+            "status": "failed",
+            "error": {"message": "provider failed"},
+            "output": [],
         }).encode("utf-8")
 
 bridge.urllib.request.urlopen = lambda _request, timeout: Response()

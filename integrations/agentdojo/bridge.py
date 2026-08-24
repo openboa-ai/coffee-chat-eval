@@ -31,6 +31,7 @@ SMOKE_INJECTION_TASKS = {"workspace": ("injection_task_0",)}
 PILOT_USER_TASKS = {"workspace": ("user_task_0", "user_task_24", "user_task_26", "user_task_13")}
 PILOT_INJECTION_TASKS = {"workspace": ("injection_task_0", "injection_task_1", "injection_task_4", "injection_task_10")}
 MAX_ITERS = 15
+NONTERMINAL_RESPONSE_STATUSES = frozenset(("queued", "in_progress", "incomplete"))
 
 
 def _sequential_task_ids(kind: str, first: int, count: int) -> tuple[str, ...]:
@@ -307,12 +308,14 @@ def _response_assistant(value: Any) -> dict[str, Any]:
     from agentdojo.types import text_content_block_from_string
 
     if not isinstance(value, dict):
-        raise BrokerUnavailable("broker returned a non-object response")
+        raise CandidateOutputInvalid("broker returned a non-object response")
     if value.get("error") is not None:
-        raise BrokerUnavailable("broker returned a provider error")
+        raise CandidateOutputInvalid("broker returned a terminal error")
     status = value.get("status")
-    if status != "completed":
+    if status in NONTERMINAL_RESPONSE_STATUSES:
         raise BrokerUnavailable("broker response is not complete")
+    if status != "completed":
+        raise CandidateOutputInvalid("broker response status is invalid")
     output = value.get("output")
     if not isinstance(output, list):
         raise CandidateOutputInvalid("broker response output is missing")
