@@ -19,6 +19,7 @@ export interface ResponsesProxyOptions {
   readonly advertisedHost?: string;
   readonly maxRequests?: number;
   readonly maxBodyBytes?: number;
+  readonly expiresAt?: string;
 }
 
 export interface ResponsesProxyStats {
@@ -115,6 +116,11 @@ export async function startResponsesProxy(
   if (!Number.isInteger(maxBodyBytes) || maxBodyBytes < 1) {
     throw new TypeError("proxy maxBodyBytes must be a positive integer");
   }
+  const expiresAtMs =
+    options.expiresAt === undefined ? undefined : Date.parse(options.expiresAt);
+  if (expiresAtMs !== undefined && Number.isNaN(expiresAtMs)) {
+    throw new TypeError("proxy expiresAt must be a valid timestamp");
+  }
 
   const upstreamUrl = options.upstreamUrl ?? OPENAI_RESPONSES_UPSTREAM_URL;
   const allowedModels = new Set(options.allowedModels);
@@ -122,9 +128,11 @@ export async function startResponsesProxy(
   const bindHost = options.bindHost ?? "0.0.0.0";
   const advertisedHost = options.advertisedHost ?? "host.docker.internal";
   let acceptedRequests = 0;
+  let inFlightRequests = 0;
   let rejectedRequests = 0;
 
   const server = createServer(async (request, response) => {
+    let requestReserved = false;
     try {
       const path = new URL(request.url ?? "/", "http://proxy").pathname;
       if (request.method !== "POST" || path !== "/v1/responses") {
@@ -137,12 +145,25 @@ export async function startResponsesProxy(
         json(response, 401, { error: "proxy capability required" });
         return;
       }
-      if (acceptedRequests >= maxRequests) {
+      if (expiresAtMs !== undefined && Date.now() >= expiresAtMs) {
+        rejectedRequests += 1;
+        json(response, 401, { error: "proxy capability expired" });
+        return;
+      }
+      if (acceptedRequests + inFlightRequests >= maxRequests) {
         rejectedRequests += 1;
         json(response, 429, { error: "proxy request budget exhausted" });
         return;
       }
-      const body = await readBody(request, maxBodyBytes);
+      inFlightRequests += 1;
+      requestReserved = true;
+      let body: Buffer;
+      try {
+        body = await readBody(request, maxBodyBytes);
+      } catch (error) {
+        rejectedRequests += 1;
+        throw error;
+      }
       const model = modelFrom(body);
       if (model === undefined) {
         rejectedRequests += 1;
@@ -154,7 +175,13 @@ export async function startResponsesProxy(
         json(response, 403, { error: "model is not allowed for this run" });
         return;
       }
-
+      if (expiresAtMs !== undefined && Date.now() >= expiresAtMs) {
+        rejectedRequests += 1;
+        json(response, 401, { error: "proxy capability expired" });
+        return;
+      }
+      inFlightRequests -= 1;
+      requestReserved = false;
       acceptedRequests += 1;
       const upstream = await fetch(upstreamUrl, {
         method: "POST",
@@ -186,6 +213,8 @@ export async function startResponsesProxy(
       } else {
         response.destroy();
       }
+    } finally {
+      if (requestReserved) inFlightRequests -= 1;
     }
   });
 

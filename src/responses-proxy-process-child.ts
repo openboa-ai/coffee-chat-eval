@@ -178,6 +178,7 @@ async function start(value: unknown): Promise<void> {
     options.providerKeyEnv,
   );
   try {
+    const expiresAt = new Date(Date.now() + options.ttlSeconds * 1000).toISOString();
     const candidate = await startResponsesProxy({
       apiKey: providerKey,
       allowedModels: [options.candidateModel],
@@ -185,6 +186,7 @@ async function start(value: unknown): Promise<void> {
       bindHost: "127.0.0.1",
       advertisedHost: "127.0.0.1",
       maxRequests: options.candidateMaxRequests,
+      expiresAt,
     });
     handles.push(candidate);
     let judge: ResponsesProxyHandle | undefined;
@@ -196,10 +198,10 @@ async function start(value: unknown): Promise<void> {
         bindHost: "127.0.0.1",
         advertisedHost: "127.0.0.1",
         maxRequests: options.judgeMaxRequests,
+        expiresAt,
       });
       handles.push(judge);
     }
-    const expiresAt = new Date(Date.now() + options.ttlSeconds * 1000).toISOString();
     const runtime = parseRuntimeBundleConfig({
       schema: "runtime-bundle-v1",
       candidate: {

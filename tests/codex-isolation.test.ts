@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { createServer, type Server } from "node:http";
+import { createServer, request as httpRequest, type Server } from "node:http";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -32,6 +32,41 @@ async function close(server: Server): Promise<void> {
   await new Promise<void>((resolve, reject) =>
     server.close((error) => (error ? reject(error) : resolve())),
   );
+}
+
+function sendSlowBody(input: {
+  readonly endpoint: string;
+  readonly capability: string;
+  readonly body: string;
+  readonly delayMs: number;
+}): Promise<{ readonly status: number; readonly body: unknown }> {
+  return new Promise((resolve, reject) => {
+    const request = httpRequest(
+      input.endpoint,
+      {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${input.capability}`,
+          "content-type": "application/json",
+        },
+      },
+      (response) => {
+        const chunks: Buffer[] = [];
+        response.on("data", (chunk: Buffer) => chunks.push(chunk));
+        response.once("error", reject);
+        response.once("end", () => {
+          const serialized = Buffer.concat(chunks).toString("utf8");
+          resolve({
+            status: response.statusCode ?? 0,
+            body: JSON.parse(serialized) as unknown,
+          });
+        });
+      },
+    );
+    request.once("error", reject);
+    request.write(input.body.slice(0, 1));
+    setTimeout(() => request.end(input.body.slice(1)), input.delayMs);
+  });
 }
 
 test("Responses proxy forwards only an allowed model with a host-held provider key", async () => {
@@ -110,6 +145,165 @@ test("Responses proxy rejects missing capability and disallowed model without co
     assert.equal(disallowed.status, 403);
     assert.equal(upstreamRequests, 0);
     assert.equal(proxy.stats().rejectedRequests, 2);
+  } finally {
+    await proxy?.close();
+    await close(upstream);
+  }
+});
+
+test("Responses proxy rejects an expired scoped capability without contacting upstream", async () => {
+  let upstreamRequests = 0;
+  const upstream = createServer((_request, response) => {
+    upstreamRequests += 1;
+    response.writeHead(500).end();
+  });
+  const upstreamPort = await listen(upstream);
+  let proxy: ResponsesProxyHandle | undefined;
+  try {
+    proxy = await startResponsesProxy({
+      apiKey: "provider-secret-test-only",
+      allowedModels: ["gpt-5.6-luna"],
+      upstreamUrl: `http://127.0.0.1:${upstreamPort}/v1/responses`,
+      bindHost: "127.0.0.1",
+      advertisedHost: "127.0.0.1",
+      expiresAt: new Date(Date.now() - 1_000).toISOString(),
+    });
+    const response = await fetch(`${proxy.baseUrl}/responses`, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${proxy.capabilityToken}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({ model: "gpt-5.6-luna", input: "hello" }),
+    });
+    assert.equal(response.status, 401);
+    assert.deepEqual(await response.json(), { error: "proxy capability expired" });
+    assert.equal(upstreamRequests, 0);
+    assert.deepEqual(proxy.stats(), { acceptedRequests: 0, rejectedRequests: 1 });
+  } finally {
+    await proxy?.close();
+    await close(upstream);
+  }
+});
+
+test("Responses proxy rechecks capability expiry after reading a slow request body", async () => {
+  let upstreamRequests = 0;
+  const upstream = createServer((_request, response) => {
+    upstreamRequests += 1;
+    response.writeHead(200, { "content-type": "application/json" });
+    response.end(JSON.stringify({ id: "must-not-forward" }));
+  });
+  const upstreamPort = await listen(upstream);
+  let proxy: ResponsesProxyHandle | undefined;
+  try {
+    proxy = await startResponsesProxy({
+      apiKey: "provider-secret-test-only",
+      allowedModels: ["gpt-5.6-luna"],
+      upstreamUrl: `http://127.0.0.1:${upstreamPort}/v1/responses`,
+      bindHost: "127.0.0.1",
+      advertisedHost: "127.0.0.1",
+      expiresAt: new Date(Date.now() + 500).toISOString(),
+    });
+    const response = await sendSlowBody({
+      endpoint: `${proxy.baseUrl}/responses`,
+      capability: proxy.capabilityToken,
+      body: JSON.stringify({ model: "gpt-5.6-luna", input: "hello" }),
+      delayMs: 750,
+    });
+    assert.deepEqual(response, {
+      status: 401,
+      body: { error: "proxy capability expired" },
+    });
+    assert.equal(upstreamRequests, 0);
+    assert.deepEqual(proxy.stats(), { acceptedRequests: 0, rejectedRequests: 1 });
+  } finally {
+    await proxy?.close();
+    await close(upstream);
+  }
+});
+
+test("Responses proxy preserves the hard request cap across concurrent request bodies", async () => {
+  let upstreamRequests = 0;
+  const upstream = createServer((_request, response) => {
+    upstreamRequests += 1;
+    response.writeHead(200, { "content-type": "application/json" });
+    response.end(JSON.stringify({ id: "forwarded" }));
+  });
+  const upstreamPort = await listen(upstream);
+  let proxy: ResponsesProxyHandle | undefined;
+  try {
+    proxy = await startResponsesProxy({
+      apiKey: "provider-secret-test-only",
+      allowedModels: ["gpt-5.6-luna"],
+      upstreamUrl: `http://127.0.0.1:${upstreamPort}/v1/responses`,
+      bindHost: "127.0.0.1",
+      advertisedHost: "127.0.0.1",
+      maxRequests: 1,
+    });
+    const body = JSON.stringify({ model: "gpt-5.6-luna", input: "hello" });
+    const responses = await Promise.all([
+      sendSlowBody({
+        endpoint: `${proxy.baseUrl}/responses`,
+        capability: proxy.capabilityToken,
+        body,
+        delayMs: 150,
+      }),
+      sendSlowBody({
+        endpoint: `${proxy.baseUrl}/responses`,
+        capability: proxy.capabilityToken,
+        body,
+        delayMs: 150,
+      }),
+    ]);
+    assert.deepEqual(responses.map((response) => response.status).sort(), [200, 429]);
+    assert.equal(upstreamRequests, 1);
+    assert.deepEqual(proxy.stats(), { acceptedRequests: 1, rejectedRequests: 1 });
+  } finally {
+    await proxy?.close();
+    await close(upstream);
+  }
+});
+
+test("Responses proxy counts an oversized body rejection and releases its reservation", async () => {
+  let upstreamRequests = 0;
+  const upstream = createServer((_request, response) => {
+    upstreamRequests += 1;
+    response.writeHead(200, { "content-type": "application/json" });
+    response.end(JSON.stringify({ id: "forwarded" }));
+  });
+  const upstreamPort = await listen(upstream);
+  let proxy: ResponsesProxyHandle | undefined;
+  try {
+    proxy = await startResponsesProxy({
+      apiKey: "provider-secret-test-only",
+      allowedModels: ["gpt-5.6-luna"],
+      upstreamUrl: `http://127.0.0.1:${upstreamPort}/v1/responses`,
+      bindHost: "127.0.0.1",
+      advertisedHost: "127.0.0.1",
+      maxRequests: 1,
+      maxBodyBytes: 64,
+    });
+    const oversized = await fetch(`${proxy.baseUrl}/responses`, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${proxy.capabilityToken}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({ model: "gpt-5.6-luna", input: "x".repeat(64) }),
+    });
+    assert.equal(oversized.status, 413);
+
+    const valid = await fetch(`${proxy.baseUrl}/responses`, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${proxy.capabilityToken}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({ model: "gpt-5.6-luna" }),
+    });
+    assert.equal(valid.status, 200);
+    assert.equal(upstreamRequests, 1);
+    assert.deepEqual(proxy.stats(), { acceptedRequests: 1, rejectedRequests: 1 });
   } finally {
     await proxy?.close();
     await close(upstream);
