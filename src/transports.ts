@@ -115,29 +115,48 @@ export function createNotImplementedTransport(
   });
 }
 
+class BrokerSessionUnavailableError extends Error {
+  constructor(cause: unknown) {
+    super("broker session unavailable", { cause });
+    this.name = "BrokerSessionUnavailableError";
+  }
+}
+
 async function postBroker(
   endpoint: string,
   capability: string,
   body: unknown,
 ): Promise<unknown> {
+  const serializedBody = JSON.stringify(body);
+  let response: Response;
   try {
-    const response = await fetch(endpoint, {
+    response = await fetch(endpoint, {
       method: "POST",
       headers: {
         authorization: `Bearer ${capability}`,
         "content-type": "application/json",
       },
-      body: JSON.stringify(body),
+      body: serializedBody,
       // Provider-backed smoke calls may take longer than a local fixture. The
       // broker's request cap and capability expiry remain the hard limits; the
       // transport timeout only bounds a single stalled request.
       signal: AbortSignal.timeout(60_000),
     });
-    if (!response.ok) throw new Error(`broker returned HTTP ${response.status}`);
-    return (await response.json()) as unknown;
   } catch (error) {
-    throw new Error("broker session unavailable", { cause: error });
+    throw new BrokerSessionUnavailableError(error);
   }
+  if (!response.ok) {
+    throw new BrokerSessionUnavailableError(
+      new Error(`broker returned HTTP ${response.status}`),
+    );
+  }
+  let responseBody: string;
+  try {
+    responseBody = await response.text();
+  } catch (error) {
+    throw new BrokerSessionUnavailableError(error);
+  }
+  return JSON.parse(responseBody) as unknown;
 }
 
 function responseText(value: unknown): {
@@ -215,7 +234,9 @@ function validateResponsesEnvelope(value: unknown): Record<string, unknown> {
   if (record.status !== "completed") {
     throw new ResponsesEnvelopeError(
       "Responses completion did not finish",
-      record.status === "incomplete" || record.status === "in_progress"
+      record.status === "incomplete" ||
+        record.status === "in_progress" ||
+        record.status === "queued"
         ? "unavailable"
         : "failed",
     );
@@ -469,7 +490,9 @@ export function createResponsesCandidateTransport(input: {
           state:
             error instanceof ResponsesEnvelopeError
               ? error.outcome
-              : ("failed" as const),
+              : error instanceof BrokerSessionUnavailableError
+                ? ("unavailable" as const)
+                : ("failed" as const),
           reason: error instanceof Error ? error.message : "candidate broker failed",
           failureOwner: "candidate" as const,
         };

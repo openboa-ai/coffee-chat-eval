@@ -50,6 +50,65 @@ async function startCaptureBroker(
   };
 }
 
+async function startRawBroker(body: string, status = 200): Promise<CaptureBroker> {
+  const requests: unknown[] = [];
+  const server = createServer(async (request, response) => {
+    const chunks: Buffer[] = [];
+    for await (const chunk of request) {
+      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    }
+    requests.push(JSON.parse(Buffer.concat(chunks).toString("utf8")) as unknown);
+    response.writeHead(status, { "content-type": "application/json" });
+    response.end(body);
+  });
+  await new Promise<void>((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", resolve);
+  });
+  const address = server.address();
+  assert.ok(address && typeof address !== "string");
+  return {
+    endpoint: `http://127.0.0.1:${address.port}`,
+    requests,
+    close: () =>
+      new Promise<void>((resolve, reject) =>
+        server.close((error) => (error ? reject(error) : resolve())),
+      ),
+  };
+}
+
+async function startBrokenBodyBroker(): Promise<CaptureBroker> {
+  const requests: unknown[] = [];
+  const server = createServer(async (request, response) => {
+    const chunks: Buffer[] = [];
+    for await (const chunk of request) {
+      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    }
+    requests.push(JSON.parse(Buffer.concat(chunks).toString("utf8")) as unknown);
+    response.writeHead(200, {
+      "content-length": "100",
+      "content-type": "application/json",
+    });
+    response.write('{"status":"completed"');
+    response.flushHeaders();
+    setTimeout(() => response.destroy(), 25);
+  });
+  await new Promise<void>((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", resolve);
+  });
+  const address = server.address();
+  assert.ok(address && typeof address !== "string");
+  return {
+    endpoint: `http://127.0.0.1:${address.port}`,
+    requests,
+    close: () =>
+      new Promise<void>((resolve, reject) =>
+        server.close((error) => (error ? reject(error) : resolve())),
+      ),
+  };
+}
+
 function responsesOutput(text: string, usage?: Record<string, number>): unknown {
   return {
     status: "completed",
@@ -422,9 +481,11 @@ test("Responses transports preserve unavailable envelopes and reject terminal fa
   const broker = await startCaptureBroker([
     { status: "incomplete", error: null, output: [] },
     { status: "in_progress", error: null, output: [] },
+    { status: "queued", error: null, output: [] },
     { status: "failed", error: { message: "provider failed" }, output: [] },
     { status: "completed", error: null, output: [] },
     { status: "incomplete", error: null, output: [] },
+    { status: "queued", error: null, output: [] },
   ]);
   try {
     const candidate = createResponsesCandidateTransport({
@@ -447,15 +508,88 @@ test("Responses transports preserve unavailable envelopes and reject terminal fa
     const candidateInProgress = await candidate.run("candidate input in progress");
     assert.equal(candidateInProgress.state, "unavailable");
     assert.equal(candidateInProgress.failureOwner, "candidate");
+    const candidateQueued = await candidate.run("candidate input queued");
+    assert.equal(candidateQueued.state, "unavailable");
+    assert.equal(candidateQueued.failureOwner, "candidate");
     const judgeError = await judge.evaluate({ prompt: "judge failed" });
     assert.equal(judgeError.state, "failed");
     const judgeOutputless = await judge.evaluate({ prompt: "judge outputless" });
     assert.equal(judgeOutputless.state, "failed");
     const judgeIncomplete = await judge.evaluate({ prompt: "judge incomplete" });
     assert.equal(judgeIncomplete.state, "unavailable");
+    const judgeQueued = await judge.evaluate({ prompt: "judge queued" });
+    assert.equal(judgeQueued.state, "unavailable");
     for (const raw of broker.requests) {
       assert.equal((raw as Record<string, unknown>).store, false);
     }
+  } finally {
+    await broker.close();
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("Responses candidate preserves broker outages as unavailable", async () => {
+  const root = await mkdtemp(join(tmpdir(), "coffee-chat-eval-broker-outage-"));
+  const broker = await startCaptureBroker([]);
+  await broker.close();
+  try {
+    const candidate = createResponsesCandidateTransport({
+      kind: "agent_stack",
+      endpoint: broker.endpoint,
+      capability: "candidate-capability",
+      model: "gpt-5.6-luna",
+      evidenceRoot: root,
+    });
+
+    const result = await candidate.run("candidate input while broker is down");
+    assert.equal(result.state, "unavailable");
+    assert.equal(result.failureOwner, "candidate");
+    assert.match(result.reason ?? "", /broker session unavailable/u);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("Responses candidate preserves broker HTTP and body-stream outages as unavailable", async () => {
+  const root = await mkdtemp(join(tmpdir(), "coffee-chat-eval-broker-http-"));
+  const unavailableBroker = await startRawBroker("service unavailable", 503);
+  const brokenBodyBroker = await startBrokenBodyBroker();
+  try {
+    for (const endpoint of [unavailableBroker.endpoint, brokenBodyBroker.endpoint]) {
+      const candidate = createResponsesCandidateTransport({
+        kind: "agent_stack",
+        endpoint,
+        capability: "candidate-capability",
+        model: "gpt-5.6-luna",
+        evidenceRoot: root,
+      });
+      const result = await candidate.run("candidate input during broker outage");
+      assert.equal(result.state, "unavailable");
+      assert.equal(result.failureOwner, "candidate");
+      assert.match(result.reason ?? "", /broker session unavailable/u);
+    }
+  } finally {
+    await unavailableBroker.close();
+    await brokenBodyBroker.close();
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("Responses candidate rejects a malformed successful broker response as failed", async () => {
+  const root = await mkdtemp(join(tmpdir(), "coffee-chat-eval-broker-protocol-"));
+  const broker = await startRawBroker("not-json");
+  try {
+    const candidate = createResponsesCandidateTransport({
+      kind: "agent_stack",
+      endpoint: broker.endpoint,
+      capability: "candidate-capability",
+      model: "gpt-5.6-luna",
+      evidenceRoot: root,
+    });
+
+    const result = await candidate.run("candidate input with malformed response");
+    assert.equal(result.state, "failed");
+    assert.equal(result.failureOwner, "candidate");
   } finally {
     await broker.close();
     await rm(root, { recursive: true, force: true });
