@@ -7,6 +7,8 @@ import {
   COFFEE_CHAT_PRODUCT_MODEL,
   COFFEE_CHAT_PRODUCT_PACKAGE_DIGEST,
   COFFEE_CHAT_PRODUCT_SEED,
+  RESPONSES_AGENT_STACK_HARNESS,
+  RESPONSES_REFERENCE_MODEL_HARNESS,
   candidateIdentityDigest,
   parseCandidateIdentityConfig,
   parseJudgeIdentityConfig,
@@ -19,7 +21,7 @@ test("identity configs contain model identity only and reject ephemeral capabili
   const candidate = parseCandidateIdentityConfig({
     schema: "candidate-config-v1",
     candidateType: "agent_stack",
-    harness: "responses-agent-stack-v1",
+    harness: RESPONSES_AGENT_STACK_HARNESS,
     model: "gpt-5.6-luna",
     seed: 7,
   });
@@ -29,7 +31,7 @@ test("identity configs contain model identity only and reject ephemeral capabili
       parseCandidateIdentityConfig({
         schema: "candidate-config-v1",
         candidateType: "agent_stack",
-        harness: "responses-agent-stack-v1",
+        harness: RESPONSES_AGENT_STACK_HARNESS,
         model: "gpt-5.6-luna",
         endpoint: "http://127.0.0.1:1",
       }),
@@ -41,6 +43,33 @@ test("identity configs contain model identity only and reject ephemeral capabili
     model: "gpt-5.6-luna",
   });
   assert.equal(judge.transport, "responses");
+});
+
+test("standard candidate identities admit only the implemented Responses harness", () => {
+  const reference = parseCandidateIdentityConfig({
+    schema: "candidate-config-v1",
+    candidateType: "reference_model",
+    harness: RESPONSES_REFERENCE_MODEL_HARNESS,
+    model: "gpt-5.6-luna",
+  });
+  assert.equal(reference.harness, RESPONSES_REFERENCE_MODEL_HARNESS);
+
+  for (const candidate of [
+    {
+      schema: "candidate-config-v1",
+      candidateType: "agent_stack",
+      harness: "alternate-agent-stack-v1",
+      model: "gpt-5.6-luna",
+    },
+    {
+      schema: "candidate-config-v1",
+      candidateType: "reference_model",
+      harness: RESPONSES_AGENT_STACK_HARNESS,
+      model: "gpt-5.6-luna",
+    },
+  ] as const) {
+    assert.throws(() => parseCandidateIdentityConfig(candidate), /harness/u);
+  }
 });
 
 test("runtime capability is scoped, expiring, and budgeted separately", () => {
@@ -171,7 +200,7 @@ test("coffee_chat_product identity fails closed on missing or drifting provenanc
       parseCandidateIdentityConfig({
         schema: "candidate-config-v1",
         candidateType: "agent_stack",
-        harness: "responses-agent-stack-v1",
+        harness: RESPONSES_AGENT_STACK_HARNESS,
         model: "gpt-5.6-luna",
         product: base.product,
       }),

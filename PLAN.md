@@ -62,6 +62,12 @@ provider-terms receipt is required before a live run; missing isolation is
 `unavailable`. Provider-terms and isolation receipts are supplied as separate
 private files; neither belongs in immutable candidate identity.
 
+The Eval-owned Responses transport has two exact standard harness identities:
+`agent_stack` uses `responses-agent-stack-v1`, while `reference_model` uses
+`responses-reference-model-v1`. The immutable identity parser and transport
+factory reject every other kind/harness pairing; a harness label cannot select
+or impersonate an implementation that this repository does not execute.
+
 ### Private IFEval smoke risk acceptance
 
 An IFEval rights-risk acceptance is private execution authority, not license

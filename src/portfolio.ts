@@ -19,6 +19,7 @@ import {
   parseCandidateIdentityConfig,
   parseJudgeIdentityConfig,
   parseRuntimeBundleConfig,
+  responsesCandidateHarnessForKind,
   type CandidateIdentityConfig,
   type CoffeeChatProductCandidateIdentityConfig,
   type JudgeIdentityConfig,
@@ -821,7 +822,11 @@ async function preflightPortfolioSmokeConfig(
       envelope.candidateIdentity ?? {
         schema: "candidate-config-v1",
         candidateType: spec.candidateType ?? "fixture",
-        harness: "portfolio-v1",
+        harness:
+          spec.candidateType === "reference_model" ||
+          spec.candidateType === "agent_stack"
+            ? responsesCandidateHarnessForKind(spec.candidateType)
+            : "portfolio-v1",
         model: spec.candidateType === "fixture" ? "fixture" : "gpt-5.6-luna",
       },
     );

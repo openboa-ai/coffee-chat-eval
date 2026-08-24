@@ -16,6 +16,17 @@ export const COFFEE_CHAT_PRODUCT_PACKAGE_DIGEST =
 export const COFFEE_CHAT_PRODUCT_HARNESS = "eval-skills-reference-host-v1" as const;
 export const COFFEE_CHAT_PRODUCT_MODEL = "gpt-5.6-luna" as const;
 export const COFFEE_CHAT_PRODUCT_SEED = 7 as const;
+export const RESPONSES_AGENT_STACK_HARNESS = "responses-agent-stack-v1" as const;
+export const RESPONSES_REFERENCE_MODEL_HARNESS =
+  "responses-reference-model-v1" as const;
+
+export function responsesCandidateHarnessForKind(
+  candidateType: "reference_model" | "agent_stack",
+): typeof RESPONSES_REFERENCE_MODEL_HARNESS | typeof RESPONSES_AGENT_STACK_HARNESS {
+  if (candidateType === "reference_model") return RESPONSES_REFERENCE_MODEL_HARNESS;
+  if (candidateType === "agent_stack") return RESPONSES_AGENT_STACK_HARNESS;
+  throw new TypeError("Responses candidate kind has no admitted harness");
+}
 
 interface CandidateIdentityBase {
   readonly schema: "candidate-config-v1";
@@ -183,10 +194,20 @@ export function parseCandidateIdentityConfig(value: unknown): CandidateIdentityC
     ["seed"],
     "candidate config",
   );
+  const harness = text(record.harness, "candidate harness");
+  if (
+    (record.candidateType === "reference_model" ||
+      record.candidateType === "agent_stack") &&
+    harness !== responsesCandidateHarnessForKind(record.candidateType)
+  ) {
+    throw new TypeError(
+      `candidate harness does not match the admitted ${record.candidateType} implementation`,
+    );
+  }
   return Object.freeze({
     schema: "candidate-config-v1",
     candidateType: record.candidateType,
-    harness: text(record.harness, "candidate harness"),
+    harness,
     model: text(record.model, "candidate model"),
     ...(parsedSeed === undefined ? {} : { seed: parsedSeed }),
   });

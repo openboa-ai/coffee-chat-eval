@@ -41,6 +41,8 @@ import {
   COFFEE_CHAT_PRODUCT_CANDIDATE_IDENTITY,
   COFFEE_CHAT_PRODUCT_MODEL,
   COFFEE_CHAT_PRODUCT_SEED,
+  RESPONSES_AGENT_STACK_HARNESS,
+  RESPONSES_REFERENCE_MODEL_HARNESS,
   candidateIdentityDigest,
   judgeIdentityDigest,
   parseCandidateIdentityConfig,
@@ -210,8 +212,8 @@ function standardCandidateIdentity(
     candidateType,
     harness:
       candidateType === "reference_model"
-        ? "responses-reference-model-v1"
-        : "responses-agent-stack-v1",
+        ? RESPONSES_REFERENCE_MODEL_HARNESS
+        : RESPONSES_AGENT_STACK_HARNESS,
     model: "gpt-5.6-luna",
     seed: 7,
   });

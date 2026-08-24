@@ -353,7 +353,7 @@ test("v1 CLI rejects persisted candidate identity type drift from RunSpec", () =
     assert.notEqual(missingIdentityFailure.status, 0);
     assert.match(
       missingIdentityFailure.stderr,
-      /candidate identity digest does not match run spec/u,
+      /candidate identity (?:is missing|digest does not match run spec)/u,
     );
 
     plan.runSpec.candidateType = "reference_model";

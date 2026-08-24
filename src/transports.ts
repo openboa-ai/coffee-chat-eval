@@ -5,6 +5,7 @@ import {
   judgeIdentityDigest,
   parseCandidateIdentityConfig,
   parseJudgeIdentityConfig,
+  responsesCandidateHarnessForKind,
   type CandidateIdentityConfig,
   type JudgeIdentityConfig,
 } from "./runtime-config.ts";
@@ -549,6 +550,14 @@ export function createResponsesCandidateTransport(input: {
   if (candidateIdentity !== undefined && candidateIdentity.candidateType !== kind) {
     throw new TypeError(
       "Responses candidate identity type does not match transport kind",
+    );
+  }
+  if (
+    candidateIdentity !== undefined &&
+    candidateIdentity.harness !== responsesCandidateHarnessForKind(kind)
+  ) {
+    throw new TypeError(
+      "Responses candidate identity harness does not match transport implementation",
     );
   }
   if (candidateIdentity !== undefined && candidateIdentity.model !== model) {

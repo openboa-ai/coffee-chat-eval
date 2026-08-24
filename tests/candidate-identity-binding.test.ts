@@ -13,6 +13,8 @@ import {
   parseCandidateIdentityConfig,
   parseJudgeIdentityConfig,
   parseRuntimeBundleConfig,
+  RESPONSES_AGENT_STACK_HARNESS,
+  RESPONSES_REFERENCE_MODEL_HARNESS,
   type CandidateIdentityConfig,
   type JudgeIdentityConfig,
 } from "../src/runtime-config.ts";
@@ -26,16 +28,16 @@ import {
 const BASE_IDENTITY = {
   schema: "candidate-config-v1",
   candidateType: "agent_stack",
-  harness: "responses-agent-stack-v1",
+  harness: RESPONSES_AGENT_STACK_HARNESS,
   model: "gpt-5.6-luna",
   seed: 7,
 } as const;
 
-function identity(input: { readonly harness: string; readonly model: string }) {
+function identity(input: { readonly model: string; readonly seed?: number }) {
   return parseCandidateIdentityConfig({
     ...BASE_IDENTITY,
-    harness: input.harness,
     model: input.model,
+    seed: input.seed ?? BASE_IDENTITY.seed,
   });
 }
 
@@ -114,39 +116,28 @@ test("immutable run binds a Responses candidate to the planned model and harness
     const endpoint = `http://127.0.0.1:${address.port}/v1/responses`;
     const manifest = getSourceManifest("agentdojo-security");
     const plannedIdentity = identity({
-      harness: BASE_IDENTITY.harness,
       model: BASE_IDENTITY.model,
     });
 
     for (const attack of [
       {
-        name: "harness drift",
-        boundIdentity: identity({
-          harness: "alternate-agent-stack-v1",
-          model: BASE_IDENTITY.model,
-        }),
+        name: "seed drift",
+        boundIdentity: identity({ model: BASE_IDENTITY.model, seed: 8 }),
       },
       {
         name: "transport binding drift behind an otherwise matching run identity",
-        boundIdentity: identity({
-          harness: "alternate-agent-stack-v1",
-          model: BASE_IDENTITY.model,
-        }),
+        boundIdentity: identity({ model: BASE_IDENTITY.model, seed: 8 }),
         runIdentity: plannedIdentity,
       },
       {
         name: "model drift",
         boundIdentity: identity({
-          harness: BASE_IDENTITY.harness,
           model: "gpt-5.6-terra",
         }),
       },
       {
         name: "forged digest cannot override normalized identity",
-        boundIdentity: identity({
-          harness: "alternate-agent-stack-v1",
-          model: BASE_IDENTITY.model,
-        }),
+        boundIdentity: identity({ model: BASE_IDENTITY.model, seed: 8 }),
         runIdentity: plannedIdentity,
         forgedDigest: candidateIdentityDigest(plannedIdentity),
       },
@@ -229,7 +220,6 @@ test("immutable run binds a Responses candidate to the planned model and harness
     }
 
     const terraRuntimeIdentity = identity({
-      harness: BASE_IDENTITY.harness,
       model: "gpt-5.6-terra",
     });
     assert.throws(
@@ -247,6 +237,7 @@ test("immutable run binds a Responses candidate to the planned model and harness
     const referenceIdentity = parseCandidateIdentityConfig({
       ...BASE_IDENTITY,
       candidateType: "reference_model",
+      harness: RESPONSES_REFERENCE_MODEL_HARNESS,
     });
     assert.throws(
       () =>
@@ -259,6 +250,21 @@ test("immutable run binds a Responses candidate to the planned model and harness
           candidateIdentity: referenceIdentity,
         }),
       /candidate identity type does not match .*transport kind/u,
+    );
+    assert.throws(
+      () =>
+        createResponsesCandidateTransport({
+          kind: "agent_stack",
+          endpoint,
+          capability: "candidate-capability",
+          model: BASE_IDENTITY.model,
+          evidenceRoot: join(root, "harness-lie", "evidence"),
+          candidateIdentity: {
+            ...BASE_IDENTITY,
+            harness: "alternate-agent-stack-v1",
+          } as never,
+        }),
+      /candidate harness/u,
     );
     assert.equal(candidateRequests, 0);
   } finally {
@@ -288,7 +294,6 @@ test("immutable run binds a Responses Judge to the planned Judge identity", asyn
     const endpoint = `http://127.0.0.1:${address.port}/v1/responses`;
     const manifest = getSourceManifest("coffee-chat-taste");
     const candidateIdentity = identity({
-      harness: BASE_IDENTITY.harness,
       model: BASE_IDENTITY.model,
     });
     const plannedJudgeIdentity = parseJudgeIdentityConfig({

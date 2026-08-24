@@ -888,6 +888,18 @@ async function executeImmutableRunWithExecutor(
     });
     return finalize(execution, source);
   }
+  // Source and Product verification can outlive a short-lived broker
+  // capability. Recheck both candidate and Judge deadlines at the last
+  // evaluator-owned boundary before native code can dispatch either one.
+  const dispatchRuntimeFailure = validateRuntimeForRun({ plan, runtime });
+  if (dispatchRuntimeFailure !== undefined) {
+    execution = failureExecution({
+      owner: dispatchRuntimeFailure.failureOwner,
+      reason: dispatchRuntimeFailure.reason,
+      evidence,
+    });
+    return finalize(execution, source);
+  }
   try {
     execution = await materializedSourceResult({ ...input, runtime, source });
   } catch (error) {

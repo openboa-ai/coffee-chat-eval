@@ -52,6 +52,7 @@ import {
   parseCandidateIdentityConfig,
   parseJudgeIdentityConfig,
   parseRuntimeBundleConfig,
+  responsesCandidateHarnessForKind,
 } from "./runtime-config.ts";
 import { getSourceManifest, verifySourceManifestPins } from "./source-manifests.ts";
 import { createTasteInventory } from "./taste.ts";
@@ -185,13 +186,19 @@ function buildV1Plan(values: ReadonlyMap<string, string>) {
       "candidate identity config must not contain runtime capability fields",
     );
   }
+  const configuredCandidateType = candidateRecord?.candidateType ?? "fixture";
   const candidateIdentity =
     candidateRecord?.schema === "candidate-config-v1"
       ? parseCandidateIdentityConfig(candidateRecord)
       : parseCandidateIdentityConfig({
           schema: "candidate-config-v1",
-          candidateType: candidateRecord?.candidateType ?? "fixture",
-          harness: candidateRecord?.harness ?? "fixture-replay-v1",
+          candidateType: configuredCandidateType,
+          harness:
+            candidateRecord?.harness ??
+            (configuredCandidateType === "reference_model" ||
+            configuredCandidateType === "agent_stack"
+              ? responsesCandidateHarnessForKind(configuredCandidateType)
+              : "fixture-replay-v1"),
           model: candidateRecord?.model ?? "fixture",
           ...(candidateRecord?.seed === undefined
             ? {}
@@ -561,15 +568,12 @@ export async function runCli(args: readonly string[]): Promise<void> {
                   "IFEval rights risk acceptance receipt",
                 ),
               );
-        const candidateIdentity =
-          envelope.candidateIdentity === undefined
-            ? parseCandidateIdentityConfig({
-                schema: "candidate-config-v1",
-                candidateType: spec.candidateType ?? "fixture",
-                harness: "legacy-plan-v1",
-                model: spec.candidateType === "fixture" ? "fixture" : "gpt-5.6-luna",
-              })
-            : parseCandidateIdentityConfig(envelope.candidateIdentity);
+        if (envelope.candidateIdentity === undefined) {
+          throw new TypeError("run plan candidate identity is missing");
+        }
+        const candidateIdentity = parseCandidateIdentityConfig(
+          envelope.candidateIdentity,
+        );
         if (candidateIdentity.candidateType !== spec.candidateType) {
           throw new TypeError(
             "candidate identity type does not match run spec candidateType",
