@@ -12,10 +12,10 @@ absl-py==2.3.1
 click==8.2.1
 defusedxml==0.7.1
 joblib==1.5.1
-json-repair==0.44.1
+json-repair==0.60.1
 nltk==3.10.1
 numpy==2.3.2
-pyarrow==18.1.0
+pyarrow==23.0.1
 regex==2024.11.6
 rouge-score==0.1.2
 scipy==1.16.1
