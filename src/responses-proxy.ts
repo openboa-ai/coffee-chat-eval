@@ -6,7 +6,8 @@ import {
   type ServerResponse,
 } from "node:http";
 
-const DEFAULT_UPSTREAM = "https://api.openai.com/v1/responses";
+export const OPENAI_RESPONSES_UPSTREAM_URL =
+  "https://api.openai.com/v1/responses" as const;
 const DEFAULT_MAX_REQUESTS = 16;
 const DEFAULT_MAX_BODY_BYTES = 2 * 1024 * 1024;
 
@@ -115,7 +116,7 @@ export async function startResponsesProxy(
     throw new TypeError("proxy maxBodyBytes must be a positive integer");
   }
 
-  const upstreamUrl = options.upstreamUrl ?? DEFAULT_UPSTREAM;
+  const upstreamUrl = options.upstreamUrl ?? OPENAI_RESPONSES_UPSTREAM_URL;
   const allowedModels = new Set(options.allowedModels);
   const capabilityToken = randomBytes(32).toString("hex");
   const bindHost = options.bindHost ?? "0.0.0.0";
@@ -157,6 +158,7 @@ export async function startResponsesProxy(
       acceptedRequests += 1;
       const upstream = await fetch(upstreamUrl, {
         method: "POST",
+        redirect: "error",
         headers: {
           authorization: `Bearer ${options.apiKey}`,
           "content-type": request.headers["content-type"] ?? "application/json",

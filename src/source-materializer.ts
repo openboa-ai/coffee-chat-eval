@@ -107,6 +107,9 @@ export function materializePinnedSource(input: {
     ...(dataRoot === undefined ? {} : { dataRoot }),
     runtimeLockDigest,
     runtimeLockOrigin,
+    ...(runtimeLockOrigin === "eval-owned" && runtimeLockPath !== undefined
+      ? { expectedRuntimeLockPath: runtimeLockPath }
+      : {}),
     licenseEvidence,
   });
 }

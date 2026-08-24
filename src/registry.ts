@@ -1,6 +1,6 @@
 export interface DryRunEntry {
   readonly id: string;
-  readonly status: "unmeasured" | "unavailable";
+  readonly status: "unmeasured" | "unavailable" | "rights_hold";
   readonly reason: string;
 }
 
@@ -42,8 +42,9 @@ export function createDryRunRegistry(): DryRunRegistry {
       },
       {
         id: "ifeval",
-        status: "unmeasured" as const,
-        reason: "official 541 prompts; four native accuracies",
+        status: "rights_hold" as const,
+        reason:
+          "punkt_tab_license_unclarified; native non-fixture execution is blocked before candidate calls",
       },
       {
         id: "agentdojo-security",

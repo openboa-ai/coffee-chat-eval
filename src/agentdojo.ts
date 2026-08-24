@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { mkdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { requireRuntimePython } from "./python-runtime.ts";
+import { requireRuntimePython, runtimeEnvironment } from "./python-runtime.ts";
 import type {
   CandidateTransport,
   PrivateArtifactRef,
@@ -315,26 +315,32 @@ function defaultAgentDojoBridge(): AgentDojoBridgeRunner {
     run: async (input) => {
       const { execFile } = await import("node:child_process");
       const { promisify } = await import("node:util");
-      await promisify(execFile)(requireRuntimePython(input.sourceRoot), [
-        fileURLToPath(new URL("../integrations/agentdojo/bridge.py", import.meta.url)),
-        "--source-root",
-        input.sourceRoot,
-        "--evidence-root",
-        input.evidenceRoot,
-        "--output",
-        input.outputPath,
-        "--profile",
-        input.profile,
-        "--attack",
-        AGENTDOJO_ATTACK,
-        "--defense",
-        "None",
-        "--benchmark-version",
-        AGENTDOJO_SOURCE.benchmarkVersion,
-        ...(input.candidateRuntimePath === undefined
-          ? []
-          : ["--candidate-runtime", input.candidateRuntimePath]),
-      ]);
+      await promisify(execFile)(
+        requireRuntimePython(input.sourceRoot),
+        [
+          fileURLToPath(
+            new URL("../integrations/agentdojo/bridge.py", import.meta.url),
+          ),
+          "--source-root",
+          input.sourceRoot,
+          "--evidence-root",
+          input.evidenceRoot,
+          "--output",
+          input.outputPath,
+          "--profile",
+          input.profile,
+          "--attack",
+          AGENTDOJO_ATTACK,
+          "--defense",
+          "None",
+          "--benchmark-version",
+          AGENTDOJO_SOURCE.benchmarkVersion,
+          ...(input.candidateRuntimePath === undefined
+            ? []
+            : ["--candidate-runtime", input.candidateRuntimePath]),
+        ],
+        { env: runtimeEnvironment(input.sourceRoot) },
+      );
     },
   };
 }

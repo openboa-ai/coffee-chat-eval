@@ -144,12 +144,12 @@ function responseText(value: unknown): {
   readonly value: unknown;
   readonly mediaType: string;
 } {
-  if (typeof value === "string") return { value, mediaType: "text/plain" };
   if (value !== null && typeof value === "object") {
     const record = value as Record<string, unknown>;
     if (typeof record.output_text === "string")
       return { value: record.output_text, mediaType: "text/plain" };
     if (Array.isArray(record.output)) {
+      const text: string[] = [];
       const content: unknown[] = [];
       for (const item of record.output) {
         if (item !== null && typeof item === "object") {
@@ -162,45 +162,272 @@ function responseText(value: unknown): {
               arguments: itemRecord.arguments,
             });
           } else if (Array.isArray(itemRecord.content)) {
-            content.push(...itemRecord.content);
+            for (const entry of itemRecord.content) {
+              if (
+                entry !== null &&
+                typeof entry === "object" &&
+                (entry as Record<string, unknown>).type === "output_text" &&
+                typeof (entry as Record<string, unknown>).text === "string"
+              ) {
+                text.push((entry as Record<string, unknown>).text as string);
+              } else {
+                content.push(entry);
+              }
+            }
           }
         }
+      }
+      if (content.length === 0 && text.length > 0)
+        return { value: text.join(""), mediaType: "text/plain" };
+      if (text.length > 0) {
+        content.unshift({ type: "output_text", text: text.join("") });
       }
       if (content.length > 0) return { value: content, mediaType: "application/json" };
     }
   }
-  return { value, mediaType: "application/json" };
+  throw new TypeError("Responses completion has no usable output");
+}
+
+class ResponsesEnvelopeError extends Error {
+  readonly outcome: "unavailable" | "failed";
+
+  constructor(message: string, outcome: "unavailable" | "failed") {
+    super(message);
+    this.name = "ResponsesEnvelopeError";
+    this.outcome = outcome;
+  }
+}
+
+function validateResponsesEnvelope(value: unknown): Record<string, unknown> {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    throw new ResponsesEnvelopeError(
+      "Responses completion envelope is invalid",
+      "failed",
+    );
+  }
+  const record = value as Record<string, unknown>;
+  if (record.error !== undefined && record.error !== null) {
+    throw new ResponsesEnvelopeError(
+      "Responses completion reported an error",
+      "failed",
+    );
+  }
+  if (record.status !== "completed") {
+    throw new ResponsesEnvelopeError(
+      "Responses completion did not finish",
+      record.status === "incomplete" || record.status === "in_progress"
+        ? "unavailable"
+        : "failed",
+    );
+  }
+  try {
+    responseText(record);
+  } catch {
+    throw new ResponsesEnvelopeError(
+      "Responses completion has no usable output",
+      "failed",
+    );
+  }
+  return record;
+}
+
+type JsonObject = Readonly<Record<string, unknown>>;
+
+function objectValue(value: unknown): JsonObject | undefined {
+  return value !== null && typeof value === "object" && !Array.isArray(value)
+    ? (value as JsonObject)
+    : undefined;
+}
+
+function serialized(value: unknown): string {
+  const result = JSON.stringify(value, null, 2);
+  return result ?? String(value);
+}
+
+function jsonSchemaFormat(name: string, schema: JsonObject): JsonObject {
+  return Object.freeze({
+    type: "json_schema",
+    name,
+    strict: true,
+    schema,
+  });
+}
+
+const nonemptyStringSchema = Object.freeze({ type: "string", minLength: 1 });
+const candidateSubmissionFormat = jsonSchemaFormat(
+  "coffee_chat_candidate_submission",
+  Object.freeze({
+    type: "object",
+    properties: Object.freeze({
+      artifact: Object.freeze({
+        type: "object",
+        properties: Object.freeze({
+          mediaType: Object.freeze({
+            type: "string",
+            enum: Object.freeze(["text/plain"]),
+          }),
+          content: nonemptyStringSchema,
+        }),
+        required: Object.freeze(["mediaType", "content"]),
+        additionalProperties: false,
+      }),
+      decisionRecord: Object.freeze({
+        type: "object",
+        properties: Object.freeze({
+          decision: nonemptyStringSchema,
+          evidenceUse: Object.freeze({
+            type: "array",
+            minItems: 1,
+            items: Object.freeze({
+              type: "object",
+              properties: Object.freeze({
+                sourceId: nonemptyStringSchema,
+                use: nonemptyStringSchema,
+              }),
+              required: Object.freeze(["sourceId", "use"]),
+              additionalProperties: false,
+            }),
+          }),
+          tradeoffs: Object.freeze({
+            type: "array",
+            minItems: 1,
+            items: Object.freeze({
+              type: "object",
+              properties: Object.freeze({
+                factors: Object.freeze({
+                  type: "array",
+                  items: nonemptyStringSchema,
+                  minItems: 2,
+                  maxItems: 2,
+                }),
+                resolution: nonemptyStringSchema,
+              }),
+              required: Object.freeze(["factors", "resolution"]),
+              additionalProperties: false,
+            }),
+          }),
+          constraints: Object.freeze({
+            type: "array",
+            minItems: 1,
+            items: Object.freeze({
+              type: "object",
+              properties: Object.freeze({
+                constraint: nonemptyStringSchema,
+                handling: nonemptyStringSchema,
+              }),
+              required: Object.freeze(["constraint", "handling"]),
+              additionalProperties: false,
+            }),
+          }),
+          uncertainty: Object.freeze({ type: Object.freeze(["string", "null"]) }),
+        }),
+        required: Object.freeze([
+          "decision",
+          "evidenceUse",
+          "tradeoffs",
+          "constraints",
+          "uncertainty",
+        ]),
+        additionalProperties: false,
+      }),
+    }),
+    required: Object.freeze(["artifact", "decisionRecord"]),
+    additionalProperties: false,
+  }),
+);
+
+function genericResponsesBody(value: unknown): JsonObject {
+  const record = objectValue(value);
+  if (record !== undefined && Object.hasOwn(record, "input")) return record;
+  if (typeof value === "string" || Array.isArray(value)) {
+    return Object.freeze({ input: value });
+  }
+  return Object.freeze({ input: serialized(value) });
+}
+
+function candidateResponsesBody(value: unknown): JsonObject {
+  const record = objectValue(value);
+  if (record === undefined || Object.hasOwn(record, "input")) {
+    return genericResponsesBody(value);
+  }
+  if (
+    typeof record.familyId === "string" &&
+    typeof record.condition === "string" &&
+    Object.hasOwn(record, "benchmarkInput")
+  ) {
+    return Object.freeze({
+      input: [
+        "Complete the supplied Coffee Chat benchmark task.",
+        "Return only the structured candidate submission requested by the response schema. The artifact is the task deliverable; the decision record is a concise stated rationale, not hidden chain-of-thought.",
+        `<benchmark_input>\n${serialized(record.benchmarkInput)}\n</benchmark_input>`,
+      ].join("\n\n"),
+      text: Object.freeze({ format: candidateSubmissionFormat }),
+    });
+  }
+  if (Object.hasOwn(record, "conversation") && typeof record.question === "string") {
+    return Object.freeze({
+      input: [
+        "Answer the question using only the supplied conversation record.",
+        `<conversation>\n${serialized(record.conversation)}\n</conversation>`,
+        `<question>\n${record.question}\n</question>`,
+      ].join("\n\n"),
+    });
+  }
+  if (typeof record.caseId === "string" && typeof record.prompt === "string") {
+    return Object.freeze({ input: record.prompt });
+  }
+  if (typeof record.prompt === "string") {
+    return Object.freeze({ input: record.prompt });
+  }
+  return genericResponsesBody(value);
+}
+
+function judgeResponsesBody(value: unknown): JsonObject {
+  const record = objectValue(value);
+  if (record === undefined || Object.hasOwn(record, "input")) {
+    return genericResponsesBody(value);
+  }
+  if (typeof record.prompt !== "string") return genericResponsesBody(value);
+  const nativeTasteRequest = record.kind === "pointwise" || record.kind === "pairwise";
+  return Object.freeze({
+    input: record.prompt,
+    ...(nativeTasteRequest
+      ? { text: Object.freeze({ format: Object.freeze({ type: "json_object" }) }) }
+      : {}),
+  });
 }
 
 async function callResponses(input: {
   readonly endpoint: string;
   readonly capability: string;
   readonly model: string;
-  readonly body: unknown;
+  readonly body: JsonObject;
 }): Promise<unknown> {
-  const requestBody =
-    input.body !== null &&
-    typeof input.body === "object" &&
-    "input" in (input.body as Record<string, unknown>)
-      ? input.body
-      : { input: input.body };
-  return postBroker(input.endpoint, input.capability, {
+  const response = await postBroker(input.endpoint, input.capability, {
+    ...input.body,
     model: input.model,
-    ...requestBody,
+    store: false,
   });
+  return validateResponsesEnvelope(response);
 }
 
 export function createResponsesCandidateTransport(input: {
+  readonly kind: "reference_model" | "agent_stack";
   readonly endpoint: string;
   readonly capability: string;
   readonly model: string;
   readonly evidenceRoot: string;
 }): CandidateTransport {
+  if (input.kind !== "reference_model" && input.kind !== "agent_stack") {
+    throw new TypeError(
+      "Responses candidate kind must be reference_model or agent_stack",
+    );
+  }
   if (input.capability.length === 0)
     throw new TypeError("scoped capability is required");
   if (input.model.length === 0) throw new TypeError("candidate model is required");
   return Object.freeze({
-    kind: "agent_stack" as const,
+    kind: input.kind,
     run: async (request: unknown) => {
       const started = Date.now();
       try {
@@ -208,7 +435,7 @@ export function createResponsesCandidateTransport(input: {
           endpoint: input.endpoint,
           capability: input.capability,
           model: input.model,
-          body: request,
+          body: candidateResponsesBody(request),
         });
         const normalized = responseText(response);
         const output = artifactFromValue(
@@ -263,7 +490,7 @@ export function createResponsesJudgeTransport(input: {
           endpoint: input.endpoint,
           capability: input.capability,
           model: input.model,
-          body: request,
+          body: judgeResponsesBody(request),
         });
         const normalized = responseText(response);
         const verdict = artifactFromValue(
@@ -291,7 +518,10 @@ export function createResponsesJudgeTransport(input: {
         };
       } catch (error) {
         return {
-          state: "unavailable" as const,
+          state:
+            error instanceof ResponsesEnvelopeError && error.outcome === "failed"
+              ? ("failed" as const)
+              : ("unavailable" as const),
           reason: error instanceof Error ? error.message : "judge broker failed",
           failureOwner: "judge" as const,
         };

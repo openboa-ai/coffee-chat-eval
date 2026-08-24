@@ -88,7 +88,10 @@ test("Taste bridge keeps candidate inputs separate from sealed Judge calls and p
     }) => {
       for (let index = 0; index < 21; index += 1) {
         calls.push(`judge:${index}`);
-        await transport.complete({ index });
+        await transport.complete({
+          kind: index < 13 ? "pointwise" : "pairwise",
+          index,
+        });
       }
       return { state: "measured" };
     },
@@ -149,6 +152,49 @@ test("Taste bridge keeps candidate inputs separate from sealed Judge calls and p
   rmSync(root, { recursive: true, force: true });
 });
 
+test("Taste rejects a 21-call native census that is not exactly 13 pointwise and 8 pairwise", async () => {
+  const root = mkdtempSync(join(tmpdir(), "coffee-chat-taste-kind-census-"));
+  try {
+    const candidate = createFixtureCandidateTransport(
+      () => ({
+        artifact: { mediaType: "text/plain", content: "fixture" },
+        decisionRecord: {
+          decision: "fixture",
+          evidenceUse: [],
+          tradeoffs: [],
+          constraints: [],
+          uncertainty: null,
+        },
+      }),
+      { evidenceRoot: root },
+    );
+    const judge = createFixtureJudgeTransport(() => ({ score: 1 }), {
+      evidenceRoot: root,
+    });
+    const result = await executeTasteBench({
+      profile: "smoke",
+      manifest: { familyId: "family-00" },
+      candidate,
+      judge,
+      api: {
+        getBenchmarkInput: (_manifest, condition) => ({ condition }),
+        evaluateSubmission: async () => ({}),
+        evaluateCaseFamily: async ({ transport }) => {
+          for (let index = 0; index < 21; index += 1) {
+            await transport.complete({ kind: "pointwise", index });
+          }
+          return { state: "measured" };
+        },
+      },
+    });
+
+    assert.equal(result.executionStatus, "failed");
+    assert.equal(result.failureOwner, "adapter");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("Taste native executor preserves the 3/13/8 smoke census privately", async () => {
   const root = mkdtempSync(join(tmpdir(), "coffee-chat-taste-native-"));
   try {
@@ -165,7 +211,10 @@ test("Taste native executor preserves the 3/13/8 smoke census privately", async 
       }) => {
         for (let index = 0; index < 21; index += 1) {
           judgeCalls += 1;
-          await transport.complete({ index });
+          await transport.complete({
+            kind: index < 13 ? "pointwise" : "pairwise",
+            index,
+          });
         }
         return { native: true, judgeCalls };
       },
@@ -256,7 +305,11 @@ test("Taste native executor loads the first pinned bank manifest for the native 
       }
       export async function evaluateCaseFamily({ manifest, transport }) {
         if (manifest.caseId !== "case-first") throw new Error("wrong Bench family manifest");
-        for (let index = 0; index < 21; index += 1) await transport.complete({ index });
+        for (let index = 0; index < 21; index += 1)
+          await transport.complete({
+            kind: index < 13 ? "pointwise" : "pairwise",
+            index,
+          });
         return { state: "measured" };
       }
     `,

@@ -1,81 +1,52 @@
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
-import { putEvidence } from "../src/evidence.ts";
+import { createRunPlan, parseRunSpec, parseSourceManifest } from "../src/eval-core.ts";
+import { stableDigest } from "../src/identity.ts";
 import {
   executePortfolioSmoke,
   parsePortfolioBrokerConfig,
+  portfolioTestOnly,
   PORTFOLIO_SMOKE_CENSUS,
+  runPortfolioSmokeConfig,
 } from "../src/portfolio.ts";
 import { runCli } from "../src/cli.ts";
-import type { ImmutableRunResult } from "../src/run-engine.ts";
-import { createIfevalTrackExecutor } from "../src/ifeval.ts";
+import {
+  createIfevalTrackExecutor,
+  ifevalRightsRiskAcceptanceDigest,
+  parseIfevalRightsRiskAcceptance,
+} from "../src/ifeval.ts";
 import { createTasteTrackExecutor } from "../src/taste.ts";
 import { createBeamTrackExecutor, BEAM_CATEGORIES } from "../src/beam.ts";
 import { createAgentDojoTrackExecutor } from "../src/agentdojo.ts";
+import { BEAM_RUNTIME_LOCK, IFEVAL_RUNTIME_LOCK } from "../src/python-runtime.ts";
+import { materializeSource } from "../src/source-cache.ts";
+import type { EvaluationTrackId } from "../src/track-registry.ts";
+import {
+  candidateIdentityDigest,
+  parseCandidateIdentityConfig,
+} from "../src/runtime-config.ts";
 import {
   createFixtureCandidateTransport,
   createFixtureJudgeTransport,
 } from "../src/transports.ts";
+import { executeNonReportableReplay } from "./helpers/replay-track.ts";
 
-function fakeResult(
-  root: string,
-  trackId: keyof typeof PORTFOLIO_SMOKE_CENSUS,
-  native: unknown,
-): ImmutableRunResult {
-  const evidence = putEvidence(root, `${JSON.stringify(native)}\n`, "private");
-  const runId = `run-${trackId}`;
-  const runRoot = join(root, runId);
-  mkdirSync(runRoot, { recursive: true });
-  writeFileSync(join(runRoot, "trial-receipts.json"), "[]\n");
-  const trackReport = {
-    trackId,
-    claimStatus: "calibration" as const,
-    executionStatus: "measured" as const,
-    nativeMetricIds: [],
-    denominators: {},
-    metrics: {},
-    provenance: { sourceManifestDigest: evidence.digest, runId },
-  };
-  return {
-    plan: { id: runId } as ImmutableRunResult["plan"],
-    trackReport,
-    nativeEvidence: {
-      path: evidence.path,
-      digest: evidence.digest,
-      mediaType: "application/json",
-      bytes: evidence.path.length,
-    },
-    cleanupStatus: "complete",
-    publicReceiptPath: join(runRoot, "public-receipt.json"),
-    trackReportPath: join(runRoot, "track-report.json"),
-    trialReceiptsPath: join(runRoot, "trial-receipts.json"),
-    publicReceipt: {} as ImmutableRunResult["publicReceipt"],
-  };
-}
-
-test("portfolio smoke receipt gates all four sampled native censuses without metric thresholds", async () => {
+test("portfolio production API rejects a fabricated runTrack override", async () => {
   const root = mkdtempSync(join(tmpdir(), "coffee-chat-portfolio-"));
   try {
-    const native = {
-      "coffee-chat-taste": {
-        schema: "coffee-chat-eval/taste-native-v1",
-        summary: { candidateArtifacts: [{}, {}, {}], judgeCalls: 21 },
-      },
-      "beam-record-core": { queryCount: 6, judgeCalls: 11 },
-      ifeval: {
-        source: { inputCount: 9 },
-        metrics: Object.fromEntries(
-          ["strictPrompt", "strictInstruction", "loosePrompt", "looseInstruction"].map(
-            (key) => [key, { denominator: 9 }],
-          ),
-        ),
-      },
-      "agentdojo-security": { episodes: [{}, {}, {}] },
-    } as const;
     const tracks = (
       Object.keys(PORTFOLIO_SMOKE_CENSUS) as (keyof typeof PORTFOLIO_SMOKE_CENSUS)[]
     ).map((trackId) => ({
@@ -86,52 +57,150 @@ test("portfolio smoke receipt gates all four sampled native censuses without met
       candidate: {} as never,
       judge: undefined,
     }));
-    const receipt = await executePortfolioSmoke({
-      tracks,
-      evidenceRoot: root,
-      runTrack: async (track) => fakeResult(root, track.trackId, native[track.trackId]),
-    });
-    assert.equal(receipt.status, "measured");
-    assert.equal(receipt.claimStatus, "calibration");
-    assert.equal(receipt.tracks.length, 4);
-    assert.match(receipt.publicReceiptPath, /public-receipt\.json$/u);
+    let fabricatedCalls = 0;
+    await assert.rejects(
+      () =>
+        executePortfolioSmoke({
+          tracks,
+          evidenceRoot: root,
+          runTrack: async () => {
+            fabricatedCalls += 1;
+            throw new Error("fabricated runner must never be called");
+          },
+        } as never),
+      /runTrack override is not supported/u,
+    );
+    assert.equal(fabricatedCalls, 0);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
 });
 
-test("portfolio cleanup failure is recorded as invalid instead of escaping the receipt", async () => {
-  const root = mkdtempSync(join(tmpdir(), "coffee-chat-portfolio-cleanup-"));
+test("portfolio production API rejects a fabricated track executor override", async () => {
+  const root = mkdtempSync(join(tmpdir(), "coffee-chat-portfolio-executor-"));
   try {
-    const native = {
-      "coffee-chat-taste": {
-        summary: { candidateArtifacts: [{}, {}, {}], judgeCalls: 21 },
-      },
-      "beam-record-core": { queryCount: 6, judgeCalls: 11 },
-      ifeval: { source: { inputCount: 9 } },
-      "agentdojo-security": { episodes: [{}, {}, {}] },
-    } as const;
+    let fabricatedCalls = 0;
     const tracks = Object.keys(PORTFOLIO_SMOKE_CENSUS).map((trackId) => ({
-      trackId: trackId as keyof typeof PORTFOLIO_SMOKE_CENSUS,
-      plan: { id: `cleanup-${trackId}` } as never,
+      trackId: trackId as EvaluationTrackId,
+      plan: { id: `run-${trackId}` } as never,
+      manifest: {} as never,
+      candidate: {} as never,
+      judge: undefined,
+      executor: async () => {
+        fabricatedCalls += 1;
+        throw new Error("fabricated executor must never be called");
+      },
+    }));
+
+    await assert.rejects(
+      () => executePortfolioSmoke({ tracks, evidenceRoot: root } as never),
+      /track executor override is not supported/u,
+    );
+    assert.equal(fabricatedCalls, 0);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("portfolio closes every broker when portfolio preflight throws", async () => {
+  const root = mkdtempSync(join(tmpdir(), "coffee-chat-portfolio-abort-cleanup-"));
+  try {
+    const closeCalls = new Map<string, number>();
+    const trackIds = Object.keys(PORTFOLIO_SMOKE_CENSUS);
+    const tracks = trackIds.map((trackId, index) => ({
+      trackId: (index === trackIds.length - 1
+        ? trackIds[0]
+        : trackId) as keyof typeof PORTFOLIO_SMOKE_CENSUS,
+      plan: { id: `abort-${trackId}` } as never,
       manifest: {} as never,
       candidate: {} as never,
       judge: undefined,
       close: async () => {
-        if (trackId === "beam-record-core") throw new Error("proxy close failed");
+        closeCalls.set(trackId, (closeCalls.get(trackId) ?? 0) + 1);
       },
     }));
-    const receipt = await executePortfolioSmoke({
-      tracks,
-      evidenceRoot: root,
-      runTrack: async (track) => fakeResult(root, track.trackId, native[track.trackId]),
-    });
-    assert.equal(receipt.status, "failed");
-    assert.equal(
-      receipt.tracks.find((track) => track.trackId === "beam-record-core")
-        ?.cleanupStatus,
-      "failed",
+
+    await assert.rejects(
+      () =>
+        executePortfolioSmoke({
+          tracks,
+          evidenceRoot: root,
+        }),
+      /exactly the four admitted tracks/u,
     );
+    assert.deepEqual(
+      Object.fromEntries(closeCalls),
+      Object.fromEntries(trackIds.map((trackId) => [trackId, 1])),
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("portfolio marks a track invalid when production-path proxy cleanup fails", async () => {
+  const root = mkdtempSync(join(tmpdir(), "coffee-chat-portfolio-cleanup-"));
+  try {
+    const cacheRoot = join(root, "missing-cache");
+    const candidate = createFixtureCandidateTransport(() => "unused", {
+      evidenceRoot: root,
+    });
+    const judge = createFixtureJudgeTransport(() => ({ score: 1 }), {
+      evidenceRoot: root,
+    });
+    const trackIds = Object.keys(PORTFOLIO_SMOKE_CENSUS) as EvaluationTrackId[];
+    const tracks = trackIds.map((trackId, index) => {
+      const manifest = parseSourceManifest({
+        schema: "source-manifest-v1",
+        trackId,
+        source: {
+          repository: `https://example.invalid/${trackId}`,
+          commit: String(index + 1).repeat(40),
+          license: "fixture-only",
+        },
+        allowlist: ["LICENSE"],
+        excludedPaths: ["excluded/**"],
+        publicArtifactPolicy: "receipt-redacted",
+      });
+      const spec = parseRunSpec({
+        schema: "run-spec-v1",
+        trackId,
+        profile: "fixture",
+        sourceManifestDigest: stableDigest(manifest),
+        candidateDigest: stableDigest({ trackId, role: "candidate" }),
+        judgeDigest: stableDigest({ trackId, role: "judge" }),
+        attackDigest: stableDigest({ trackId, role: "attack" }),
+        defenseDigest: stableDigest({ trackId, role: "defense" }),
+        configurationDigest: stableDigest({ trackId, profile: "fixture" }),
+        candidateType: "fixture",
+        caseCensus: { cases: 1 },
+      });
+      return {
+        trackId,
+        plan: createRunPlan({ manifest, spec, evidenceRoot: root, cacheRoot }),
+        manifest,
+        candidate,
+        judge:
+          trackId === "coffee-chat-taste" || trackId === "beam-record-core"
+            ? judge
+            : undefined,
+        close: async () => {
+          if (trackId === "beam-record-core") throw new Error("proxy close failed");
+        },
+      };
+    });
+
+    const receipt = await executePortfolioSmoke({ tracks, evidenceRoot: root });
+
+    assert.equal(receipt.status, "failed");
+    assert.equal(receipt.officialMeasurementEligible, false);
+    assert.equal(
+      JSON.parse(readFileSync(receipt.publicReceiptPath, "utf8"))
+        .officialMeasurementEligible,
+      false,
+    );
+    const beam = receipt.tracks.find((track) => track.trackId === "beam-record-core");
+    assert.equal(beam?.cleanupStatus, "failed");
+    assert.equal(beam?.executionStatus, "invalid");
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
@@ -144,32 +213,487 @@ test("portfolio smoke CLI requires an absolute private config", async () => {
   );
 });
 
-test("portfolio broker config names a host-held key without accepting key bytes", () => {
-  assert.deepEqual(parsePortfolioBrokerConfig({ providerKeyEnv: "OPENAI_API_KEY" }), {
-    providerKeyEnv: "OPENAI_API_KEY",
-  });
+test("portfolio broker config names a private env file without accepting key bytes", () => {
+  assert.deepEqual(
+    parsePortfolioBrokerConfig({
+      providerEnvFile: "/private/operator/.env.local",
+      providerKeyEnv: "OPENAI_API_KEY",
+    }),
+    {
+      providerEnvFile: "/private/operator/.env.local",
+      providerKeyEnv: "OPENAI_API_KEY",
+    },
+  );
   assert.throws(
     () => parsePortfolioBrokerConfig({ providerKey: "provider-secret" }),
     /provider key bytes are not accepted|providerKey/u,
   );
+  assert.throws(
+    () =>
+      parsePortfolioBrokerConfig({
+        providerEnvFile: "relative/.env.local",
+        providerKeyEnv: "OPENAI_API_KEY",
+      }),
+    /providerEnvFile.*absolute/u,
+  );
+  assert.throws(
+    () =>
+      parsePortfolioBrokerConfig({
+        providerEnvFile: "/private/operator/.env.local",
+        providerKeyEnv: "OPENAI_API_KEY",
+        upstreamUrl: "https://example.com/v1/responses",
+      }),
+    /upstreamUrl.*official OpenAI|loopback/u,
+  );
 });
 
-test("offline portfolio replay executes all four sampled Runner paths", async () => {
+test("portfolio product package root is a private absolute runtime path", async () => {
+  const root = mkdtempSync(join(tmpdir(), "coffee-chat-product-portfolio-config-"));
+  try {
+    const path = join(root, "portfolio.json");
+    writeFileSync(
+      path,
+      JSON.stringify({
+        schema: "portfolio-smoke-config-v1",
+        evidenceRoot: join(root, "evidence"),
+        cacheRoot: join(root, "cache"),
+        productPackageRoot: "relative/product",
+        tracks: Object.keys(PORTFOLIO_SMOKE_CENSUS).map((trackId) => ({
+          trackId,
+          planPath: "unused",
+        })),
+      }),
+    );
+    await assert.rejects(
+      () => runPortfolioSmokeConfig(path),
+      /productPackageRoot.*absolute/u,
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("portfolio config validates every track before opening a broker", async () => {
+  const root = mkdtempSync(join(tmpdir(), "coffee-chat-portfolio-preflight-cleanup-"));
+  try {
+    const workdir = new URL("..", import.meta.url).pathname;
+    const candidatePath = join(root, "candidate.json");
+    const planPath = join(root, "taste-plan.json");
+    writeFileSync(
+      candidatePath,
+      JSON.stringify({
+        schema: "candidate-config-v1",
+        candidateType: "agent_stack",
+        harness: "responses-agent-stack-v1",
+        model: "gpt-5.6-luna",
+      }),
+    );
+    writeFileSync(
+      planPath,
+      execFileSync(
+        process.execPath,
+        [
+          "--experimental-strip-types",
+          "src/cli.ts",
+          "plan",
+          "--track",
+          "coffee-chat-taste",
+          "--profile",
+          "smoke",
+          "--candidate-config",
+          candidatePath,
+          "--evidence-root",
+          join(root, "evidence"),
+          "--cache-root",
+          join(root, "cache"),
+        ],
+        { cwd: workdir, encoding: "utf8" },
+      ),
+    );
+    const configPath = join(root, "portfolio.json");
+    writeFileSync(
+      configPath,
+      JSON.stringify({
+        schema: "portfolio-smoke-config-v1",
+        evidenceRoot: join(root, "evidence"),
+        cacheRoot: join(root, "cache"),
+        broker: {
+          providerEnvFile: join(root, ".env.local"),
+          providerKeyEnv: "UNUSED_TEST_KEY",
+        },
+        tracks: [
+          { trackId: "coffee-chat-taste", planPath },
+          { trackId: "unsupported", planPath },
+          { trackId: "ifeval", planPath },
+          { trackId: "agentdojo-security", planPath },
+        ],
+      }),
+    );
+    let closeCalls = 0;
+    await assert.rejects(
+      () =>
+        runPortfolioSmokeConfig(configPath, {
+          startBroker: async () => ({
+            runtime: {
+              schema: "runtime-bundle-v1",
+              candidate: {
+                schema: "runtime-capability-v1",
+                scope: "candidate",
+                endpoint: "http://127.0.0.1:4311/responses",
+                capabilityToken: "private-candidate-token",
+                model: "gpt-5.6-luna",
+                expiresAt: "2099-01-01T00:00:00.000Z",
+                maxRequests: 3,
+              },
+              judge: {
+                schema: "runtime-capability-v1",
+                scope: "judge",
+                endpoint: "http://127.0.0.1:4312/responses",
+                capabilityToken: "private-judge-token",
+                model: "gpt-5.6-luna",
+                expiresAt: "2099-01-01T00:00:00.000Z",
+                maxRequests: 21,
+              },
+            },
+            close: async () => {
+              closeCalls += 1;
+            },
+          }),
+        }),
+      /portfolio track is unsupported/u,
+    );
+    assert.equal(closeCalls, 0);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("portfolio rejects persisted candidate identity type drift from RunSpec", async () => {
+  const root = mkdtempSync(join(tmpdir(), "coffee-chat-portfolio-identity-drift-"));
+  try {
+    const workdir = new URL("..", import.meta.url).pathname;
+    const agentCandidatePath = join(root, "agent-candidate.json");
+    const fixtureCandidatePath = join(root, "fixture-candidate.json");
+    writeFileSync(
+      agentCandidatePath,
+      JSON.stringify({
+        schema: "candidate-config-v1",
+        candidateType: "agent_stack",
+        harness: "responses-agent-stack-v1",
+        model: "gpt-5.6-luna",
+      }),
+    );
+    writeFileSync(fixtureCandidatePath, JSON.stringify({ candidateType: "fixture" }));
+    const livePlan = JSON.parse(
+      execFileSync(
+        process.execPath,
+        [
+          "--experimental-strip-types",
+          "src/cli.ts",
+          "plan",
+          "--track",
+          "coffee-chat-taste",
+          "--profile",
+          "smoke",
+          "--candidate-config",
+          agentCandidatePath,
+          "--evidence-root",
+          join(root, "evidence"),
+          "--cache-root",
+          join(root, "cache"),
+        ],
+        { cwd: workdir, encoding: "utf8" },
+      ),
+    ) as { runSpec: { candidateType: string } };
+    livePlan.runSpec.candidateType = "reference_model";
+    const livePlanPath = join(root, "drifted-taste-plan.json");
+    writeFileSync(livePlanPath, JSON.stringify(livePlan));
+
+    const fixturePlanPath = join(root, "ifeval-fixture-plan.json");
+    writeFileSync(
+      fixturePlanPath,
+      execFileSync(
+        process.execPath,
+        [
+          "--experimental-strip-types",
+          "src/cli.ts",
+          "plan",
+          "--track",
+          "ifeval",
+          "--profile",
+          "fixture",
+          "--candidate-config",
+          fixtureCandidatePath,
+          "--evidence-root",
+          join(root, "evidence"),
+          "--cache-root",
+          join(root, "cache"),
+        ],
+        { cwd: workdir, encoding: "utf8" },
+      ),
+    );
+    const configPath = join(root, "portfolio.json");
+    writeFileSync(
+      configPath,
+      JSON.stringify({
+        schema: "portfolio-smoke-config-v1",
+        evidenceRoot: join(root, "evidence"),
+        cacheRoot: join(root, "cache"),
+        tracks: [
+          { trackId: "coffee-chat-taste", planPath: livePlanPath },
+          { trackId: "beam-record-core", planPath: livePlanPath },
+          { trackId: "agentdojo-security", planPath: livePlanPath },
+          { trackId: "ifeval", planPath: fixturePlanPath },
+        ],
+      }),
+    );
+
+    await assert.rejects(
+      () => runPortfolioSmokeConfig(configPath),
+      /candidate identity type does not match run spec candidateType/u,
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("portfolio preflights IFEval native rights before opening any broker", async () => {
+  const root = mkdtempSync(join(tmpdir(), "coffee-chat-portfolio-rights-hold-"));
+  try {
+    const workdir = new URL("..", import.meta.url).pathname;
+    const candidatePath = join(root, "candidate.json");
+    writeFileSync(
+      candidatePath,
+      JSON.stringify({
+        schema: "candidate-config-v1",
+        candidateType: "agent_stack",
+        harness: "responses-agent-stack-v1",
+        model: "gpt-5.6-luna",
+        seed: 7,
+      }),
+    );
+    const planPaths = Object.fromEntries(
+      (Object.keys(PORTFOLIO_SMOKE_CENSUS) as EvaluationTrackId[]).map((trackId) => {
+        const planPath = join(root, `${trackId}.plan.json`);
+        writeFileSync(
+          planPath,
+          execFileSync(
+            process.execPath,
+            [
+              "--experimental-strip-types",
+              "src/cli.ts",
+              "plan",
+              "--track",
+              trackId,
+              "--profile",
+              "smoke",
+              "--candidate-config",
+              candidatePath,
+              "--evidence-root",
+              join(root, "evidence"),
+              "--cache-root",
+              join(root, "cache"),
+            ],
+            { cwd: workdir, encoding: "utf8" },
+          ),
+        );
+        return [trackId, planPath];
+      }),
+    ) as Record<EvaluationTrackId, string>;
+    const providerEnvFile = join(root, ".env.local");
+    writeFileSync(providerEnvFile, "UNUSED_TEST_KEY=never-read\n", { mode: 0o600 });
+    const configPath = join(root, "portfolio.json");
+    writeFileSync(
+      configPath,
+      JSON.stringify({
+        schema: "portfolio-smoke-config-v1",
+        evidenceRoot: join(root, "evidence"),
+        cacheRoot: join(root, "cache"),
+        broker: {
+          providerEnvFile,
+          providerKeyEnv: "UNUSED_TEST_KEY",
+        },
+        tracks: (Object.keys(PORTFOLIO_SMOKE_CENSUS) as EvaluationTrackId[]).map(
+          (trackId) => ({ trackId, planPath: planPaths[trackId] }),
+        ),
+      }),
+    );
+    let brokerStarts = 0;
+
+    await assert.rejects(
+      () =>
+        runPortfolioSmokeConfig(configPath, {
+          startBroker: async () => {
+            brokerStarts += 1;
+            throw new Error("broker must not start");
+          },
+        }),
+      /rights_hold\/rights.*punkt_tab/u,
+    );
+    assert.equal(brokerStarts, 0);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("portfolio requires an absolute top-level private IFEval acceptance path", async () => {
+  const root = mkdtempSync(join(tmpdir(), "coffee-chat-portfolio-risk-path-"));
+  try {
+    const configPath = join(root, "portfolio.json");
+    let brokerStarts = 0;
+    const tracks = (Object.keys(PORTFOLIO_SMOKE_CENSUS) as EvaluationTrackId[]).map(
+      (trackId) => ({ trackId, planPath: join(root, `${trackId}.json`) }),
+    );
+    writeFileSync(
+      configPath,
+      JSON.stringify({
+        schema: "portfolio-smoke-config-v1",
+        evidenceRoot: join(root, "evidence"),
+        cacheRoot: join(root, "cache"),
+        tracks,
+        inlineRightsAcceptance: { acceptedBy: "must-not-be-accepted" },
+      }),
+    );
+    await assert.rejects(
+      () =>
+        runPortfolioSmokeConfig(configPath, {
+          startBroker: async () => {
+            brokerStarts += 1;
+            throw new Error("broker must not start");
+          },
+        }),
+      /portfolio config has unexpected fields/u,
+    );
+    writeFileSync(
+      configPath,
+      JSON.stringify({
+        schema: "portfolio-smoke-config-v1",
+        evidenceRoot: join(root, "evidence"),
+        cacheRoot: join(root, "cache"),
+        ifevalRightsRiskAcceptanceReceipt: "relative/acceptance.json",
+        tracks,
+      }),
+    );
+    await assert.rejects(
+      () =>
+        runPortfolioSmokeConfig(configPath, {
+          startBroker: async () => {
+            brokerStarts += 1;
+            throw new Error("broker must not start");
+          },
+        }),
+      /ifevalRightsRiskAcceptanceReceipt.*absolute/u,
+    );
+    assert.equal(brokerStarts, 0);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("portfolio public risk projection is exact and omits private receipt metadata", () => {
+  const candidateIdentity = parseCandidateIdentityConfig({
+    schema: "candidate-config-v1",
+    candidateType: "coffee_chat_product",
+    harness: "eval-skills-reference-host-v1",
+    model: "gpt-5.6-luna",
+    seed: 7,
+    product: {
+      repository: "https://github.com/openboa-ai/coffee-chat",
+      commit: "e1ac82de77ab12b9b2499771a194ef3db356b3a6",
+      calver: "2026.8.23",
+      packageDigest:
+        "sha256:e39384e00af5d8d5a71aedcde0d960bd4c6797ed227eab9f08d3134b4d712d41",
+      mode: "connectivity_only",
+    },
+  });
+  const candidateDigest = candidateIdentityDigest(candidateIdentity);
+  const receipt = parseIfevalRightsRiskAcceptance({
+    schema: "ifeval-rights-risk-acceptance-v1",
+    trackId: "ifeval",
+    profile: "smoke",
+    candidateType: "coffee_chat_product",
+    candidateDigest,
+    ifevalSourceCommit: "e6890f85757dd84e27ca6df2dd30651dafad28e0",
+    assetRepository: "https://github.com/nltk/nltk_data",
+    assetRevision: "550b6625bcef1f2abff2ff770a5a0d272c9c6b2a",
+    asset: "nltk_data/tokenizers/punkt_tab.zip",
+    assetDigest:
+      "sha256:e57f64187974277726a3417ca6f181ec5403676c717672eef6a748a7b20e0106",
+    licenseStatus: "unclarified",
+    licenseCleared: false,
+    scope: "private-internal-smoke-only",
+    acceptedBy: "workspace-owner",
+    acceptedAt: "2026-08-24T01:55:00+09:00",
+    privateNonce: "c".repeat(64),
+    acknowledgesNoLicenseGrant: true,
+    acknowledgesNoRedistribution: true,
+    acknowledgesNoPublicNumericClaim: true,
+  });
+  const boundary = portfolioTestOnly.projectIfevalRightsBoundary({
+    profile: "smoke",
+    candidateType: "coffee_chat_product",
+    candidateDigest,
+    rightsRiskAcceptanceDigest: ifevalRightsRiskAcceptanceDigest(receipt),
+    receipt,
+  });
+
+  assert.deepEqual(boundary, {
+    rightsRiskAcceptanceDigest: ifevalRightsRiskAcceptanceDigest(receipt),
+    licenseCleared: false,
+    rightsExecutionScope: "private-internal-smoke-only",
+  });
+  const serialized = JSON.stringify(boundary);
+  assert.equal(serialized.includes("workspace-owner"), false);
+  assert.equal(serialized.includes("2026-08-24"), false);
+  assert.equal(serialized.includes("acceptance.json"), false);
+  assert.throws(
+    () =>
+      portfolioTestOnly.projectIfevalRightsBoundary({
+        profile: "smoke",
+        candidateType: "coffee_chat_product",
+        candidateDigest: stableDigest("different Product candidate"),
+        rightsRiskAcceptanceDigest: ifevalRightsRiskAcceptanceDigest(receipt),
+        receipt,
+      }),
+    /Product candidate identity/u,
+  );
+});
+
+test("portfolio withholds reversible private-result digests for Product connectivity", () => {
+  const nativeEvidenceDigest = stableDigest("enumerable native result");
+  const trackReportDigest = stableDigest("enumerable track report");
+  const trialReceiptsDigest = stableDigest("execution receipts");
+  const projected = portfolioTestOnly.projectPublicResultDigests({
+    trackId: "ifeval",
+    productBoundary: {
+      candidateMode: "connectivity_only",
+      capabilitiesUsed: [],
+      productBehaviorExercised: false,
+      referenceHost: "eval-skills-reference-host-v1",
+      productIdentity: {
+        repository: "https://github.com/openboa-ai/coffee-chat",
+        commit: "e1ac82de77ab12b9b2499771a194ef3db356b3a6",
+        calver: "2026.8.23",
+        packageDigest:
+          "sha256:e39384e00af5d8d5a71aedcde0d960bd4c6797ed227eab9f08d3134b4d712d41",
+      },
+    },
+    nativeEvidenceDigest,
+    trackReportDigest,
+    trialReceiptsDigest,
+  });
+
+  assert.deepEqual(projected, {
+    trialReceiptsDigest,
+    privateResultDigestsWithheld: true,
+  });
+  assert.equal("nativeEvidenceDigest" in projected, false);
+  assert.equal("trackReportDigest" in projected, false);
+});
+
+test("offline replay executes all four native factories behind a non-reportable test boundary", async () => {
   const root = mkdtempSync(join(tmpdir(), "coffee-chat-portfolio-replay-"));
   try {
-    const sourceRoot = join(root, "source");
-    mkdirSync(join(sourceRoot, "instruction_following_eval", "data"), {
-      recursive: true,
-    });
-    mkdirSync(join(sourceRoot, "chats", "100K", "1", "probing_questions"), {
-      recursive: true,
-    });
-    writeFileSync(
-      join(sourceRoot, "instruction_following_eval", "data", "input_data.jsonl"),
-      [1000, 1012, 1069, 1005, 1098, 1019, 1040, 1122, 1108]
-        .map((key) => JSON.stringify({ key, prompt: `prompt-${key}` }))
-        .join("\n") + "\n",
-    );
     const beamBank = Object.fromEntries(
       BEAM_CATEGORIES.map((category, index) => [
         category,
@@ -184,26 +708,6 @@ test("offline portfolio replay executes all four sampled Runner paths", async ()
         ],
       ]),
     );
-    writeFileSync(
-      join(
-        sourceRoot,
-        "chats",
-        "100K",
-        "1",
-        "probing_questions",
-        "probing_questions.json",
-      ),
-      JSON.stringify(beamBank),
-    );
-    const evidence = ({ value, mediaType }: { value: unknown; mediaType: string }) => {
-      const item = putEvidence(root, `${JSON.stringify(value)}\n`, "private");
-      return {
-        path: item.path,
-        digest: item.digest,
-        mediaType,
-        bytes: readFileSync(item.path).byteLength,
-      };
-    };
     const candidate = createFixtureCandidateTransport(() => "fixture", {
       evidenceRoot: root,
     });
@@ -223,22 +727,6 @@ test("offline portfolio replay executes all four sampled Runner paths", async ()
     const judge = createFixtureJudgeTransport(() => ({ score: 1 }), {
       evidenceRoot: root,
     });
-    const plans = Object.keys(PORTFOLIO_SMOKE_CENSUS).map((trackId) => ({
-      trackId: trackId as
-        "coffee-chat-taste" | "beam-record-core" | "ifeval" | "agentdojo-security",
-      plan: {
-        id: `run-${trackId}`,
-        profile: "smoke",
-        evidenceRoot: root,
-        trackId,
-      } as never,
-      manifest: {} as never,
-      candidate: trackId === "coffee-chat-taste" ? tasteCandidate : candidate,
-      judge:
-        trackId === "coffee-chat-taste" || trackId === "beam-record-core"
-          ? judge
-          : undefined,
-    }));
     const executors = {
       "coffee-chat-taste": createTasteTrackExecutor({
         api: {
@@ -246,7 +734,10 @@ test("offline portfolio replay executes all four sampled Runner paths", async ()
           evaluateSubmission: async () => ({ state: "measured" }),
           evaluateCaseFamily: async ({ transport }) => {
             for (let index = 0; index < 21; index += 1)
-              await transport.complete({ index });
+              await transport.complete({
+                kind: index < 13 ? "pointwise" : "pairwise",
+                index,
+              });
             return { state: "measured" };
           },
         },
@@ -257,14 +748,18 @@ test("offline portfolio replay executes all four sampled Runner paths", async ()
             writeFileSync(
               outputPath,
               JSON.stringify({
-                queryCount: 6,
-                judgeCalls: 11,
+                queryCount: 1,
+                judgeCalls: 1,
                 unusedEmbeddingInitializationBypassed: true,
                 paperComparable: false,
                 categories: Object.fromEntries(
-                  BEAM_CATEGORIES.map((category) => [
+                  BEAM_CATEGORIES.map((category, index) => [
                     category,
-                    { numerator: 0, denominator: 1, accuracy: 0 },
+                    {
+                      numerator: 0,
+                      denominator: index === 0 ? 1 : 0,
+                      accuracy: index === 0 ? 0 : null,
+                    },
                   ]),
                 ),
               }),
@@ -338,70 +833,154 @@ test("offline portfolio replay executes all four sampled Runner paths", async ()
         },
       }),
     } as const;
-    const receipt = await executePortfolioSmoke({
-      tracks: plans,
-      evidenceRoot: root,
-      runTrack: async (track) => {
-        const executor = executors[track.trackId];
-        const result = await executor({
-          plan: track.plan,
-          manifest: track.manifest,
-          source: { sourceRoot },
-          candidate: track.candidate,
-          judge: track.judge,
-          runtime:
-            track.trackId === "beam-record-core"
-              ? {
-                  judge: {
-                    endpoint: "http://127.0.0.1:1",
-                    capabilityToken: "fixture",
-                    model: "gpt-5.6-luna",
-                    maxRequests: 11,
-                  },
-                }
-              : track.trackId === "agentdojo-security"
-                ? {
-                    candidate: {
-                      endpoint: "http://127.0.0.1:1",
-                      capabilityToken: "fixture",
-                      model: "gpt-5.6-luna",
-                      maxRequests: 45,
-                    },
-                  }
-                : undefined,
-          evidence,
-        } as never);
-        const runRoot = join(root, track.plan.id);
-        mkdirSync(runRoot, { recursive: true });
-        writeFileSync(
-          join(runRoot, "trial-receipts.json"),
-          JSON.stringify(result.trialReceipts),
+
+    const cacheRoot = join(root, "cache");
+    const trackIds = Object.keys(PORTFOLIO_SMOKE_CENSUS) as EvaluationTrackId[];
+    const digestBytes = (bytes: string | Uint8Array): `sha256:${string}` =>
+      `sha256:${createHash("sha256").update(bytes).digest("hex")}`;
+    const fixtureCensus: Readonly<
+      Record<EvaluationTrackId, Readonly<Record<string, number>>>
+    > = {
+      "coffee-chat-taste": PORTFOLIO_SMOKE_CENSUS["coffee-chat-taste"],
+      "beam-record-core": { queries: 1, judgeCalls: 1 },
+      ifeval: { prompts: 1 },
+      "agentdojo-security": PORTFOLIO_SMOKE_CENSUS["agentdojo-security"],
+    };
+    const plans = trackIds.map((trackId, index) => {
+      const sourceInput = join(root, "source-input", trackId);
+      mkdirSync(sourceInput, { recursive: true });
+      const license = `fixture license for ${trackId}\n`;
+      const licenseDigest = digestBytes(license);
+      writeFileSync(join(sourceInput, "LICENSE"), license);
+      const allowlist = ["LICENSE"];
+      if (trackId === "ifeval") {
+        const dataPath = join(
+          sourceInput,
+          "instruction_following_eval",
+          "data",
+          "input_data.jsonl",
         );
-        return {
-          plan: track.plan,
-          trackReport: {
-            trackId: track.trackId,
-            claimStatus: "calibration",
-            executionStatus: result.executionStatus,
-            nativeMetricIds: Object.keys(result.metrics),
-            denominators: {},
-            metrics: result.metrics,
-            provenance: {
-              sourceManifestDigest: "sha256:" + "0".repeat(64),
-              runId: track.plan.id,
-            },
-          },
-          nativeEvidence: result.nativeEvidence,
-          cleanupStatus: result.cleanupStatus,
-          publicReceiptPath: join(runRoot, "public-receipt.json"),
-          trackReportPath: join(runRoot, "track-report.json"),
-          trialReceiptsPath: join(runRoot, "trial-receipts.json"),
-          publicReceipt: {} as never,
-        } as never;
-      },
+        mkdirSync(join(dataPath, ".."), { recursive: true });
+        writeFileSync(
+          dataPath,
+          `${[1000, 1012, 1069, 1005, 1098, 1019, 1040, 1122, 1108]
+            .map((key) => JSON.stringify({ key, prompt: `prompt-${key}` }))
+            .join("\n")}\n`,
+        );
+        allowlist.push("instruction_following_eval/data/input_data.jsonl");
+      }
+      if (trackId === "beam-record-core") {
+        const questionsPath = join(
+          sourceInput,
+          "chats",
+          "100K",
+          "1",
+          "probing_questions",
+          "probing_questions.json",
+        );
+        mkdirSync(join(questionsPath, ".."), { recursive: true });
+        writeFileSync(questionsPath, JSON.stringify(beamBank));
+        allowlist.push("chats/100K/1/probing_questions/probing_questions.json");
+      }
+      const manifest = parseSourceManifest({
+        schema: "source-manifest-v1",
+        trackId,
+        source: {
+          repository: `https://example.invalid/${trackId}`,
+          commit: String(index + 1).repeat(40),
+          license: "fixture-only",
+          licenseDigest,
+        },
+        allowlist,
+        excludedPaths: ["excluded/**"],
+        retention: {
+          source: "cache-only",
+          evidence: "private-content-addressed",
+          public: "aggregate-provenance-only",
+        },
+        publicArtifactPolicy: "receipt-redacted",
+      });
+      const runtimeLockPath =
+        trackId === "ifeval"
+          ? IFEVAL_RUNTIME_LOCK
+          : trackId === "beam-record-core"
+            ? BEAM_RUNTIME_LOCK
+            : undefined;
+      materializeSource({
+        manifest,
+        cacheRoot,
+        sourceRoot: sourceInput,
+        runtimeLockDigest:
+          runtimeLockPath === undefined
+            ? stableDigest(`fixture lock for ${trackId}`)
+            : digestBytes(readFileSync(runtimeLockPath)),
+        runtimeLockOrigin: "eval-owned",
+        ...(runtimeLockPath === undefined
+          ? {}
+          : { expectedRuntimeLockPath: runtimeLockPath }),
+        licenseEvidence: [
+          { path: "LICENSE", digest: licenseDigest, license: "fixture-only" },
+        ],
+      });
+      const profile = "fixture";
+      const spec = parseRunSpec({
+        schema: "run-spec-v1",
+        trackId,
+        profile,
+        sourceManifestDigest: stableDigest(manifest),
+        candidateDigest: stableDigest({ trackId, role: "candidate" }),
+        judgeDigest: stableDigest({ trackId, role: "judge" }),
+        attackDigest: stableDigest({ trackId, role: "attack" }),
+        defenseDigest: stableDigest({ trackId, role: "defense" }),
+        configurationDigest: stableDigest({ trackId, profile }),
+        candidateType: "fixture",
+        caseCensus: fixtureCensus[trackId],
+      });
+      const plan = createRunPlan({ manifest, spec, evidenceRoot: root, cacheRoot });
+      return {
+        trackId,
+        plan,
+        manifest,
+        candidate: trackId === "coffee-chat-taste" ? tasteCandidate : candidate,
+        judge:
+          trackId === "coffee-chat-taste" || trackId === "beam-record-core"
+            ? judge
+            : undefined,
+        executor: executors[trackId] as never,
+      };
     });
-    assert.equal(receipt.status, "measured");
-    assert.equal(receipt.tracks.length, 4);
+    const expectedTrials: Readonly<Record<EvaluationTrackId, number>> = {
+      "coffee-chat-taste": 3,
+      "beam-record-core": 1,
+      ifeval: 1,
+      "agentdojo-security": 3,
+    };
+    for (const track of plans) {
+      const result = await executeNonReportableReplay({
+        plan: track.plan,
+        manifest: track.manifest,
+        candidate: track.candidate,
+        judge: track.judge,
+        executor: track.executor,
+      });
+      assert.equal(result.boundary, "test-only-non-reportable-replay-v1");
+      assert.equal(result.execution.executionStatus, "measured");
+      assert.equal(
+        result.execution.trialReceipts.length,
+        expectedTrials[track.trackId],
+      );
+      for (const officialName of [
+        "track-report.json",
+        "trial-receipts.json",
+        "public-receipt.json",
+      ]) {
+        assert.equal(
+          existsSync(join(root, track.plan.id, officialName)),
+          false,
+          `${track.trackId} replay must not emit ${officialName}`,
+        );
+      }
+    }
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

@@ -3,7 +3,10 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
 
 import {
+  createTrialReceipt,
   createTrackReport,
+  parseProductCandidateBoundary,
+  runProfileCandidateCompatibilityError,
   type CandidateTransport,
   type JudgeTransport,
   type PrivateArtifactRef,
@@ -12,8 +15,15 @@ import {
   type TrackExecutionResult,
   type TrackReport,
   type TrialReceipt,
+  type ProductCandidateBoundary,
 } from "./eval-core.ts";
 import { stableDigest } from "./identity.ts";
+import {
+  IFEVAL_NATIVE_RUNTIME_RIGHTS_HOLD_REASON,
+  type IfevalRightsRiskAcceptance,
+  ifevalNativeRuntimeRequiresRightsHold,
+  validateIfevalPrivateSmokeRiskAcceptance,
+} from "./ifeval.ts";
 import { createEvidenceReceipt, redactEvidenceReceipt } from "./receipts.ts";
 import { putEvidence } from "./evidence.ts";
 import {
@@ -23,26 +33,9 @@ import {
 import { verifySourceManifestPins } from "./source-manifests.ts";
 import type { ExecutionStatus, FailureOwner, Sha256Digest } from "./types.ts";
 import type { RuntimeBundleConfig } from "./runtime-config.ts";
-
-export interface EvidenceWriterInput {
-  readonly value: unknown;
-  readonly mediaType: string;
-}
-
-export interface TrackExecutorContext {
-  readonly plan: RunPlan;
-  readonly manifest: SourceManifest;
-  readonly source: MaterializedSourceVerification;
-  readonly candidate: CandidateTransport;
-  readonly judge: JudgeTransport | undefined;
-  /** Ephemeral broker capabilities supplied by `run`; never part of RunSpec identity. */
-  readonly runtime?: RuntimeBundleConfig | undefined;
-  readonly evidence: (input: EvidenceWriterInput) => PrivateArtifactRef;
-}
-
-export type TrackExecutor = (
-  context: TrackExecutorContext,
-) => Promise<TrackExecutionResult>;
+import { evalOwnedRuntimeLockForTrack } from "./python-runtime.ts";
+import type { TrackExecutor } from "./track-executor.ts";
+import { getNativeTrackExecutor } from "./native-executors.ts";
 
 export interface ImmutableRunResult {
   readonly plan: RunPlan;
@@ -84,6 +77,24 @@ export function validateRuntimeForRun(input: {
     return Object.freeze({
       failureOwner: "host" as const,
       reason: "live candidate runtime capability is missing",
+    });
+  }
+  if (
+    spec.candidateType === "coffee_chat_product" &&
+    runtime.productHost === undefined
+  ) {
+    return Object.freeze({
+      failureOwner: "host" as const,
+      reason: "coffee_chat_product runtime requires the reference product host",
+    });
+  }
+  if (
+    spec.candidateType !== "coffee_chat_product" &&
+    runtime.productHost !== undefined
+  ) {
+    return Object.freeze({
+      failureOwner: "host" as const,
+      reason: "productHost is only valid for coffee_chat_product",
     });
   }
   const now = Date.now();
@@ -266,6 +277,7 @@ function materializedSourceResult(input: {
   readonly candidate: CandidateTransport;
   readonly judge: JudgeTransport | undefined;
   readonly runtime?: RuntimeBundleConfig | undefined;
+  readonly ifevalRightsRiskAcceptance?: IfevalRightsRiskAcceptance | undefined;
   readonly source: MaterializedSourceVerification;
   readonly executor: TrackExecutor;
 }): Promise<TrackExecutionResult> {
@@ -276,35 +288,124 @@ function materializedSourceResult(input: {
     candidate: input.candidate,
     judge: input.judge,
     runtime: input.runtime,
+    ifevalRightsRiskAcceptance: input.ifevalRightsRiskAcceptance,
     evidence: ({ value, mediaType }) =>
       privateArtifact(input.plan.evidenceRoot, value, mediaType),
   });
 }
 
-export async function executeImmutableRun(input: {
+function productBoundaryForCandidate(
+  candidate: CandidateTransport,
+): ProductCandidateBoundary | undefined {
+  return candidate.productBoundary === undefined
+    ? undefined
+    : parseProductCandidateBoundary(candidate.productBoundary);
+}
+
+function decorateTrialReceipts(
+  receipts: readonly TrialReceipt[],
+  productBoundary: ProductCandidateBoundary | undefined,
+): readonly TrialReceipt[] {
+  if (productBoundary === undefined) return receipts;
+  return Object.freeze(
+    receipts.map((receipt) =>
+      createTrialReceipt({
+        runId: receipt.runId,
+        trackId: receipt.trackId,
+        trialId: receipt.trialId,
+        executionStatus: receipt.executionStatus,
+        ...(receipt.failureOwner === undefined
+          ? {}
+          : { failureOwner: receipt.failureOwner }),
+        host: receipt.host,
+        artifacts: receipt.artifacts,
+        metrics: receipt.metrics,
+        ...(receipt.latencyMs === undefined ? {} : { latencyMs: receipt.latencyMs }),
+        ...(receipt.tokenCount === undefined ? {} : { tokenCount: receipt.tokenCount }),
+        ...(receipt.cost === undefined ? {} : { cost: receipt.cost }),
+        ...(receipt.cleanupStatus === undefined
+          ? {}
+          : { cleanupStatus: receipt.cleanupStatus }),
+        productBoundary,
+      }),
+    ),
+  );
+}
+
+export interface ImmutableRunInput {
   readonly plan: RunPlan;
   readonly manifest: SourceManifest;
   readonly candidate: CandidateTransport;
   readonly judge: JudgeTransport | undefined;
   readonly runtime?: RuntimeBundleConfig | undefined;
-  readonly executor: TrackExecutor;
-}): Promise<ImmutableRunResult> {
+  readonly ifevalRightsRiskAcceptance?: IfevalRightsRiskAcceptance | undefined;
+}
+
+export async function executeImmutableRun(
+  input: ImmutableRunInput,
+): Promise<ImmutableRunResult> {
+  if ("executor" in input) {
+    throw new TypeError("run executor override is not supported");
+  }
+  return executeImmutableRunWithExecutor({
+    ...input,
+    executor: getNativeTrackExecutor(input.plan.trackId),
+  });
+}
+
+async function executeImmutableRunWithExecutor(
+  input: ImmutableRunInput & {
+    readonly executor: TrackExecutor;
+  },
+): Promise<ImmutableRunResult> {
   const plan = input.plan;
   const runRoot = resolve(plan.evidenceRoot, plan.id);
   mkdirSync(runRoot, { recursive: true });
   const evidence = (value: unknown, mediaType: string) =>
     privateArtifact(plan.evidenceRoot, value, mediaType);
+  let rightsRiskAcceptanceValidated = false;
+  const finalize = (
+    execution: TrackExecutionResult,
+    source: MaterializedSourceVerification | undefined,
+  ) =>
+    finalizeRun({
+      input,
+      execution,
+      source,
+      runRoot,
+      rightsRiskAcceptanceValidated,
+    });
   if (plan.runSpec === undefined) {
     const execution = failureExecution({
       owner: "verifier",
       reason: "run plan is missing immutable runSpec",
       evidence,
     });
-    return finalizeRun({ input, execution, source: undefined, runRoot });
+    return finalize(execution, undefined);
   }
   const runSpec = plan.runSpec;
   let execution: TrackExecutionResult;
   let source: MaterializedSourceVerification | undefined;
+  const compatibilityError = runProfileCandidateCompatibilityError(
+    runSpec.profile,
+    runSpec.candidateType,
+  );
+  if (compatibilityError !== undefined) {
+    execution = failureExecution({
+      owner: "verifier",
+      reason: compatibilityError,
+      evidence,
+    });
+    return finalize(execution, source);
+  }
+  if (runSpec.candidateType !== input.candidate.kind) {
+    execution = failureExecution({
+      owner: "verifier",
+      reason: "candidate transport kind does not match run candidateType identity",
+      evidence,
+    });
+    return finalize(execution, source);
+  }
   try {
     if (runSpec.candidateType !== "fixture") {
       const manifestDigest = verifySourceManifestPins(input.manifest);
@@ -319,7 +420,63 @@ export async function executeImmutableRun(input: {
       reason: error instanceof Error ? error.message : "source pin verification failed",
       evidence,
     });
-    return finalizeRun({ input, execution, source, runRoot });
+    return finalize(execution, source);
+  }
+  const declaredCandidateType = runSpec.candidateType ?? input.candidate.kind;
+  if (
+    runSpec.trackId === "ifeval" &&
+    (ifevalNativeRuntimeRequiresRightsHold(declaredCandidateType) ||
+      ifevalNativeRuntimeRequiresRightsHold(input.candidate.kind))
+  ) {
+    try {
+      const acceptance = validateIfevalPrivateSmokeRiskAcceptance({
+        profile: runSpec.profile,
+        candidateType: input.candidate.kind,
+        expectedDigest: runSpec.rightsRiskAcceptanceDigest,
+        expectedCandidateDigest: runSpec.candidateDigest,
+        receipt: input.ifevalRightsRiskAcceptance,
+      });
+      // Preserve the private receipt under EVIDENCE_ROOT without exposing its
+      // body, operator, timestamp, or local source path in public provenance.
+      evidence(acceptance, "application/json");
+      rightsRiskAcceptanceValidated = true;
+    } catch (error) {
+      execution = failureExecution({
+        owner: "rights",
+        reason:
+          error instanceof Error
+            ? error.message
+            : IFEVAL_NATIVE_RUNTIME_RIGHTS_HOLD_REASON,
+        evidence,
+      });
+      return finalize(execution, source);
+    }
+  } else if (input.ifevalRightsRiskAcceptance !== undefined) {
+    execution = failureExecution({
+      owner: "verifier",
+      reason: "IFEval rights risk acceptance is outside its admitted run scope",
+      evidence,
+    });
+    return finalize(execution, source);
+  }
+  const productBoundary = productBoundaryForCandidate(input.candidate);
+  if (runSpec.candidateType === "coffee_chat_product") {
+    if (input.candidate.kind !== "coffee_chat_product") {
+      execution = failureExecution({
+        owner: "host",
+        reason: "coffee_chat_product run requires a product candidate transport",
+        evidence,
+      });
+      return finalize(execution, source);
+    }
+    if (productBoundary === undefined) {
+      execution = failureExecution({
+        owner: "host",
+        reason: "coffee_chat_product transport is missing immutable product provenance",
+        evidence,
+      });
+      return finalize(execution, source);
+    }
   }
   if (
     input.manifest.providerTermsPolicy === "receipt-required" &&
@@ -331,20 +488,30 @@ export async function executeImmutableRun(input: {
       reason: "provider-terms receipt is required",
       evidence,
     });
-    return finalizeRun({ input, execution, source, runRoot });
+    return finalize(execution, source);
   }
   if (runSpec.candidateType === "coffee_chat_product") {
-    execution = Object.freeze({
-      executionStatus: "not_implemented" as const,
-      trialReceipts: Object.freeze([]),
-      metrics: emptyMetrics(),
-      nativeEvidence: evidence(
-        { reason: "coffee_chat_product is not implemented" },
-        "application/json",
-      ),
-      cleanupStatus: "complete" as const,
+    if (input.candidate.productHostPreflight?.state !== "verified") {
+      execution = failureExecution({
+        owner: "host",
+        reason:
+          input.candidate.productHostPreflight?.reason ??
+          "coffee_chat_product package preflight is missing",
+        evidence,
+      });
+      return finalize(execution, source);
+    }
+  } else if (
+    input.candidate.kind === "coffee_chat_product" ||
+    productBoundary !== undefined ||
+    input.candidate.productHostPreflight !== undefined
+  ) {
+    execution = failureExecution({
+      owner: "host",
+      reason: "product candidate transport does not match run identity",
+      evidence,
     });
-    return finalizeRun({ input, execution, source, runRoot });
+    return finalize(execution, source);
   }
   if (
     runSpec.candidateType !== "fixture" &&
@@ -355,7 +522,7 @@ export async function executeImmutableRun(input: {
       reason: "isolation evidence is required",
       evidence,
     });
-    return finalizeRun({ input, execution, source, runRoot });
+    return finalize(execution, source);
   }
   const runtimeFailure = validateRuntimeForRun({ plan, runtime: input.runtime });
   if (runtimeFailure !== undefined) {
@@ -364,12 +531,14 @@ export async function executeImmutableRun(input: {
       reason: runtimeFailure.reason,
       evidence,
     });
-    return finalizeRun({ input, execution, source, runRoot });
+    return finalize(execution, source);
   }
+  const expectedRuntimeLockPath = evalOwnedRuntimeLockForTrack(input.manifest.trackId);
   try {
     source = verifyMaterializedSource({
       manifest: input.manifest,
       cacheRoot: plan.cacheRoot,
+      ...(expectedRuntimeLockPath === undefined ? {} : { expectedRuntimeLockPath }),
     });
   } catch (error) {
     execution = failureExecution({
@@ -378,7 +547,7 @@ export async function executeImmutableRun(input: {
         error instanceof Error ? error.message : "materialized source unavailable",
       evidence,
     });
-    return finalizeRun({ input, execution, source, runRoot });
+    return finalize(execution, source);
   }
   try {
     execution = await materializedSourceResult({ ...input, source });
@@ -390,6 +559,13 @@ export async function executeImmutableRun(input: {
       evidence,
     });
   }
+  execution = Object.freeze({
+    ...execution,
+    trialReceipts: decorateTrialReceipts(
+      execution.trialReceipts,
+      productBoundaryForCandidate(input.candidate),
+    ),
+  });
   if (execution.cleanupStatus !== "complete") {
     execution = Object.freeze({
       ...execution,
@@ -397,19 +573,29 @@ export async function executeImmutableRun(input: {
       failureOwner: "cleanup" as const,
     });
   }
-  return finalizeRun({ input, execution, source, runRoot });
+  return finalize(execution, source);
 }
 
 async function finalizeRun(input: {
   readonly input: {
     readonly plan: RunPlan;
     readonly manifest: SourceManifest;
+    readonly candidate: CandidateTransport;
   };
   readonly execution: TrackExecutionResult;
   readonly source: MaterializedSourceVerification | undefined;
   readonly runRoot: string;
+  readonly rightsRiskAcceptanceValidated: boolean;
 }): Promise<ImmutableRunResult> {
   const { plan } = input.input;
+  const rightsRiskAcceptanceValidated = input.rightsRiskAcceptanceValidated;
+  const productBoundary =
+    plan.runSpec?.profile === "smoke" &&
+    plan.runSpec.candidateType === "coffee_chat_product"
+      ? productBoundaryForCandidate(input.input.candidate)
+      : undefined;
+  const rightsRiskProvenanceValidated =
+    rightsRiskAcceptanceValidated && productBoundary !== undefined;
   let execution = input.execution;
   try {
     assertArtifact(plan.evidenceRoot, execution.nativeEvidence);
@@ -432,6 +618,15 @@ async function finalizeRun(input: {
       sourceManifestDigest: plan.sourceManifestDigest,
       runId: plan.id,
       nativeEvidenceDigest: execution.nativeEvidence.digest,
+      ...(!rightsRiskProvenanceValidated ||
+      plan.runSpec?.rightsRiskAcceptanceDigest === undefined
+        ? {}
+        : {
+            rightsRiskAcceptanceDigest: plan.runSpec.rightsRiskAcceptanceDigest,
+            licenseCleared: false as const,
+            rightsExecutionScope: "private-internal-smoke-only" as const,
+          }),
+      ...(productBoundary === undefined ? {} : productBoundary),
     },
   });
   const trackReportPath = join(input.runRoot, "track-report.json");
@@ -451,6 +646,8 @@ async function finalizeRun(input: {
       judge: plan.runSpec!.judgeDigest,
       secret: execution.nativeEvidence.digest,
     },
+    ...(productBoundary === undefined ? {} : { productBoundary }),
+    rightsRiskAcceptanceValidated: rightsRiskProvenanceValidated,
   });
   const publicReceipt = redactEvidenceReceipt(receipt);
   const publicReceiptPath = join(input.runRoot, "public-receipt.json");

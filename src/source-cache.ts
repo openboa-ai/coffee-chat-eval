@@ -261,13 +261,29 @@ function fileDigest(path: string): Sha256Digest {
 function verifyRuntimeLockDigest(
   receipt: MaterializedSourceReceipt,
   sourceRoot: string,
+  expectedRuntimeLockPath: string | undefined,
 ): void {
   // Upstream Python tracks expose their lock/requirements file in the
   // allowlist.  Bind the receipt to those exact bytes so a later edit cannot
   // silently reuse an otherwise valid source materialization.  Tracks with no
-  // upstream lock use the Eval-owned identity recorded by the materializer;
-  // there is no file to hash in that case.
-  if (receipt.runtimeLockOrigin === "eval-owned") return;
+  // upstream lock use the Eval-owned identity recorded by the materializer.
+  // When a caller supplies that admitted repository lock, bind verification
+  // to its current exact bytes as well.
+  if (receipt.runtimeLockOrigin === "eval-owned") {
+    if (expectedRuntimeLockPath === undefined) return;
+    if (!isAbsolute(expectedRuntimeLockPath)) {
+      throw new TypeError("expectedRuntimeLockPath must be an absolute path");
+    }
+    const lockPath = resolve(expectedRuntimeLockPath);
+    const lockStat = lstatSync(lockPath);
+    if (lockStat.isSymbolicLink() || !lockStat.isFile()) {
+      throw new TypeError("Eval-owned runtime lock must be a regular file");
+    }
+    if (fileDigest(lockPath) !== receipt.runtimeLockDigest) {
+      throw new TypeError("runtime lock digest drifted: Eval-owned lock");
+    }
+    return;
+  }
   for (const name of ["uv.lock", "requirements.txt"] as const) {
     const path = resolve(sourceRoot, name);
     if (!existsSync(path)) continue;
@@ -323,6 +339,7 @@ function verifyFileSet(
 export function verifyMaterializedSource(input: {
   readonly manifest: SourceManifest;
   readonly cacheRoot: string;
+  readonly expectedRuntimeLockPath?: string;
 }): MaterializedSourceVerification {
   if (!isAbsolute(input.cacheRoot)) {
     throw new TypeError("cacheRoot must be an absolute path");
@@ -346,7 +363,7 @@ export function verifyMaterializedSource(input: {
   }
   const sourceStat = lstatSync(sourceRoot);
   if (!sourceStat.isDirectory()) throw new TypeError("sourceRoot must be a directory");
-  verifyRuntimeLockDigest(receipt, sourceRoot);
+  verifyRuntimeLockDigest(receipt, sourceRoot, input.expectedRuntimeLockPath);
   verifyFileSet(sourceRoot, receipt.sourceFiles, input.manifest, "source");
   if (input.manifest.source.licenseDigest !== undefined) {
     const license = receipt.sourceFiles.find((file) => file.path === "LICENSE");
@@ -510,6 +527,7 @@ export function materializeSource(input: {
   readonly dataRoot?: string;
   readonly runtimeLockDigest: Sha256Digest;
   readonly runtimeLockOrigin?: "source" | "eval-owned";
+  readonly expectedRuntimeLockPath?: string;
   readonly licenseEvidence: readonly LicenseEvidence[];
 }): MaterializedSourceVerification {
   if (!isAbsolute(input.cacheRoot))
@@ -573,5 +591,11 @@ export function materializeSource(input: {
       );
     }
   }
-  return verifyMaterializedSource({ manifest: input.manifest, cacheRoot });
+  return verifyMaterializedSource({
+    manifest: input.manifest,
+    cacheRoot,
+    ...(input.expectedRuntimeLockPath === undefined
+      ? {}
+      : { expectedRuntimeLockPath: input.expectedRuntimeLockPath }),
+  });
 }

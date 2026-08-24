@@ -5,16 +5,21 @@ import { join } from "node:path";
 import test from "node:test";
 
 import {
+  IFEVAL_NATIVE_RUNTIME_RIGHTS,
   IFEVAL_PILOT_CASES,
   IFEVAL_PROMPT_COUNT,
   IFEVAL_TOP_LEVEL_FAMILIES,
   createIfevalInventory,
   createIfevalTrackExecutor,
+  ifevalRightsRiskAcceptanceDigest,
+  parseIfevalRightsRiskAcceptance,
   summarizeIfevalObservations,
+  validateIfevalPrivateSmokeRiskAcceptance,
   type IfevalObservation,
 } from "../src/ifeval.ts";
 import { createFixtureCandidateTransport } from "../src/transports.ts";
 import { putEvidence } from "../src/evidence.ts";
+import { stableDigest } from "../src/identity.ts";
 
 test("IFEval inventory pins the official 541 prompts and nine checker-family first cases", () => {
   assert.equal(IFEVAL_PROMPT_COUNT, 541);
@@ -44,6 +49,88 @@ test("IFEval inventory pins the official 541 prompts and nine checker-family fir
   assert.equal(createIfevalInventory("smoke").length, 9);
   assert.equal(createIfevalInventory("pilot").length, 9);
   assert.equal(createIfevalInventory("fixture").length, 1);
+});
+
+test("IFEval risk acceptance is exact, private-smoke-only, and does not claim a license grant", () => {
+  const receipt = parseIfevalRightsRiskAcceptance({
+    schema: "ifeval-rights-risk-acceptance-v1",
+    trackId: "ifeval",
+    profile: "smoke",
+    candidateType: "coffee_chat_product",
+    candidateDigest: `sha256:${"c".repeat(64)}`,
+    ifevalSourceCommit: "e6890f85757dd84e27ca6df2dd30651dafad28e0",
+    assetRepository: IFEVAL_NATIVE_RUNTIME_RIGHTS.repository,
+    assetRevision: IFEVAL_NATIVE_RUNTIME_RIGHTS.revision,
+    asset: IFEVAL_NATIVE_RUNTIME_RIGHTS.asset,
+    assetDigest: IFEVAL_NATIVE_RUNTIME_RIGHTS.digest,
+    licenseStatus: "unclarified",
+    licenseCleared: false,
+    scope: "private-internal-smoke-only",
+    acceptedBy: "workspace-owner",
+    acceptedAt: "2026-08-24T01:55:00+09:00",
+    privateNonce: "a".repeat(64),
+    acknowledgesNoLicenseGrant: true,
+    acknowledgesNoRedistribution: true,
+    acknowledgesNoPublicNumericClaim: true,
+  });
+
+  assert.equal(receipt.licenseCleared, false);
+  assert.match(ifevalRightsRiskAcceptanceDigest(receipt), /^sha256:[a-f0-9]{64}$/u);
+  assert.throws(
+    () =>
+      parseIfevalRightsRiskAcceptance({
+        ...receipt,
+        privateNonce: "predictable",
+      }),
+    /private nonce/u,
+  );
+  assert.throws(
+    () => parseIfevalRightsRiskAcceptance({ ...receipt, profile: "pilot" }),
+    /private smoke/u,
+  );
+  assert.throws(
+    () => parseIfevalRightsRiskAcceptance({ ...receipt, licenseCleared: true }),
+    /licenseCleared/u,
+  );
+  assert.throws(
+    () =>
+      parseIfevalRightsRiskAcceptance({
+        ...receipt,
+        assetRevision: "unreviewed",
+      }),
+    /asset identity/u,
+  );
+  assert.throws(
+    () =>
+      parseIfevalRightsRiskAcceptance({
+        ...receipt,
+        candidateType: "agent_stack",
+      }),
+    /Product candidate/u,
+  );
+  assert.throws(
+    () =>
+      validateIfevalPrivateSmokeRiskAcceptance({
+        profile: "smoke",
+        candidateType: "coffee_chat_product",
+        expectedDigest: ifevalRightsRiskAcceptanceDigest(receipt),
+        expectedCandidateDigest: stableDigest("different Product candidate"),
+        receipt,
+      }),
+    /candidate identity/u,
+  );
+  assert.throws(
+    () =>
+      parseIfevalRightsRiskAcceptance({
+        ...receipt,
+        acceptedBy: "automation",
+      }),
+    /operator/u,
+  );
+  assert.throws(
+    () => parseIfevalRightsRiskAcceptance({ ...receipt, rawAssetPath: "/private" }),
+    /unexpected/u,
+  );
 });
 
 test("IFEval keeps four native metrics and never turns an empty denominator into zero", () => {
@@ -85,6 +172,243 @@ test("IFEval keeps four native metrics and never turns an empty denominator into
     accuracy: 1,
   });
   assert.equal(summarizeIfevalObservations([]).metrics.strictPrompt.accuracy, null);
+});
+
+test("IFEval native live execution fails closed before candidate calls while punkt_tab rights are unclarified", async () => {
+  const root = mkdtempSync(join(tmpdir(), "coffee-chat-ifeval-rights-hold-"));
+  try {
+    let candidateCalls = 0;
+    const candidate = {
+      ...createFixtureCandidateTransport(
+        () => {
+          candidateCalls += 1;
+          return "must-not-run";
+        },
+        { evidenceRoot: root },
+      ),
+      kind: "agent_stack" as const,
+    };
+    const result = await createIfevalTrackExecutor()({
+      plan: {
+        profile: "smoke",
+        id: "run-ifeval-rights-hold",
+        evidenceRoot: root,
+        trackId: "ifeval",
+      },
+      source: { sourceRoot: join(root, "source") },
+      candidate,
+      evidence: ({ value, mediaType }) => {
+        const serialized = JSON.stringify(value);
+        const evidence = putEvidence(root, serialized, "private");
+        return {
+          path: evidence.path,
+          digest: evidence.digest,
+          mediaType,
+          bytes: Buffer.byteLength(serialized),
+        };
+      },
+    });
+
+    assert.equal(result.executionStatus, "rights_hold");
+    assert.equal(result.failureOwner, "rights");
+    assert.equal(candidateCalls, 0);
+    assert.equal(result.trialReceipts.length, 0);
+    assert.equal(IFEVAL_NATIVE_RUNTIME_RIGHTS.licenseStatus, "unclarified");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("IFEval injected bridges cannot bypass the native rights hold for a live candidate", async () => {
+  const root = mkdtempSync(join(tmpdir(), "coffee-chat-ifeval-injected-rights-hold-"));
+  try {
+    const sourceRoot = join(root, "source");
+    const inputPath = join(sourceRoot, "instruction_following_eval", "data");
+    mkdirSync(inputPath, { recursive: true });
+    writeFileSync(
+      join(inputPath, "input_data.jsonl"),
+      IFEVAL_PILOT_CASES.map((entry) =>
+        JSON.stringify({ key: Number(entry.caseId), prompt: `prompt-${entry.caseId}` }),
+      ).join("\n") + "\n",
+    );
+    let candidateCalls = 0;
+    let bridgeCalls = 0;
+    const fixture = createFixtureCandidateTransport(
+      () => {
+        candidateCalls += 1;
+        return "must-not-run";
+      },
+      { evidenceRoot: root },
+    );
+    const result = await createIfevalTrackExecutor({
+      bridge: {
+        run: async () => {
+          bridgeCalls += 1;
+        },
+      },
+    })({
+      plan: {
+        profile: "smoke",
+        id: "run-ifeval-injected-rights-hold",
+        evidenceRoot: root,
+        trackId: "ifeval",
+      },
+      source: { sourceRoot },
+      candidate: { ...fixture, kind: "agent_stack" },
+      evidence: ({ value, mediaType }) => {
+        const serialized = JSON.stringify(value);
+        const evidence = putEvidence(root, serialized, "private");
+        return {
+          path: evidence.path,
+          digest: evidence.digest,
+          mediaType,
+          bytes: Buffer.byteLength(serialized),
+        };
+      },
+    });
+
+    assert.equal(result.executionStatus, "rights_hold");
+    assert.equal(result.failureOwner, "rights");
+    assert.equal(candidateCalls, 0);
+    assert.equal(bridgeCalls, 0);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("IFEval accepted Product smoke preflights runtime data before nine candidate calls", async () => {
+  const root = mkdtempSync(join(tmpdir(), "coffee-chat-ifeval-risk-accepted-"));
+  try {
+    const sourceRoot = join(root, "source");
+    const inputPath = join(sourceRoot, "instruction_following_eval", "data");
+    mkdirSync(inputPath, { recursive: true });
+    writeFileSync(
+      join(inputPath, "input_data.jsonl"),
+      IFEVAL_PILOT_CASES.map((entry) =>
+        JSON.stringify({ key: Number(entry.caseId), prompt: `prompt-${entry.caseId}` }),
+      ).join("\n") + "\n",
+    );
+    const candidateDigest = stableDigest("exact-product-candidate");
+    const acceptance = parseIfevalRightsRiskAcceptance({
+      schema: "ifeval-rights-risk-acceptance-v1",
+      trackId: "ifeval",
+      profile: "smoke",
+      candidateType: "coffee_chat_product",
+      candidateDigest,
+      ifevalSourceCommit: "e6890f85757dd84e27ca6df2dd30651dafad28e0",
+      assetRepository: IFEVAL_NATIVE_RUNTIME_RIGHTS.repository,
+      assetRevision: IFEVAL_NATIVE_RUNTIME_RIGHTS.revision,
+      asset: IFEVAL_NATIVE_RUNTIME_RIGHTS.asset,
+      assetDigest: IFEVAL_NATIVE_RUNTIME_RIGHTS.digest,
+      licenseStatus: "unclarified",
+      licenseCleared: false,
+      scope: "private-internal-smoke-only",
+      acceptedBy: "workspace-owner",
+      acceptedAt: "2026-08-24T01:55:00+09:00",
+      privateNonce: "b".repeat(64),
+      acknowledgesNoLicenseGrant: true,
+      acknowledgesNoRedistribution: true,
+      acknowledgesNoPublicNumericClaim: true,
+    });
+    const events: string[] = [];
+    const plan = {
+      profile: "smoke" as const,
+      id: "run-ifeval-risk-accepted",
+      evidenceRoot: root,
+      trackId: "ifeval" as const,
+      runSpec: {
+        candidateType: "coffee_chat_product" as const,
+        candidateDigest,
+        rightsRiskAcceptanceDigest: ifevalRightsRiskAcceptanceDigest(acceptance),
+      },
+    };
+    const evidenceWriter = ({
+      value,
+      mediaType,
+    }: {
+      readonly value: unknown;
+      readonly mediaType: string;
+    }) => {
+      const serialized = JSON.stringify(value);
+      const evidence = putEvidence(root, serialized, "private");
+      return {
+        path: evidence.path,
+        digest: evidence.digest,
+        mediaType,
+        bytes: Buffer.byteLength(serialized),
+      };
+    };
+    let blockedCandidateCalls = 0;
+    const blockedFixture = createFixtureCandidateTransport(
+      () => {
+        blockedCandidateCalls += 1;
+        return "must not run before runtime preflight";
+      },
+      { evidenceRoot: root },
+    );
+    const unavailable = await createIfevalTrackExecutor()({
+      plan,
+      source: { sourceRoot },
+      candidate: { ...blockedFixture, kind: "coffee_chat_product" },
+      ifevalRightsRiskAcceptance: acceptance,
+      evidence: evidenceWriter,
+    });
+    assert.equal(unavailable.executionStatus, "unavailable");
+    assert.equal(unavailable.failureOwner, "source");
+    assert.equal(blockedCandidateCalls, 0);
+
+    const fixture = createFixtureCandidateTransport(
+      () => {
+        events.push("candidate");
+        return "candidate response";
+      },
+      { evidenceRoot: root },
+    );
+    const result = await createIfevalTrackExecutor({
+      bridge: {
+        preflight: async () => {
+          events.push("preflight");
+          return { status: "verified", rightsCleared: false };
+        },
+        run: async ({ output, keys }) => {
+          events.push("native");
+          mkdirSync(join(output, ".."), { recursive: true });
+          writeFileSync(
+            output,
+            JSON.stringify({
+              source: { inputCount: keys.length, keys },
+              metrics: Object.fromEntries(
+                [
+                  "strictPrompt",
+                  "strictInstruction",
+                  "loosePrompt",
+                  "looseInstruction",
+                ].map((metric) => [
+                  metric,
+                  { numerator: 1, denominator: keys.length, accuracy: 1 / keys.length },
+                ]),
+              ),
+            }),
+          );
+        },
+      },
+    })({
+      plan,
+      source: { sourceRoot },
+      candidate: { ...fixture, kind: "coffee_chat_product" },
+      ifevalRightsRiskAcceptance: acceptance,
+      evidence: evidenceWriter,
+    });
+
+    assert.equal(result.executionStatus, "measured");
+    assert.deepEqual(events, [
+      "preflight",
+      ...Array.from({ length: 9 }, () => "candidate"),
+      "native",
+    ]);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
 });
 
 test("IFEval smoke executor calls the candidate for nine pinned prompts and validates native denominators", async () => {

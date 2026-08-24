@@ -117,6 +117,7 @@ async function main(): Promise<void> {
           { evidenceRoot },
         )
       : createResponsesCandidateTransport({
+          kind: "agent_stack",
           endpoint: runtime.candidate.endpoint,
           capability: runtime.candidate.capabilityToken,
           model: runtime.candidate.model,

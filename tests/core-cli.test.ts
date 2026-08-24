@@ -37,6 +37,7 @@ test("core source verification, planning, run, and report commands are offline a
       schema: "run-spec-v1",
       trackId: "coffee-chat-taste",
       profile: "fixture",
+      candidateType: "fixture",
       sourceManifestDigest: stableDigest(manifest),
       candidateDigest: stableDigest("candidate"),
       judgeDigest: stableDigest("judge"),

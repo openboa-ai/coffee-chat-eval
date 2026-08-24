@@ -10,5 +10,7 @@ test("dry run exposes the Bench projection and safe Codex boundary without a sco
   assert.match(report, /bench-projection: unmeasured/u);
   assert.match(report, /native-harbor-codex: unavailable/u);
   assert.match(report, /credential_isolation_unavailable/u);
+  assert.match(report, /ifeval: rights_hold/u);
+  assert.match(report, /punkt_tab_license_unclarified/u);
   assert.doesNotMatch(report, /(?:score|metric|performance)\s*[:=]\s*\d+/iu);
 });

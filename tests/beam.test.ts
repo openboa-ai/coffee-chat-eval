@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -74,6 +75,58 @@ test("BEAM preserves upstream diagnostic quirks and reports categories independe
   });
   assert.equal(report.categories.temporal_reasoning, null);
   assert.equal(summarizeBeamObservations([]).categories.abstention, null);
+});
+
+test("BEAM bridge rejects response categories outside record-core before evaluation", () => {
+  const script = String.raw`
+import importlib.util
+import json
+import sys
+import tempfile
+from pathlib import Path
+
+bridge_path = sys.argv[1]
+spec = importlib.util.spec_from_file_location("beam_bridge", bridge_path)
+bridge = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(bridge)
+
+with tempfile.TemporaryDirectory() as root_text:
+    root = Path(root_text)
+    source = root / "source"
+    probing_path = source / "chats" / "100K" / "1" / "probing_questions"
+    probing_path.mkdir(parents=True)
+    probing = {
+        category: [{"question": category, "rubric": ["rubric"]}]
+        for category in (*bridge.CATEGORIES, "event_ordering")
+    }
+    (probing_path / "probing_questions.json").write_text(json.dumps(probing))
+    query_path = root / "queries.json"
+    query_path.write_text(json.dumps([{"category": "abstention"}]))
+    category_map = {
+        "abstention": [{"llm_response": "answer"}],
+        "event_ordering": [{"llm_response": "hidden extra scorer"}],
+    }
+    for index, payload in enumerate((category_map, {"100K/1": category_map})):
+        response_path = root / f"responses-{index}.json"
+        response_path.write_text(json.dumps(payload))
+        try:
+            bridge.run(
+                source,
+                query_path,
+                response_path,
+                root / f"output-{index}.json",
+                "fixture",
+            )
+        except ValueError as exc:
+            assert "unadmitted category" in str(exc)
+        else:
+            raise AssertionError("unadmitted BEAM response category must fail closed")
+`;
+  execFileSync("python3", [
+    "-c",
+    script,
+    new URL("../integrations/beam/bridge.py", import.meta.url).pathname,
+  ]);
 });
 
 test("BEAM smoke executor sends six candidate queries and validates eleven native Judge calls", async () => {

@@ -25,6 +25,7 @@ SOURCE_COMMIT = "a75aba7631d3ca5fb7ab938965c97ead2f9ff84b"
 BENCHMARK_VERSION = "v1.2.2"
 ATTACK_NAME = "important_instructions_no_model_name"
 SUITES = ("workspace", "travel", "banking", "slack")
+RESPONSES_REPLAY_STATE = "coffee_chat_eval.responses_replay_v1"
 SMOKE_USER_TASKS = {"workspace": ("user_task_0",)}
 SMOKE_INJECTION_TASKS = {"workspace": ("injection_task_0",)}
 PILOT_USER_TASKS = {"workspace": ("user_task_0", "user_task_24", "user_task_26", "user_task_13")}
@@ -45,72 +46,368 @@ def _json_safe(value: Any) -> Any:
     return value
 
 
+def _message_text(message: dict[str, Any]) -> str:
+    content = message.get("content")
+    if content is None:
+        return ""
+    if not isinstance(content, list | tuple):
+        raise BrokerUnavailable("AgentDojo message content is not a native content-block list")
+    text: list[str] = []
+    for block in content:
+        normalized = _json_safe(block)
+        if (
+            not isinstance(normalized, dict)
+            or normalized.get("type") != "text"
+            or not isinstance(normalized.get("content"), str)
+        ):
+            raise BrokerUnavailable("AgentDojo message contains a non-text content block")
+        text.append(normalized["content"])
+    return "\n".join(text)
+
+
+def _function_call_value(call: Any, field: str) -> Any:
+    if isinstance(call, dict):
+        return call.get(field)
+    return getattr(call, field, None)
+
+
+def _responses_function_call(call: Any) -> tuple[str, dict[str, Any]]:
+    call_id = _function_call_value(call, "id")
+    name = _function_call_value(call, "function")
+    arguments = _json_safe(_function_call_value(call, "args"))
+    if not isinstance(call_id, str) or not call_id:
+        raise BrokerUnavailable("AgentDojo function call ID is required for Responses")
+    if not isinstance(name, str) or not name or not isinstance(arguments, dict):
+        raise BrokerUnavailable("AgentDojo function call is invalid")
+    try:
+        arguments_json = json.dumps(
+            arguments,
+            ensure_ascii=False,
+            separators=(",", ":"),
+            sort_keys=True,
+        )
+    except (TypeError, ValueError) as exc:
+        raise BrokerUnavailable("AgentDojo function arguments are not JSON-compatible") from exc
+    return call_id, {
+        "type": "function_call",
+        "call_id": call_id,
+        "name": name,
+        "arguments": arguments_json,
+    }
+
+
+def _replay_groups_by_calls(
+    replay_groups: Sequence[dict[str, Any]] | None,
+) -> dict[tuple[str, ...], list[dict[str, Any]]]:
+    indexed: dict[tuple[str, ...], list[dict[str, Any]]] = {}
+    for group in replay_groups or ():
+        if not isinstance(group, dict):
+            raise BrokerUnavailable("Responses replay context is invalid")
+        raw_call_ids = group.get("callIds")
+        raw_items = group.get("items")
+        if (
+            not isinstance(raw_call_ids, list)
+            or not raw_call_ids
+            or any(not isinstance(call_id, str) or not call_id for call_id in raw_call_ids)
+            or not isinstance(raw_items, list)
+            or any(not isinstance(item, dict) for item in raw_items)
+        ):
+            raise BrokerUnavailable("Responses replay context is invalid")
+        call_ids = tuple(raw_call_ids)
+        if call_ids in indexed:
+            raise BrokerUnavailable("Responses replay function calls are duplicated")
+        replay_call_ids = tuple(
+            item.get("call_id") for item in raw_items if item.get("type") == "function_call"
+        )
+        if replay_call_ids != call_ids:
+            raise BrokerUnavailable("Responses replay function calls are invalid")
+        indexed[call_ids] = raw_items
+    return indexed
+
+
+def _replay_text(items: Sequence[dict[str, Any]]) -> str | None:
+    text: list[str] = []
+    saw_message = False
+    for item in items:
+        if item.get("type") != "message":
+            continue
+        saw_message = True
+        content = item.get("content")
+        if not isinstance(content, list):
+            raise BrokerUnavailable("Responses replay assistant content is invalid")
+        for part in content:
+            if not isinstance(part, dict):
+                raise BrokerUnavailable("Responses replay assistant content is invalid")
+            if part.get("type") == "output_text":
+                value = part.get("text")
+            elif part.get("type") == "refusal":
+                value = part.get("refusal")
+            else:
+                raise BrokerUnavailable("Responses replay assistant content is invalid")
+            if not isinstance(value, str):
+                raise BrokerUnavailable("Responses replay assistant content is invalid")
+            text.append(value)
+    return "\n".join(text) if saw_message else None
+
+
+def _messages_to_responses_input(
+    messages: Sequence[dict[str, Any]],
+    replay_groups: Sequence[dict[str, Any]] | None = None,
+) -> list[dict[str, Any]]:
+    """Translate pinned AgentDojo ChatMessages to stateless Responses input items.
+
+    AgentDojo's ``TextContentBlock`` uses ``content`` rather than Responses'
+    ``text`` field, and its tool results use a Chat Completions-style ``tool``
+    role.  Forwarding those dictionaries directly therefore creates an invalid
+    Responses request.  This translation retains only candidate-visible text,
+    declared function calls and their outputs; evaluator state is never an
+    input to this function.
+    """
+
+    items: list[dict[str, Any]] = []
+    pending_call_ids: set[str] = set()
+    seen_call_ids: set[str] = set()
+    replay_by_calls = _replay_groups_by_calls(replay_groups)
+    used_replay_groups: set[tuple[str, ...]] = set()
+    for message in messages:
+        if not isinstance(message, dict):
+            raise BrokerUnavailable("AgentDojo message is not an object")
+        role = message.get("role")
+        if role in {"system", "user"}:
+            items.append({"role": role, "content": _message_text(message)})
+            continue
+        if role == "assistant":
+            content = message.get("content")
+            text = _message_text(message)
+            raw_calls = message.get("tool_calls")
+            if raw_calls is None:
+                if content is not None:
+                    items.append({"role": "assistant", "content": text})
+                continue
+            if not isinstance(raw_calls, list | tuple):
+                raise BrokerUnavailable("AgentDojo assistant tool calls are invalid")
+            translated_calls = [_responses_function_call(raw_call) for raw_call in raw_calls]
+            replay_key = tuple(call_id for call_id, _item in translated_calls)
+            replay_items = replay_by_calls.get(replay_key)
+            if replay_items is not None:
+                replay_calls = [item for item in replay_items if item.get("type") == "function_call"]
+                if any(
+                    replay_call.get("name") != _function_call_value(raw_call, "function")
+                    for replay_call, raw_call in zip(replay_calls, raw_calls, strict=True)
+                ):
+                    raise BrokerUnavailable("Responses replay function call drifted")
+                replay_text = _replay_text(replay_items)
+                if replay_text is not None and replay_text != text:
+                    raise BrokerUnavailable("Responses replay assistant content drifted")
+                if replay_text is None and content is not None:
+                    items.append({"role": "assistant", "content": text})
+                items.extend(replay_items)
+                used_replay_groups.add(replay_key)
+            elif content is not None:
+                items.append({"role": "assistant", "content": text})
+            for call_id, item in translated_calls:
+                if call_id in seen_call_ids:
+                    raise BrokerUnavailable("AgentDojo function call ID is duplicated")
+                seen_call_ids.add(call_id)
+                pending_call_ids.add(call_id)
+                if replay_items is None:
+                    items.append(item)
+            continue
+        if role == "tool":
+            call_id = message.get("tool_call_id")
+            if not isinstance(call_id, str) or not call_id or call_id not in pending_call_ids:
+                raise BrokerUnavailable("AgentDojo tool result does not match a prior function call")
+            raw_call = message.get("tool_call")
+            raw_call_id = _function_call_value(raw_call, "id")
+            if raw_call_id != call_id:
+                raise BrokerUnavailable("AgentDojo tool result function call ID drifted")
+            error = message.get("error")
+            if error is not None and not isinstance(error, str):
+                raise BrokerUnavailable("AgentDojo tool error is invalid")
+            output = error or _message_text(message)
+            items.append(
+                {
+                    "type": "function_call_output",
+                    "call_id": call_id,
+                    "output": output,
+                }
+            )
+            pending_call_ids.remove(call_id)
+            continue
+        raise BrokerUnavailable("AgentDojo message role is unsupported by Responses")
+    if pending_call_ids:
+        raise BrokerUnavailable("AgentDojo function call is missing its tool result")
+    if used_replay_groups != set(replay_by_calls):
+        raise BrokerUnavailable("Responses replay context does not match AgentDojo messages")
+    return items
+
+
 def _tool_schema(runtime: Any) -> list[dict[str, Any]]:
-    return [
-        {
-            "type": "function",
-            "name": function.name,
-            "description": function.description,
-            "parameters": function.parameters.model_json_schema(),
-        }
-        for function in runtime.functions.values()
-    ]
+    functions = getattr(runtime, "functions", None)
+    if not isinstance(functions, dict):
+        raise BrokerUnavailable("AgentDojo runtime functions are invalid")
+    tools: list[dict[str, Any]] = []
+    for function in functions.values():
+        name = getattr(function, "name", None)
+        description = getattr(function, "description", None)
+        parameters = getattr(function, "parameters", None)
+        schema_factory = getattr(parameters, "model_json_schema", None)
+        if not isinstance(name, str) or not name or not isinstance(description, str) or not callable(schema_factory):
+            raise BrokerUnavailable("AgentDojo function schema is invalid")
+        schema = _json_safe(schema_factory())
+        if not isinstance(schema, dict):
+            raise BrokerUnavailable("AgentDojo function parameters are invalid")
+        tools.append(
+            {
+                "type": "function",
+                "name": name,
+                "description": description,
+                "parameters": schema,
+                # AgentDojo's Pydantic schemas were not authored for OpenAI's
+                # strict-mode subset.  Responses requires the field on a
+                # function tool, so preserve the native schema under explicit
+                # non-strict validation rather than rewriting it.
+                "strict": False,
+            }
+        )
+    return tools
 
 
 def _response_assistant(value: Any) -> dict[str, Any]:
-    """Convert Responses or Chat-style broker output to AgentDojo messages."""
+    """Convert one completed Responses result to an AgentDojo assistant message."""
     from agentdojo.functions_runtime import FunctionCall
     from agentdojo.types import text_content_block_from_string
 
     if not isinstance(value, dict):
         raise BrokerUnavailable("broker returned a non-object response")
+    if value.get("error") is not None:
+        raise BrokerUnavailable("broker returned a provider error")
+    status = value.get("status")
+    if status is not None and status != "completed":
+        raise BrokerUnavailable("broker response is not complete")
     output = value.get("output")
-    items = output if isinstance(output, list) else []
+    if not isinstance(output, list):
+        raise BrokerUnavailable("broker response output is missing")
+    items = output
     content: list[dict[str, str]] = []
     calls: list[FunctionCall] = []
+    call_ids: set[str] = set()
     for item in items:
         if not isinstance(item, dict):
-            continue
+            raise BrokerUnavailable("broker response output item is invalid")
         if item.get("type") == "function_call":
+            call_id = item.get("call_id")
             name = item.get("name")
-            arguments = item.get("arguments", {})
-            if isinstance(arguments, str):
-                try:
-                    arguments = json.loads(arguments)
-                except json.JSONDecodeError as exc:
-                    raise BrokerUnavailable("broker function arguments are invalid") from exc
-            if not isinstance(name, str) or not isinstance(arguments, dict):
+            raw_arguments = item.get("arguments")
+            if not isinstance(call_id, str) or not call_id or call_id in call_ids:
+                raise BrokerUnavailable("broker function call ID is invalid")
+            if not isinstance(raw_arguments, str):
+                raise BrokerUnavailable("broker function arguments are invalid")
+            try:
+                arguments = json.loads(raw_arguments)
+            except json.JSONDecodeError as exc:
+                raise BrokerUnavailable("broker function arguments are invalid") from exc
+            if not isinstance(name, str) or not name or not isinstance(arguments, dict):
                 raise BrokerUnavailable("broker function call is invalid")
-            calls.append(FunctionCall(function=name, args=arguments, id=item.get("call_id") or item.get("id")))
+            call_ids.add(call_id)
+            calls.append(FunctionCall(function=name, args=arguments, id=call_id))
             continue
-        if item.get("type") != "message":
+        if item.get("type") in {"reasoning", "computer_call", "file_search_call", "web_search_call"}:
             continue
-        for part in item.get("content", []):
-            if isinstance(part, dict) and isinstance(part.get("text"), str):
+        if item.get("type") != "message" or item.get("role") != "assistant":
+            raise BrokerUnavailable("broker response output item is unsupported")
+        parts = item.get("content")
+        if not isinstance(parts, list):
+            raise BrokerUnavailable("broker assistant content is invalid")
+        for part in parts:
+            if not isinstance(part, dict):
+                raise BrokerUnavailable("broker assistant content item is invalid")
+            if part.get("type") == "output_text" and isinstance(part.get("text"), str):
                 content.append(text_content_block_from_string(part["text"]))
-    if not items and isinstance(value.get("assistant"), dict):
-        assistant = value["assistant"]
-        raw_content = assistant.get("content")
-        if isinstance(raw_content, str):
-            content.append(text_content_block_from_string(raw_content))
-        for raw_call in assistant.get("tool_calls") or []:
-            if not isinstance(raw_call, dict):
-                raise BrokerUnavailable("broker chat tool call is invalid")
-            function = raw_call.get("function")
-            if isinstance(function, dict):
-                name = function.get("name")
-                arguments = function.get("arguments", {})
-                if isinstance(arguments, str):
-                    arguments = json.loads(arguments)
-            else:
-                name = raw_call.get("name") or raw_call.get("function")
-                arguments = raw_call.get("arguments", raw_call.get("args", {}))
-            if not isinstance(name, str) or not isinstance(arguments, dict):
-                raise BrokerUnavailable("broker chat function call is invalid")
-            calls.append(FunctionCall(function=name, args=arguments, id=raw_call.get("id") or raw_call.get("call_id")))
-    if not content and isinstance(value.get("output_text"), str):
-        content.append(text_content_block_from_string(value["output_text"]))
+                continue
+            if part.get("type") == "refusal" and isinstance(part.get("refusal"), str):
+                content.append(text_content_block_from_string(part["refusal"]))
+                continue
+            raise BrokerUnavailable("broker assistant content item is unsupported")
+    if not content and not calls:
+        raise BrokerUnavailable("broker response contains no assistant output")
     return {"role": "assistant", "content": content or None, "tool_calls": calls or None}
+
+
+def _response_replay_group(value: dict[str, Any]) -> dict[str, Any] | None:
+    """Keep the minimum provider output needed for a stateless tool follow-up.
+
+    GPT reasoning models require their reasoning item to accompany subsequent
+    function outputs.  AgentDojo's native ChatMessage cannot represent that
+    provider item, so it remains in ``extra_args`` and never enters native
+    messages, trace logs, scorer state or public evidence.
+    """
+
+    output = value["output"]
+    call_ids = [item["call_id"] for item in output if item.get("type") == "function_call"]
+    if not call_ids:
+        return None
+    replay_items: list[dict[str, Any]] = []
+    for item in output:
+        item_type = item.get("type")
+        if item_type == "reasoning":
+            reasoning_id = item.get("id")
+            summary = _json_safe(item.get("summary"))
+            encrypted_content = item.get("encrypted_content")
+            status = item.get("status")
+            if (
+                not isinstance(reasoning_id, str)
+                or not reasoning_id
+                or not isinstance(summary, list)
+                or not isinstance(encrypted_content, str)
+                or not encrypted_content
+                or status not in {None, "completed"}
+            ):
+                raise BrokerUnavailable("broker reasoning replay item is invalid")
+            replay_item: dict[str, Any] = {
+                "type": "reasoning",
+                "id": reasoning_id,
+                "summary": summary,
+                "encrypted_content": encrypted_content,
+            }
+            if status is not None:
+                replay_item["status"] = status
+            replay_items.append(replay_item)
+            continue
+        if item_type == "function_call":
+            call_id = item.get("call_id")
+            name = item.get("name")
+            arguments = item.get("arguments")
+            if not isinstance(call_id, str) or not isinstance(name, str) or not isinstance(arguments, str):
+                raise BrokerUnavailable("broker function replay item is invalid")
+            replay_item = {
+                "type": "function_call",
+                "call_id": call_id,
+                "name": name,
+                "arguments": arguments,
+            }
+            for optional in ("id", "status", "caller", "namespace"):
+                if optional in item:
+                    replay_item[optional] = _json_safe(item[optional])
+            replay_items.append(replay_item)
+            continue
+        if item_type == "message":
+            message_id = item.get("id")
+            status = item.get("status")
+            if not isinstance(message_id, str) or not message_id or status != "completed":
+                raise BrokerUnavailable("broker assistant replay item is invalid")
+            replay_items.append(
+                {
+                    "type": "message",
+                    "id": message_id,
+                    "status": status,
+                    "role": "assistant",
+                    "content": _json_safe(item["content"]),
+                }
+            )
+            continue
+        raise BrokerUnavailable("broker replay output item is unsupported")
+    return {"callIds": call_ids, "items": replay_items}
 
 
 class BrokerLLMElement:
@@ -141,7 +438,17 @@ class BrokerLLMElement:
         del query
         if self.calls >= self.max_requests:
             raise BrokerUnavailable("candidate capability request cap exceeded")
-        payload = {"model": self.model, "input": _json_safe(list(messages)), "tools": _tool_schema(runtime)}
+        next_extra_args = dict(extra_args or {})
+        replay_groups = next_extra_args.get(RESPONSES_REPLAY_STATE, [])
+        if not isinstance(replay_groups, list):
+            raise BrokerUnavailable("Responses replay context is invalid")
+        payload = {
+            "model": self.model,
+            "input": _messages_to_responses_input(messages, replay_groups),
+            "include": ["reasoning.encrypted_content"],
+            "store": False,
+            "tools": _tool_schema(runtime),
+        }
         request = urllib.request.Request(
             self.endpoint,
             data=json.dumps(payload, sort_keys=True).encode("utf-8"),
@@ -151,11 +458,14 @@ class BrokerLLMElement:
         try:
             with urllib.request.urlopen(request, timeout=60) as response:
                 result = json.loads(response.read().decode("utf-8"))
-        except (OSError, urllib.error.URLError, json.JSONDecodeError) as exc:
+        except (OSError, UnicodeDecodeError, urllib.error.URLError, json.JSONDecodeError) as exc:
             raise BrokerUnavailable("broker/context unavailable") from exc
         assistant = _response_assistant(result)
+        replay_group = _response_replay_group(result)
+        if replay_group is not None:
+            next_extra_args[RESPONSES_REPLAY_STATE] = [*replay_groups, replay_group]
         self.calls += 1
-        return "", runtime, env, [*messages, assistant], extra_args or {}
+        return "", runtime, env, [*messages, assistant], next_extra_args
 
 
 def _broker_class() -> type:

@@ -368,6 +368,8 @@ export async function executeTasteBench(input: {
   }
   let submissionCount = 0;
   let judgeCalls = 0;
+  let pointwiseCalls = 0;
+  let pairwiseCalls = 0;
   let phase: "source" | "candidate" | "adapter" | "judge" = "source";
   const candidateArtifacts: PrivateArtifactRef[] = [];
   let nativeEvaluation: unknown;
@@ -407,6 +409,18 @@ export async function executeTasteBench(input: {
       phase = "adapter";
       const judgeTransport: TasteNativeJudgeTransport = {
         complete: async (request) => {
+          phase = "adapter";
+          if (
+            request === null ||
+            typeof request !== "object" ||
+            Array.isArray(request)
+          ) {
+            throw new TypeError("Taste native Judge request is invalid");
+          }
+          const kind = (request as Record<string, unknown>).kind;
+          if (kind !== "pointwise" && kind !== "pairwise") {
+            throw new TypeError("Taste native Judge request kind is invalid");
+          }
           phase = "judge";
           const verdict = await input.judge.evaluate(request);
           if (verdict.state !== "measured" || verdict.verdict === undefined) {
@@ -417,6 +431,8 @@ export async function executeTasteBench(input: {
             );
           }
           judgeCalls += 1;
+          if (kind === "pointwise") pointwiseCalls += 1;
+          else pairwiseCalls += 1;
           return {
             raw: readArtifactText(verdict.verdict),
             metadata: { digest: verdict.verdict.digest },
@@ -428,7 +444,11 @@ export async function executeTasteBench(input: {
         submissions,
         transport: judgeTransport,
       });
-      if (judgeCalls !== 21 * (family.ordinal + 1)) {
+      phase = "adapter";
+      if (
+        pointwiseCalls !== TASTE_POINTWISE_CALLS_PER_FAMILY * (family.ordinal + 1) ||
+        pairwiseCalls !== TASTE_PAIRWISE_CALLS_PER_FAMILY * (family.ordinal + 1)
+      ) {
         // The native evaluator must own the exact 13 pointwise + 8 mirrored
         // pairwise call count; any other count is an adapter error.
         throw new TypeError("Taste native Judge call census does not match 13+8");

@@ -16,6 +16,24 @@ export function formatDryRunReport(registry: DryRunRegistry): string {
 }
 
 export function formatEvidenceReport(receipt: PublicEvidenceReceipt): string {
+  const productBoundary =
+    receipt.candidateMode === undefined
+      ? []
+      : [
+          `Candidate mode: ${receipt.candidateMode}`,
+          "Capabilities used: none",
+          `Product behavior exercised: ${String(receipt.productBehaviorExercised)}`,
+          "Connectivity evidence is not a Product performance claim.",
+        ];
+  const rightsBoundary =
+    receipt.rightsRiskAcceptanceDigest === undefined
+      ? []
+      : [
+          `Rights risk acceptance: ${receipt.rightsRiskAcceptanceDigest}`,
+          `License cleared: ${String(receipt.licenseCleared)}`,
+          `Rights execution scope: ${receipt.rightsExecutionScope}`,
+          "Numeric IFEval metrics remain private calibration evidence.",
+        ];
   return [
     "Coffee Chat Eval receipt",
     `Run: ${receipt.runId}`,
@@ -27,6 +45,8 @@ export function formatEvidenceReport(receipt: PublicEvidenceReceipt): string {
     ...(receipt.failureOwner === undefined
       ? []
       : [`Failure owner: ${receipt.failureOwner}`]),
+    ...productBoundary,
+    ...rightsBoundary,
     "No numeric score is emitted by this report.",
   ].join("\n");
 }
@@ -38,13 +58,40 @@ export function formatTrackReport(
   const tastePublic = report.trackId === "coffee-chat-taste" && visibility === "public";
   const invalidPublic =
     visibility === "public" && report.executionStatus !== "measured";
-  const suppressMetrics = tastePublic || invalidPublic;
+  const productConnectivityPublic =
+    visibility === "public" && report.provenance.candidateMode === "connectivity_only";
+  const riskAcceptedIfevalPublic =
+    visibility === "public" &&
+    report.trackId === "ifeval" &&
+    report.provenance.rightsRiskAcceptanceDigest !== undefined;
+  const suppressMetrics =
+    tastePublic ||
+    invalidPublic ||
+    productConnectivityPublic ||
+    riskAcceptedIfevalPublic;
+  const productBoundary =
+    report.provenance.candidateMode === undefined
+      ? []
+      : [
+          `Candidate mode: ${report.provenance.candidateMode}`,
+          "Capabilities used: none",
+          `Product behavior exercised: ${String(report.provenance.productBehaviorExercised)}`,
+          "Connectivity evidence is not a Product performance claim.",
+        ];
   const metricLines = suppressMetrics
     ? []
     : report.nativeMetricIds.map((metricId) => {
         const metric = report.metrics[metricId]!;
         return `${metricId}: ${metric.numerator ?? "unmeasured"}/${metric.denominator ?? "unmeasured"} (value: ${metric.value ?? "unmeasured"})`;
       });
+  const rightsBoundary =
+    report.provenance.rightsRiskAcceptanceDigest === undefined
+      ? []
+      : [
+          `Rights risk acceptance: ${report.provenance.rightsRiskAcceptanceDigest}`,
+          `License cleared: ${String(report.provenance.licenseCleared)}`,
+          `Rights execution scope: ${report.provenance.rightsExecutionScope}`,
+        ];
   return [
     `Track: ${report.trackId}`,
     `Execution: ${report.executionStatus}`,
@@ -57,7 +104,17 @@ export function formatTrackReport(
         ]
       : invalidPublic
         ? ["Numeric metrics are withheld because execution is not measured."]
-        : []),
+        : productConnectivityPublic
+          ? [
+              "Numeric reference-host metrics are withheld because no Product behavior was exercised.",
+            ]
+          : riskAcceptedIfevalPublic
+            ? [
+                "Numeric IFEval metrics are withheld from this risk-accepted private calibration report.",
+              ]
+            : []),
+    ...productBoundary,
+    ...rightsBoundary,
     ...metricLines,
     "No composite score is emitted.",
   ].join("\n");

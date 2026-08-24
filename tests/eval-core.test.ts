@@ -33,6 +33,7 @@ test("plans an immutable offline run from exact source and component digests", (
     schema: "run-spec-v1",
     trackId: "coffee-chat-taste",
     profile: "pilot",
+    candidateType: "agent_stack",
     sourceManifestDigest: stableDigest(manifest),
     ...DIGESTS,
   });
@@ -62,6 +63,7 @@ test("smoke is a calibration profile accepted by the immutable run-spec parser",
     schema: "run-spec-v1",
     trackId: "coffee-chat-taste",
     profile: "smoke",
+    candidateType: "agent_stack",
     sourceManifestDigest: stableDigest(manifest),
     ...DIGESTS,
   });
@@ -75,12 +77,120 @@ test("smoke is a calibration profile accepted by the immutable run-spec parser",
   assert.equal(plan.claimStatus, "calibration");
 });
 
+test("rights risk acceptance identity is admitted only for IFEval smoke", () => {
+  const rightsRiskAcceptanceDigest = stableDigest("ifeval-risk-acceptance");
+  const base = {
+    schema: "run-spec-v1",
+    trackId: "ifeval",
+    profile: "smoke",
+    candidateType: "coffee_chat_product",
+    sourceManifestDigest: stableDigest(sourceManifest()),
+    ...DIGESTS,
+  } as const;
+  const spec = parseRunSpec({ ...base, rightsRiskAcceptanceDigest });
+  assert.equal(spec.rightsRiskAcceptanceDigest, rightsRiskAcceptanceDigest);
+
+  assert.throws(
+    () =>
+      parseRunSpec({
+        ...base,
+        candidateType: "agent_stack",
+        rightsRiskAcceptanceDigest,
+      }),
+    /Product candidate/u,
+  );
+
+  assert.throws(
+    () =>
+      parseRunSpec({
+        ...base,
+        trackId: "coffee-chat-taste",
+        rightsRiskAcceptanceDigest,
+      }),
+    /profile smoke|IFEval smoke/u,
+  );
+  assert.throws(
+    () =>
+      parseRunSpec({
+        ...base,
+        profile: "pilot",
+        rightsRiskAcceptanceDigest,
+      }),
+    /profile smoke|IFEval smoke/u,
+  );
+});
+
+test("run specs accept the product candidate type without embedding private host paths", () => {
+  const manifest = parseSourceManifest(sourceManifest());
+  const spec = parseRunSpec({
+    schema: "run-spec-v1",
+    trackId: "coffee-chat-taste",
+    profile: "smoke",
+    sourceManifestDigest: stableDigest(manifest),
+    ...DIGESTS,
+    candidateType: "coffee_chat_product",
+  });
+
+  assert.equal(spec.candidateType, "coffee_chat_product");
+  assert.equal("productHost" in spec, false);
+  assert.equal("packageRoot" in spec, false);
+  assert.throws(
+    () =>
+      parseRunSpec({
+        ...spec,
+        productHost: {
+          schema: "product-host-runtime-v1",
+          host: "eval-skills-reference-host-v1",
+          packageRoot: "/private/tmp/product",
+        },
+      }),
+    /unexpected/u,
+  );
+});
+
+test("run profile and candidate type form a closed compatibility contract", () => {
+  const base = {
+    schema: "run-spec-v1",
+    trackId: "coffee-chat-taste",
+    sourceManifestDigest: stableDigest(sourceManifest()),
+    ...DIGESTS,
+  } as const;
+
+  for (const compatible of [
+    { profile: "fixture", candidateType: "fixture" },
+    { profile: "smoke", candidateType: "agent_stack" },
+    { profile: "smoke", candidateType: "coffee_chat_product" },
+    { profile: "pilot", candidateType: "reference_model" },
+    { profile: "score", candidateType: "agent_stack" },
+  ] as const) {
+    assert.doesNotThrow(() => parseRunSpec({ ...base, ...compatible }));
+  }
+
+  for (const incompatible of [
+    { profile: "fixture" },
+    { profile: "smoke" },
+    { profile: "fixture", candidateType: "agent_stack" },
+    { profile: "smoke", candidateType: "fixture" },
+    { profile: "pilot", candidateType: "fixture" },
+    { profile: "score", candidateType: "fixture" },
+    { profile: "fixture", candidateType: "coffee_chat_product" },
+    { profile: "pilot", candidateType: "coffee_chat_product" },
+    { profile: "score", candidateType: "coffee_chat_product" },
+  ] as const) {
+    assert.throws(
+      () => parseRunSpec({ ...base, ...incompatible }),
+      /candidateType|candidate type|coffee_chat_product/u,
+    );
+  }
+});
+
 test("fails closed when an evidence or cache root is not absolute", () => {
   const manifest = parseSourceManifest(sourceManifest());
   const spec = parseRunSpec({
     schema: "run-spec-v1",
     trackId: "coffee-chat-taste",
     profile: "fixture",
+    candidateType: "fixture",
     sourceManifestDigest: stableDigest(manifest),
     ...DIGESTS,
   });
