@@ -77,6 +77,7 @@ payloads = [
     {"status": "in_progress", "error": None, "output": []},
     {"status": "incomplete", "error": None, "output": []},
     {"status": "failed", "error": {"message": "provider failed"}, "output": []},
+    {"status": "failed", "error": None, "output": []},
     {"status": "completed", "error": {"message": "provider failed"}, "output": []},
     {"status": "completed", "error": None, "output": []},
     {"status": "completed", "error": None, "output_text": "not-json"},
@@ -128,8 +129,9 @@ print(json.dumps(outcomes))
       type: "JudgeUnavailableError",
       message: "BEAM Judge broker transport is unavailable",
     },
-    { type: "RuntimeError", message: "BEAM Judge completion reported an error" },
-    { type: "RuntimeError", message: "BEAM Judge completion reported an error" },
+    { type: "JudgeFailedError", message: "BEAM Judge completion is invalid" },
+    { type: "JudgeFailedError", message: "BEAM Judge completion is invalid" },
+    { type: "JudgeFailedError", message: "BEAM Judge completion is invalid" },
     { type: "JudgeFailedError", message: "BEAM Judge completion is invalid" },
     { type: "JudgeFailedError", message: "BEAM Judge completion is invalid" },
     {
@@ -305,6 +307,17 @@ bridge = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(bridge)
 
 payloads = {
+    "failed_status": {"status": "failed", "error": None, "output": []},
+    "failed_with_error": {
+        "status": "failed",
+        "error": {"message": "provider failed"},
+        "output": [],
+    },
+    "completed_with_error": {
+        "status": "completed",
+        "error": {"message": "provider failed"},
+        "output": [],
+    },
     "missing_output": {"status": "completed", "error": None, "output": []},
     "malformed_json": {"status": "completed", "error": None, "output_text": "not-json"},
     "invalid_score": {
@@ -366,6 +379,9 @@ with tempfile.TemporaryDirectory() as directory:
     reason: "BEAM Judge completion is invalid",
   };
   assert.deepEqual(result, {
+    completed_with_error: failed,
+    failed_status: failed,
+    failed_with_error: failed,
     invalid_score: failed,
     malformed_json: failed,
     missing_output: failed,

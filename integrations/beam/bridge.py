@@ -231,9 +231,9 @@ class BrokerJudge:
         if status in NONTERMINAL_RESPONSE_STATUSES:
             raise JudgeUnavailableError(JUDGE_UNAVAILABLE_REASON)
         if payload.get("error") is not None:
-            raise RuntimeError("BEAM Judge completion reported an error")
+            raise JudgeFailedError(JUDGE_FAILED_REASON)
         if status != "completed":
-            raise RuntimeError("BEAM Judge completion did not finish")
+            raise JudgeFailedError(JUDGE_FAILED_REASON)
         content = _response_text(payload)
         try:
             parsed = json.loads(content)
