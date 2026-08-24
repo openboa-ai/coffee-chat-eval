@@ -371,6 +371,7 @@ export async function executeTasteBench(input: {
   let pointwiseCalls = 0;
   let pairwiseCalls = 0;
   let phase: "source" | "candidate" | "adapter" | "judge" = "source";
+  let judgeFailureStatus: "failed" | "unavailable" | undefined;
   const candidateArtifacts: PrivateArtifactRef[] = [];
   let nativeEvaluation: unknown;
   try {
@@ -424,6 +425,8 @@ export async function executeTasteBench(input: {
           phase = "judge";
           const verdict = await input.judge.evaluate(request);
           if (verdict.state !== "measured" || verdict.verdict === undefined) {
+            judgeFailureStatus =
+              verdict.state === "unavailable" ? "unavailable" : "failed";
             throw new Error(
               verdict.state === "measured"
                 ? "judge returned no private verdict artifact"
@@ -459,9 +462,10 @@ export async function executeTasteBench(input: {
     return Object.freeze({
       track: "coffee-chat-taste" as const,
       executionStatus:
-        owner === "candidate" || owner === "adapter"
+        judgeFailureStatus ??
+        (owner === "candidate" || owner === "adapter"
           ? ("failed" as const)
-          : ("unavailable" as const),
+          : ("unavailable" as const)),
       failureOwner: owner,
       claimStatus: executionClaimStatus(input.profile),
       benchmarkStatus: "not_active" as const,

@@ -152,6 +152,106 @@ test("Taste bridge keeps candidate inputs separate from sealed Judge calls and p
   rmSync(root, { recursive: true, force: true });
 });
 
+test("Taste preserves failed and unavailable Judge outcomes through the track result", async () => {
+  const root = mkdtempSync(join(tmpdir(), "coffee-chat-taste-judge-state-"));
+  try {
+    const candidate = createFixtureCandidateTransport(
+      () => ({
+        artifact: { mediaType: "text/plain", content: "fixture" },
+        decisionRecord: {
+          decision: "fixture",
+          evidenceUse: [],
+          tradeoffs: [],
+          constraints: [],
+          uncertainty: null,
+        },
+      }),
+      { evidenceRoot: root },
+    );
+    const api = {
+      getBenchmarkInput: (_manifest: unknown, condition: TasteCondition) => ({
+        condition,
+      }),
+      evaluateSubmission: async () => ({}),
+      evaluateCaseFamily: async ({
+        transport,
+      }: {
+        transport: { complete: (request: unknown) => Promise<{ raw: string }> };
+      }) => {
+        await transport.complete({ kind: "pointwise", index: 0 });
+        return { state: "measured" };
+      },
+    };
+    const evidence = ({ value, mediaType }: { value: unknown; mediaType: string }) => {
+      const stored = putEvidence(root, JSON.stringify(value), "private");
+      return {
+        path: stored.path,
+        digest: stored.digest,
+        mediaType,
+        bytes: Buffer.byteLength(JSON.stringify(value)),
+      };
+    };
+
+    for (const state of ["failed", "unavailable"] as const) {
+      const judge = {
+        kind: "sealed-judge" as const,
+        evaluate: async () => ({
+          state,
+          reason:
+            state === "failed"
+              ? "malformed completed Judge response"
+              : "Judge broker unavailable",
+          failureOwner: "judge" as const,
+        }),
+      };
+      const summary = await executeTasteBench({
+        profile: "smoke",
+        manifest: { familyId: "family-00" },
+        api,
+        candidate,
+        judge,
+      });
+      assert.equal(summary.executionStatus, state);
+      assert.equal(summary.failureOwner, "judge");
+      assert.equal(summary.judgeCalls, 0);
+      assert.equal(summary.benchmarkStatus, "not_active");
+      assert.equal(summary.score, null);
+
+      const result = await createTasteTrackExecutor({ api })({
+        plan: {
+          profile: "smoke",
+          id: `run-taste-judge-${state}`,
+          evidenceRoot: root,
+          trackId: "coffee-chat-taste",
+        },
+        manifest: { familyId: "family-00" },
+        source: { sourceRoot: root },
+        candidate,
+        judge,
+        evidence,
+      });
+      assert.equal(result.executionStatus, state);
+      assert.equal(result.failureOwner, "judge");
+      assert.equal(result.trialReceipts.length, 3);
+      assert.ok(
+        result.trialReceipts.every(
+          (receipt) =>
+            receipt.executionStatus === state && receipt.failureOwner === "judge",
+        ),
+      );
+      assert.equal(result.metrics.pointwiseCalls?.denominator, 13);
+      assert.equal(result.metrics.pairwiseCalls?.denominator, 8);
+      const native = JSON.parse(readFileSync(result.nativeEvidence.path, "utf8")) as {
+        readonly summary: { readonly benchmarkStatus: string; readonly score: unknown };
+      };
+      assert.equal(native.summary.benchmarkStatus, "not_active");
+      assert.equal(native.summary.score, null);
+    }
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("Taste rejects a 21-call native census that is not exactly 13 pointwise and 8 pairwise", async () => {
   const root = mkdtempSync(join(tmpdir(), "coffee-chat-taste-kind-census-"));
   try {
