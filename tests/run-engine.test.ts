@@ -4,6 +4,7 @@ import {
   existsSync,
   mkdtempSync,
   mkdirSync,
+  readdirSync,
   readFileSync,
   rmSync,
   writeFileSync,
@@ -14,17 +15,33 @@ import test from "node:test";
 
 import { stableDigest } from "../src/identity.ts";
 import {
+  IFEVAL_NATIVE_RUNTIME_RIGHTS,
+  IFEVAL_SOURCE,
+  ifevalRightsRiskAcceptanceDigest,
+  parseIfevalRightsRiskAcceptance,
+} from "../src/ifeval.ts";
+import {
   createRunPlan,
   parseRunSpec,
   parseSourceManifest,
+  type JudgeTransport,
   type ProductCandidateBoundary,
   type RunProfile,
 } from "../src/eval-core.ts";
 import { materializeSource } from "../src/source-cache.ts";
 import { getSourceManifest } from "../src/source-manifests.ts";
-import { createFixtureCandidateTransport } from "../src/transports.ts";
+import {
+  createFixtureCandidateTransport,
+  createResponsesJudgeTransport,
+} from "../src/transports.ts";
 import { executeImmutableRun, validateRuntimeForRun } from "../src/run-engine.ts";
-import { parseRuntimeBundleConfig } from "../src/runtime-config.ts";
+import {
+  COFFEE_CHAT_PRODUCT_CANDIDATE_DIGEST,
+  COFFEE_CHAT_PRODUCT_CANDIDATE_IDENTITY,
+  COFFEE_CHAT_PRODUCT_MODEL,
+  COFFEE_CHAT_PRODUCT_SEED,
+  parseRuntimeBundleConfig,
+} from "../src/runtime-config.ts";
 import { IFEVAL_RUNTIME_LOCK, requireRuntimePython } from "../src/python-runtime.ts";
 import { createIfevalTrackExecutor } from "../src/ifeval.ts";
 
@@ -44,6 +61,324 @@ const PRODUCT_BOUNDARY: ProductCandidateBoundary = Object.freeze({
     packageDigest:
       "sha256:e39384e00af5d8d5a71aedcde0d960bd4c6797ed227eab9f08d3134b4d712d41",
   }),
+});
+
+function ifevalRiskAcceptance(candidateDigest: `sha256:${string}`) {
+  return parseIfevalRightsRiskAcceptance({
+    schema: "ifeval-rights-risk-acceptance-v1",
+    trackId: "ifeval",
+    profile: "smoke",
+    candidateType: "coffee_chat_product",
+    candidateDigest,
+    ifevalSourceCommit: IFEVAL_SOURCE.commit,
+    assetRepository: IFEVAL_NATIVE_RUNTIME_RIGHTS.repository,
+    assetRevision: IFEVAL_NATIVE_RUNTIME_RIGHTS.revision,
+    asset: IFEVAL_NATIVE_RUNTIME_RIGHTS.asset,
+    assetDigest: IFEVAL_NATIVE_RUNTIME_RIGHTS.digest,
+    licenseStatus: "unclarified",
+    licenseCleared: false,
+    scope: "private-internal-smoke-only",
+    acceptedBy: "workspace-owner",
+    acceptedAt: "2026-08-25T09:00:00+09:00",
+    privateNonce: "d".repeat(64),
+    acknowledgesNoLicenseGrant: true,
+    acknowledgesNoRedistribution: true,
+    acknowledgesNoPublicNumericClaim: true,
+  });
+}
+
+function productIfevalRunFixture(input: {
+  readonly root: string;
+  readonly candidateDigest: `sha256:${string}`;
+  readonly runtimeModel: string;
+  readonly seed: number | undefined;
+}) {
+  const manifest = getSourceManifest("ifeval");
+  const acceptance = ifevalRiskAcceptance(input.candidateDigest);
+  const spec = parseRunSpec({
+    schema: "run-spec-v1",
+    trackId: "ifeval",
+    profile: "smoke",
+    sourceManifestDigest: stableDigest(manifest),
+    candidateDigest: input.candidateDigest,
+    judgeDigest: stableDigest("judge"),
+    attackDigest: stableDigest("attack"),
+    defenseDigest: stableDigest("defense"),
+    configurationDigest: stableDigest({
+      candidateDigest: input.candidateDigest,
+      ...(input.seed === undefined ? {} : { seed: input.seed }),
+    }),
+    providerTermsDigest: manifest.providerTermsDigest,
+    providerTermsReceiptDigest: stableDigest("provider-terms-receipt"),
+    rightsRiskAcceptanceDigest: ifevalRightsRiskAcceptanceDigest(acceptance),
+    candidateType: "coffee_chat_product",
+    caseCensus: { prompts: 9 },
+    isolationEvidenceDigest: stableDigest("isolation"),
+    ...(input.seed === undefined ? {} : { seed: input.seed }),
+  });
+  const plan = createRunPlan({
+    manifest,
+    spec,
+    evidenceRoot: join(input.root, "evidence"),
+    cacheRoot: join(input.root, "missing-cache"),
+  });
+  const runtime = parseRuntimeBundleConfig({
+    schema: "runtime-bundle-v1",
+    candidate: {
+      schema: "runtime-capability-v1",
+      scope: "candidate",
+      endpoint: "http://127.0.0.1:4311",
+      capabilityToken: "candidate-capability",
+      model: input.runtimeModel,
+      expiresAt: "2099-01-01T00:00:00.000Z",
+      maxRequests: 9,
+    },
+    productHost: {
+      schema: "product-host-runtime-v1",
+      host: "eval-skills-reference-host-v1",
+      packageRoot: join(input.root, "must-not-verify-product-package"),
+    },
+  });
+  return { acceptance, manifest, plan, runtime };
+}
+
+async function executeProductIfevalFixture(
+  fixture: ReturnType<typeof productIfevalRunFixture>,
+  runtime:
+    ReturnType<typeof productIfevalRunFixture>["runtime"] | null = fixture.runtime,
+) {
+  let candidateCalls = 0;
+  const result = await executeImmutableRun({
+    plan: fixture.plan,
+    manifest: fixture.manifest,
+    candidate: {
+      kind: "coffee_chat_product",
+      productBoundary: PRODUCT_BOUNDARY,
+      run: async () => {
+        candidateCalls += 1;
+        return {
+          state: "failed" as const,
+          reason: "must-not-run",
+          failureOwner: "candidate" as const,
+        };
+      },
+    },
+    judge: undefined,
+    ...(runtime === null ? {} : { runtime }),
+    ifevalRightsRiskAcceptance: fixture.acceptance,
+  });
+  return { candidateCalls, result };
+}
+
+function privateFailureReason(
+  result: Awaited<ReturnType<typeof executeImmutableRun>>,
+): string {
+  return String(
+    (
+      JSON.parse(readFileSync(result.nativeEvidence.path, "utf8")) as {
+        reason?: unknown;
+      }
+    ).reason,
+  );
+}
+
+function assertNoRightsRiskProvenance(
+  result: Awaited<ReturnType<typeof executeImmutableRun>>,
+): void {
+  assert.equal(result.publicReceipt.rightsRiskAcceptanceDigest, undefined);
+  assert.equal(result.trackReport.provenance.rightsRiskAcceptanceDigest, undefined);
+}
+
+function filesBelow(root: string): readonly string[] {
+  return readdirSync(root, { recursive: true, withFileTypes: true })
+    .filter((entry) => entry.isFile())
+    .map((entry) => join(entry.parentPath, entry.name));
+}
+
+type NativeJudgeTrack = "coffee-chat-taste" | "beam-record-core";
+
+function liveJudgeBindingFixture(trackId: NativeJudgeTrack) {
+  const root = mkdtempSync(
+    join(tmpdir(), `coffee-chat-eval-${trackId}-judge-binding-`),
+  );
+  const manifest = getSourceManifest(trackId);
+  const judgeCalls = trackId === "coffee-chat-taste" ? 21 : 11;
+  const candidateCalls = trackId === "coffee-chat-taste" ? 3 : 6;
+  const spec = parseRunSpec({
+    schema: "run-spec-v1",
+    trackId,
+    profile: "smoke",
+    sourceManifestDigest: stableDigest(manifest),
+    candidateDigest: stableDigest(`${trackId}-candidate`),
+    judgeDigest: stableDigest(`${trackId}-judge`),
+    attackDigest: stableDigest("attack"),
+    defenseDigest: stableDigest("defense"),
+    configurationDigest: stableDigest(`${trackId}-configuration`),
+    providerTermsDigest: manifest.providerTermsDigest,
+    providerTermsReceiptDigest: stableDigest("provider-terms-receipt"),
+    candidateType: "agent_stack",
+    caseCensus:
+      trackId === "coffee-chat-taste"
+        ? { families: 1, submissions: 3, judgeCalls }
+        : { conversations: 1, queries: 6, judgeCalls },
+    isolationEvidenceDigest: stableDigest("isolation"),
+    seed: 7,
+  });
+  const plan = createRunPlan({
+    manifest,
+    spec,
+    evidenceRoot: join(root, "evidence"),
+    cacheRoot: join(root, "missing-cache"),
+  });
+  const runtime = parseRuntimeBundleConfig({
+    schema: "runtime-bundle-v1",
+    candidate: {
+      schema: "runtime-capability-v1",
+      scope: "candidate",
+      endpoint: "http://127.0.0.1:4311",
+      capabilityToken: "candidate-capability",
+      model: "gpt-5.6-luna",
+      expiresAt: "2099-01-01T00:00:00.000Z",
+      maxRequests: candidateCalls,
+    },
+    judge: {
+      schema: "runtime-capability-v1",
+      scope: "judge",
+      endpoint: "http://127.0.0.1:4312",
+      capabilityToken: "judge-capability",
+      model: "gpt-5.6-luna",
+      expiresAt: "2099-01-01T00:00:00.000Z",
+      maxRequests: judgeCalls,
+    },
+  });
+  return { root, manifest, plan, runtime };
+}
+
+async function executeUntrustedJudge(input: {
+  readonly trackId: NativeJudgeTrack;
+  readonly judge: JudgeTransport;
+  readonly runtime?: ReturnType<typeof parseRuntimeBundleConfig>;
+  readonly fixture?: ReturnType<typeof liveJudgeBindingFixture>;
+}) {
+  const fixture = input.fixture ?? liveJudgeBindingFixture(input.trackId);
+  let candidateCalls = 0;
+  const result = await executeImmutableRun({
+    plan: fixture.plan,
+    manifest: fixture.manifest,
+    candidate: {
+      kind: "agent_stack",
+      run: async () => {
+        candidateCalls += 1;
+        return {
+          state: "failed" as const,
+          reason: "untrusted Judge reached native evaluation",
+          failureOwner: "candidate" as const,
+        };
+      },
+    },
+    judge: input.judge,
+    runtime: input.runtime ?? fixture.runtime,
+  });
+  return { candidateCalls, fixture, result };
+}
+
+test("live native-Judge tracks reject arbitrary Judge transports before evaluation", async () => {
+  for (const trackId of ["coffee-chat-taste", "beam-record-core"] as const) {
+    let judgeCalls = 0;
+    const { candidateCalls, fixture, result } = await executeUntrustedJudge({
+      trackId,
+      judge: {
+        kind: "sealed-judge",
+        evaluate: async () => {
+          judgeCalls += 1;
+          return {
+            state: "failed" as const,
+            reason: "must not evaluate",
+            failureOwner: "judge" as const,
+          };
+        },
+      },
+    });
+    try {
+      assert.equal(result.trackReport.executionStatus, "invalid");
+      assert.equal(result.publicReceipt.failureOwner, "verifier");
+      assert.equal(candidateCalls, 0);
+      assert.equal(judgeCalls, 0);
+      assert.match(privateFailureReason(result), /Judge transport is not bound/u);
+    } finally {
+      rmSync(fixture.root, { recursive: true, force: true });
+    }
+  }
+});
+
+test("live native-Judge tracks reject a structural copy of a factory transport", async () => {
+  for (const trackId of ["coffee-chat-taste", "beam-record-core"] as const) {
+    const fixture = liveJudgeBindingFixture(trackId);
+    let judgeCalls = 0;
+    const minted = createResponsesJudgeTransport({
+      endpoint: fixture.runtime.judge!.endpoint,
+      capability: fixture.runtime.judge!.capabilityToken,
+      model: fixture.runtime.judge!.model,
+      evidenceRoot: fixture.plan.evidenceRoot,
+    });
+    const copied: JudgeTransport = {
+      ...minted,
+      evaluate: async (request) => {
+        judgeCalls += 1;
+        return minted.evaluate(request);
+      },
+    };
+    try {
+      const { candidateCalls, result } = await executeUntrustedJudge({
+        trackId,
+        fixture,
+        judge: copied,
+      });
+      assert.equal(result.trackReport.executionStatus, "invalid");
+      assert.equal(result.publicReceipt.failureOwner, "verifier");
+      assert.equal(candidateCalls, 0);
+      assert.equal(judgeCalls, 0);
+      assert.match(privateFailureReason(result), /Judge transport is not bound/u);
+    } finally {
+      rmSync(fixture.root, { recursive: true, force: true });
+    }
+  }
+});
+
+test("live native-Judge tracks reject endpoint, capability, or model runtime drift", async () => {
+  const driftCases = [
+    { endpoint: "http://127.0.0.1:4313" },
+    { capabilityToken: "different-judge-capability" },
+    { model: "gpt-5.6-terra" },
+  ] as const;
+  for (const [index, drift] of driftCases.entries()) {
+    const trackId = index % 2 === 0 ? "coffee-chat-taste" : "beam-record-core";
+    const fixture = liveJudgeBindingFixture(trackId);
+    const judge = createResponsesJudgeTransport({
+      endpoint: fixture.runtime.judge!.endpoint,
+      capability: fixture.runtime.judge!.capabilityToken,
+      model: fixture.runtime.judge!.model,
+      evidenceRoot: fixture.plan.evidenceRoot,
+    });
+    const runtime = parseRuntimeBundleConfig({
+      ...fixture.runtime,
+      judge: { ...fixture.runtime.judge!, ...drift },
+    });
+    try {
+      const { candidateCalls, result } = await executeUntrustedJudge({
+        trackId,
+        fixture,
+        judge,
+        runtime,
+      });
+      assert.equal(result.trackReport.executionStatus, "invalid");
+      assert.equal(result.publicReceipt.failureOwner, "verifier");
+      assert.equal(candidateCalls, 0);
+      assert.match(privateFailureReason(result), /Judge transport is not bound/u);
+    } finally {
+      rmSync(fixture.root, { recursive: true, force: true });
+    }
+  }
 });
 
 test("production run rejects a bridge-backed executor override before it can mint official artifacts", async () => {
@@ -179,7 +514,7 @@ function productRunFixture(
     trackId: "coffee-chat-taste",
     profile,
     sourceManifestDigest: stableDigest(manifest),
-    candidateDigest: stableDigest("product-candidate"),
+    candidateDigest: COFFEE_CHAT_PRODUCT_CANDIDATE_DIGEST,
     judgeDigest: stableDigest("judge"),
     attackDigest: stableDigest("attack"),
     defenseDigest: stableDigest("defense"),
@@ -189,6 +524,7 @@ function productRunFixture(
       ? {}
       : { providerTermsReceiptDigest: stableDigest("provider-terms-receipt") }),
     candidateType: "coffee_chat_product",
+    seed: COFFEE_CHAT_PRODUCT_SEED,
     caseCensus:
       profile === "score"
         ? { families: 32, submissions: 96, judgeCalls: 672 }
@@ -538,6 +874,18 @@ test("run engine gives IFEval native rights hold precedence over host and execut
         },
       },
       judge: undefined,
+      runtime: {
+        schema: "runtime-bundle-v1",
+        candidate: {
+          schema: "runtime-capability-v1",
+          scope: "candidate",
+          endpoint: "https://nonlocal.example.invalid/responses",
+          capabilityToken: "must-not-be-validated-before-rights-hold",
+          model: "different-model",
+          expiresAt: "not-an-iso-date",
+          maxRequests: 0,
+        },
+      } as never,
     });
 
     const nativeEvidence = JSON.parse(
@@ -621,6 +969,69 @@ test("source pin failure cannot publish unvalidated IFEval rights-risk provenanc
   }
 });
 
+test("canonical engine rejects IFEval Product risk acceptance bound to a caller-forged identity digest", async () => {
+  const root = mkdtempSync(join(tmpdir(), "coffee-chat-eval-ifeval-forged-product-"));
+  try {
+    const canonical = COFFEE_CHAT_PRODUCT_CANDIDATE_IDENTITY;
+    if (canonical.candidateType !== "coffee_chat_product") {
+      throw new Error("expected canonical Product candidate identity");
+    }
+    const forgedDigests = [
+      stableDigest({ ...canonical, harness: "unadmitted-product-host" }),
+      stableDigest({ ...canonical, model: "gpt-5.6-terra" }),
+      stableDigest({ ...canonical, seed: COFFEE_CHAT_PRODUCT_SEED + 1 }),
+      stableDigest({
+        ...canonical,
+        product: {
+          ...canonical.product,
+          packageDigest: `sha256:${"0".repeat(64)}`,
+        },
+      }),
+    ];
+
+    for (const candidateDigest of forgedDigests) {
+      const fixture = productIfevalRunFixture({
+        root,
+        candidateDigest,
+        runtimeModel: COFFEE_CHAT_PRODUCT_MODEL,
+        seed: COFFEE_CHAT_PRODUCT_SEED,
+      });
+      const { candidateCalls, result } = await executeProductIfevalFixture(fixture);
+
+      assert.equal(result.trackReport.executionStatus, "invalid");
+      assert.equal(result.publicReceipt.failureOwner, "verifier");
+      assert.equal(candidateCalls, 0);
+      assertNoRightsRiskProvenance(result);
+      assert.match(privateFailureReason(result), /Product candidate identity/u);
+    }
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("canonical engine requires the admitted Product seed before accepting IFEval risk", async () => {
+  const root = mkdtempSync(join(tmpdir(), "coffee-chat-eval-ifeval-product-seed-"));
+  try {
+    for (const seed of [undefined, COFFEE_CHAT_PRODUCT_SEED + 1]) {
+      const fixture = productIfevalRunFixture({
+        root,
+        candidateDigest: COFFEE_CHAT_PRODUCT_CANDIDATE_DIGEST,
+        runtimeModel: COFFEE_CHAT_PRODUCT_MODEL,
+        seed,
+      });
+      const { candidateCalls, result } = await executeProductIfevalFixture(fixture);
+
+      assert.equal(result.trackReport.executionStatus, "invalid");
+      assert.equal(result.publicReceipt.failureOwner, "verifier");
+      assert.equal(candidateCalls, 0);
+      assertNoRightsRiskProvenance(result);
+      assert.match(privateFailureReason(result), /Product candidate seed/u);
+    }
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("live runs fail closed when a scoped runtime is missing or expired", async () => {
   const root = mkdtempSync(join(tmpdir(), "coffee-chat-eval-runtime-gate-"));
   try {
@@ -698,6 +1109,147 @@ test("live runs fail closed when a scoped runtime is missing or expired", async 
   }
 });
 
+test("canonical runtime validation rejects a Product capability for a different model", () => {
+  const fixture = productRunFixture("smoke");
+  try {
+    assert.equal(
+      validateRuntimeForRun({ plan: fixture.plan, runtime: fixture.runtime }),
+      undefined,
+    );
+    const runtime = parseRuntimeBundleConfig({
+      schema: "runtime-bundle-v1",
+      candidate: {
+        ...fixture.runtime.candidate,
+        model: "gpt-5.6-terra",
+      },
+      judge: fixture.runtime.judge,
+      productHost: fixture.runtime.productHost,
+    });
+    const failure = validateRuntimeForRun({ plan: fixture.plan, runtime });
+    assert.equal(failure?.failureOwner, "host");
+    assert.match(failure?.reason ?? "", /runtime model.*Product identity/u);
+  } finally {
+    rmSync(fixture.root, { recursive: true, force: true });
+  }
+});
+
+test("canonical engine stops a risk-accepted Product IFEval run when the runtime model drifts", async () => {
+  const root = mkdtempSync(join(tmpdir(), "coffee-chat-eval-ifeval-model-drift-"));
+  try {
+    const fixture = productIfevalRunFixture({
+      root,
+      candidateDigest: COFFEE_CHAT_PRODUCT_CANDIDATE_DIGEST,
+      runtimeModel: "gpt-5.6-terra",
+      seed: COFFEE_CHAT_PRODUCT_SEED,
+    });
+    const { candidateCalls, result } = await executeProductIfevalFixture(fixture);
+
+    assert.equal(result.trackReport.executionStatus, "unavailable");
+    assert.equal(result.publicReceipt.failureOwner, "host");
+    assert.equal(candidateCalls, 0);
+    assertNoRightsRiskProvenance(result);
+    assert.match(privateFailureReason(result), /runtime model.*Product identity/u);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("canonical engine reparses a direct Product runtime bundle before IFEval risk acceptance", async () => {
+  const root = mkdtempSync(join(tmpdir(), "coffee-chat-eval-ifeval-runtime-schema-"));
+  try {
+    const fixture = productIfevalRunFixture({
+      root,
+      candidateDigest: COFFEE_CHAT_PRODUCT_CANDIDATE_DIGEST,
+      runtimeModel: COFFEE_CHAT_PRODUCT_MODEL,
+      seed: COFFEE_CHAT_PRODUCT_SEED,
+    });
+    const forgedRuntime = {
+      ...fixture.runtime,
+      productHost: {
+        ...fixture.runtime.productHost!,
+        host: "forged-product-host",
+      },
+    } as never;
+    const { candidateCalls, result } = await executeProductIfevalFixture(
+      fixture,
+      forgedRuntime,
+    );
+
+    assert.equal(result.trackReport.executionStatus, "unavailable");
+    assert.equal(result.publicReceipt.failureOwner, "host");
+    assert.equal(candidateCalls, 0);
+    assertNoRightsRiskProvenance(result);
+    assert.match(privateFailureReason(result), /runtime product host.*unsupported/u);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("canonical engine rejects an unbound Product transport before IFEval risk execution", async () => {
+  const root = mkdtempSync(join(tmpdir(), "coffee-chat-eval-ifeval-unbound-product-"));
+  try {
+    const fixture = productIfevalRunFixture({
+      root,
+      candidateDigest: COFFEE_CHAT_PRODUCT_CANDIDATE_DIGEST,
+      runtimeModel: COFFEE_CHAT_PRODUCT_MODEL,
+      seed: COFFEE_CHAT_PRODUCT_SEED,
+    });
+    const { candidateCalls, result } = await executeProductIfevalFixture(fixture);
+
+    assert.equal(result.trackReport.executionStatus, "invalid");
+    assert.equal(result.publicReceipt.failureOwner, "verifier");
+    assert.equal(candidateCalls, 0);
+    assertNoRightsRiskProvenance(result);
+    assert.equal(result.trackReport.provenance.candidateMode, undefined);
+    assert.equal(result.trackReport.provenance.capabilitiesUsed, undefined);
+    assert.equal(result.trackReport.provenance.productBehaviorExercised, undefined);
+    assert.equal(result.trackReport.provenance.productIdentity, undefined);
+    assert.equal(result.publicReceipt.candidateMode, undefined);
+    assert.equal(result.publicReceipt.capabilitiesUsed, undefined);
+    assert.equal(result.publicReceipt.productBehaviorExercised, undefined);
+    assert.equal(result.publicReceipt.productIdentity, undefined);
+    assert.match(
+      privateFailureReason(result),
+      /not bound to the normalized Responses candidate runtime/u,
+    );
+    assert.equal(
+      filesBelow(fixture.plan.evidenceRoot).some((path) =>
+        readFileSync(path, "utf8").includes("ifeval-rights-risk-acceptance-v1"),
+      ),
+      false,
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("canonical engine rejects a missing Product runtime before IFEval risk execution", async () => {
+  const root = mkdtempSync(join(tmpdir(), "coffee-chat-eval-ifeval-missing-runtime-"));
+  try {
+    const fixture = productIfevalRunFixture({
+      root,
+      candidateDigest: COFFEE_CHAT_PRODUCT_CANDIDATE_DIGEST,
+      runtimeModel: COFFEE_CHAT_PRODUCT_MODEL,
+      seed: COFFEE_CHAT_PRODUCT_SEED,
+    });
+    const { candidateCalls, result } = await executeProductIfevalFixture(fixture, null);
+
+    assert.equal(result.trackReport.executionStatus, "unavailable");
+    assert.equal(result.publicReceipt.failureOwner, "host");
+    assert.equal(candidateCalls, 0);
+    assertNoRightsRiskProvenance(result);
+    assert.match(privateFailureReason(result), /runtime capability is missing/u);
+    assert.equal(
+      filesBelow(fixture.plan.evidenceRoot).some((path) =>
+        readFileSync(path, "utf8").includes("ifeval-rights-risk-acceptance-v1"),
+      ),
+      false,
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("a forged Product preflight marker cannot mint connectivity provenance", async () => {
   const fixture = productRunFixture("smoke");
   let candidateCalls = 0;
@@ -718,8 +1270,8 @@ test("a forged Product preflight marker cannot mint connectivity provenance", as
       runtime: fixture.runtime,
     });
 
-    assert.equal(result.trackReport.executionStatus, "unavailable");
-    assert.equal(result.publicReceipt.failureOwner, "host");
+    assert.equal(result.trackReport.executionStatus, "invalid");
+    assert.equal(result.publicReceipt.failureOwner, "verifier");
     assert.equal(candidateCalls, 0);
     assert.equal(result.trackReport.provenance.candidateMode, undefined);
     assert.equal(result.trackReport.provenance.capabilitiesUsed, undefined);
@@ -859,8 +1411,8 @@ test("product smoke trusts verified package bytes rather than transport prefligh
         judge: undefined,
         runtime: fixture.runtime,
       });
-      assert.equal(result.trackReport.executionStatus, "unavailable");
-      assert.equal(result.publicReceipt.failureOwner, "host");
+      assert.equal(result.trackReport.executionStatus, "invalid");
+      assert.equal(result.publicReceipt.failureOwner, "verifier");
       assert.equal(result.publicReceipt.candidateMode, undefined);
       assert.equal(result.trackReport.provenance.productIdentity, undefined);
     } finally {

@@ -12,6 +12,8 @@ import {
   createResponsesCandidateTransport,
   createResponsesJudgeTransport,
   issueCapabilityDescriptor,
+  responsesCandidateTransportMatchesRuntime,
+  responsesJudgeTransportMatchesRuntime,
 } from "../src/transports.ts";
 
 interface CaptureBroker {
@@ -190,6 +192,166 @@ test("responses Judge transport stores the raw completion, not the proxy envelop
       server.close((error) => (error ? reject(error) : resolve())),
     );
     await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("Responses Judge factory binding is exact and cannot be copied structurally", () => {
+  const evidenceRoot = "/var/tmp/coffee-chat-eval-judge-binding";
+  const runtime = Object.freeze({
+    endpoint: "http://127.0.0.1:4312/v1/responses",
+    capabilityToken: "judge-capability",
+    model: "gpt-5.6-luna",
+  });
+  const transport = createResponsesJudgeTransport({
+    endpoint: runtime.endpoint,
+    capability: runtime.capabilityToken,
+    model: runtime.model,
+    evidenceRoot,
+  });
+
+  assert.equal(
+    responsesJudgeTransportMatchesRuntime(transport, runtime, evidenceRoot),
+    true,
+  );
+  assert.equal(
+    responsesJudgeTransportMatchesRuntime({ ...transport }, runtime, evidenceRoot),
+    false,
+  );
+  assert.equal(
+    responsesJudgeTransportMatchesRuntime(
+      {
+        kind: "sealed-judge",
+        evaluate: transport.evaluate,
+      },
+      runtime,
+      evidenceRoot,
+    ),
+    false,
+  );
+  for (const drifted of [
+    { ...runtime, endpoint: "http://127.0.0.1:4313/v1/responses" },
+    { ...runtime, capabilityToken: "different-capability" },
+    { ...runtime, model: "gpt-5.6-terra" },
+  ]) {
+    assert.equal(
+      responsesJudgeTransportMatchesRuntime(transport, drifted, evidenceRoot),
+      false,
+    );
+  }
+  assert.equal(
+    responsesJudgeTransportMatchesRuntime(
+      transport,
+      runtime,
+      `${evidenceRoot}-drifted`,
+    ),
+    false,
+  );
+});
+
+test("Responses candidate snapshots mutable factory input before runtime binding", async () => {
+  const root = await mkdtemp(join(tmpdir(), "coffee-chat-eval-candidate-snapshot-"));
+  const attackerRoot = await mkdtemp(
+    join(tmpdir(), "coffee-chat-eval-candidate-attacker-"),
+  );
+  const broker = await startCaptureBroker([responsesOutput("candidate answer")]);
+  const attacker = await startCaptureBroker([responsesOutput("attacker answer")]);
+  try {
+    const options = {
+      kind: "agent_stack" as const,
+      endpoint: broker.endpoint,
+      capability: "candidate-capability",
+      model: "gpt-5.6-luna",
+      evidenceRoot: root,
+    };
+    const runtime = Object.freeze({
+      endpoint: options.endpoint,
+      capabilityToken: options.capability,
+      model: options.model,
+    });
+    const transport = createResponsesCandidateTransport(options);
+
+    options.endpoint = attacker.endpoint;
+    options.capability = "attacker-capability";
+    options.model = "gpt-5.6-terra";
+    options.evidenceRoot = attackerRoot;
+
+    assert.equal(
+      responsesCandidateTransportMatchesRuntime(transport, runtime, root),
+      true,
+    );
+    assert.equal(
+      responsesCandidateTransportMatchesRuntime(transport, runtime, attackerRoot),
+      false,
+    );
+    const result = await transport.run({ prompt: "KEEP THIS EXACT" });
+    assert.equal(result.state, "measured");
+    assert.deepEqual(broker.requests, [
+      { input: "KEEP THIS EXACT", model: "gpt-5.6-luna", store: false },
+    ]);
+    assert.deepEqual(attacker.requests, []);
+    if (result.state !== "measured" || result.output === undefined) return;
+    assert.equal(result.output.path.startsWith(`${root}/`), true);
+    assert.equal(await readFile(result.output.path, "utf8"), "candidate answer");
+  } finally {
+    await broker.close();
+    await attacker.close();
+    await rm(root, { recursive: true, force: true });
+    await rm(attackerRoot, { recursive: true, force: true });
+  }
+});
+
+test("Responses Judge snapshots mutable factory input before runtime binding", async () => {
+  const root = await mkdtemp(join(tmpdir(), "coffee-chat-eval-judge-snapshot-"));
+  const attackerRoot = await mkdtemp(
+    join(tmpdir(), "coffee-chat-eval-judge-attacker-"),
+  );
+  const broker = await startCaptureBroker([
+    responsesOutput('{"score":1,"rationale":"original"}'),
+  ]);
+  const attacker = await startCaptureBroker([
+    responsesOutput('{"score":0,"rationale":"attacker"}'),
+  ]);
+  try {
+    const options = {
+      endpoint: broker.endpoint,
+      capability: "judge-capability",
+      model: "gpt-5.6-luna",
+      evidenceRoot: root,
+    };
+    const runtime = Object.freeze({
+      endpoint: options.endpoint,
+      capabilityToken: options.capability,
+      model: options.model,
+    });
+    const transport = createResponsesJudgeTransport(options);
+
+    options.endpoint = attacker.endpoint;
+    options.capability = "attacker-capability";
+    options.model = "gpt-5.6-terra";
+    options.evidenceRoot = attackerRoot;
+
+    assert.equal(responsesJudgeTransportMatchesRuntime(transport, runtime, root), true);
+    assert.equal(
+      responsesJudgeTransportMatchesRuntime(transport, runtime, attackerRoot),
+      false,
+    );
+    const result = await transport.evaluate({ prompt: "judge this" });
+    assert.equal(result.state, "measured");
+    assert.deepEqual(broker.requests, [
+      { input: "judge this", model: "gpt-5.6-luna", store: false },
+    ]);
+    assert.deepEqual(attacker.requests, []);
+    if (result.state !== "measured" || result.verdict === undefined) return;
+    assert.equal(result.verdict.path.startsWith(`${root}/`), true);
+    assert.equal(
+      await readFile(result.verdict.path, "utf8"),
+      '{"score":1,"rationale":"original"}',
+    );
+  } finally {
+    await broker.close();
+    await attacker.close();
+    await rm(root, { recursive: true, force: true });
+    await rm(attackerRoot, { recursive: true, force: true });
   }
 });
 

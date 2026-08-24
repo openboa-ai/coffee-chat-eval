@@ -33,16 +33,25 @@ import {
 import { verifySourceManifestPins } from "./source-manifests.ts";
 import type { ExecutionStatus, FailureOwner, Sha256Digest } from "./types.ts";
 import {
+  COFFEE_CHAT_PRODUCT_CANDIDATE_DIGEST,
   COFFEE_CHAT_PRODUCT_CALVER,
   COFFEE_CHAT_PRODUCT_COMMIT,
+  COFFEE_CHAT_PRODUCT_MODEL,
   COFFEE_CHAT_PRODUCT_PACKAGE_DIGEST,
   COFFEE_CHAT_PRODUCT_REPOSITORY,
+  COFFEE_CHAT_PRODUCT_SEED,
+  parseRuntimeBundleConfig,
   type RuntimeBundleConfig,
 } from "./runtime-config.ts";
 import { evalOwnedRuntimeLockForTrack } from "./python-runtime.ts";
 import type { TrackExecutor } from "./track-executor.ts";
 import { getNativeTrackExecutor } from "./native-executors.ts";
-import { verifyCoffeeChatProductPackage } from "./product-host.ts";
+import { responsesJudgeTransportMatchesRuntime } from "./transports.ts";
+import {
+  coffeeChatProductCandidateTransportMatchesRuntime,
+  isUnavailableCoffeeChatProductCandidateTransport,
+  verifyCoffeeChatProductPackage,
+} from "./product-host.ts";
 
 export interface ImmutableRunResult {
   readonly plan: RunPlan;
@@ -69,9 +78,10 @@ const SMOKE_JUDGE_CAPS: Readonly<Record<string, number>> = Object.freeze({
 
 /**
  * Validate ephemeral broker capabilities against the immutable run identity.
- * Identity/model matching is performed by the CLI when it has the separate
- * candidate/Judge identity files; this common check owns scope, expiry, and
- * the least-privilege smoke budgets used by every entry point.
+ * Non-Product identity/model matching is performed by the CLI when it has the
+ * separate candidate/Judge identity files. This common check owns the exact
+ * admitted Product model plus scope, expiry, and the least-privilege smoke
+ * budgets used by every entry point.
  */
 export function validateRuntimeForRun(input: {
   readonly plan: RunPlan;
@@ -110,6 +120,15 @@ export function validateRuntimeForRun(input: {
     return Object.freeze({
       failureOwner: "host" as const,
       reason: "candidate runtime scope is invalid",
+    });
+  }
+  if (
+    spec.candidateType === "coffee_chat_product" &&
+    candidate.model !== COFFEE_CHAT_PRODUCT_MODEL
+  ) {
+    return Object.freeze({
+      failureOwner: "host" as const,
+      reason: "candidate runtime model does not match admitted Product identity",
     });
   }
   if (Date.parse(candidate.expiresAt) <= now) {
@@ -501,6 +520,90 @@ async function executeImmutableRunWithExecutor(
     });
     return finalize(execution, source);
   }
+  if (
+    runSpec.candidateType === "coffee_chat_product" &&
+    runSpec.candidateDigest !== COFFEE_CHAT_PRODUCT_CANDIDATE_DIGEST
+  ) {
+    execution = failureExecution({
+      owner: "verifier",
+      reason:
+        "run candidate digest does not match the admitted Product candidate identity",
+      evidence,
+    });
+    return finalize(execution, source);
+  }
+  if (
+    runSpec.candidateType === "coffee_chat_product" &&
+    runSpec.seed !== COFFEE_CHAT_PRODUCT_SEED
+  ) {
+    execution = failureExecution({
+      owner: "verifier",
+      reason: "run Product candidate seed does not match the admitted identity",
+      evidence,
+    });
+    return finalize(execution, source);
+  }
+  let runtime: RuntimeBundleConfig | undefined = input.runtime;
+  if (runSpec.candidateType === "coffee_chat_product") {
+    try {
+      runtime =
+        input.runtime === undefined
+          ? undefined
+          : parseRuntimeBundleConfig(input.runtime);
+    } catch (error) {
+      execution = failureExecution({
+        owner: "host",
+        reason: error instanceof Error ? error.message : "runtime bundle is invalid",
+        evidence,
+      });
+      return finalize(execution, source);
+    }
+  }
+  if (
+    runSpec.candidateType === "coffee_chat_product" &&
+    runtime !== undefined &&
+    runtime.candidate.model !== COFFEE_CHAT_PRODUCT_MODEL
+  ) {
+    execution = failureExecution({
+      owner: "host",
+      reason: "candidate runtime model does not match admitted Product identity",
+      evidence,
+    });
+    return finalize(execution, source);
+  }
+  if (
+    runSpec.candidateType === "coffee_chat_product" &&
+    runtime === undefined &&
+    !(runSpec.trackId === "ifeval" && input.ifevalRightsRiskAcceptance === undefined)
+  ) {
+    execution = failureExecution({
+      owner: "host",
+      reason: "live candidate runtime capability is missing",
+      evidence,
+    });
+    return finalize(execution, source);
+  }
+  if (
+    runSpec.candidateType === "coffee_chat_product" &&
+    runtime !== undefined &&
+    !coffeeChatProductCandidateTransportMatchesRuntime(
+      input.candidate,
+      runtime.candidate,
+      plan.evidenceRoot,
+    )
+  ) {
+    const unavailablePreparation = isUnavailableCoffeeChatProductCandidateTransport(
+      input.candidate,
+    );
+    execution = failureExecution({
+      owner: unavailablePreparation ? "host" : "verifier",
+      reason: unavailablePreparation
+        ? "coffee_chat_product candidate preparation is unavailable"
+        : "coffee_chat_product transport is not bound to the normalized Responses candidate runtime",
+      evidence,
+    });
+    return finalize(execution, source);
+  }
   const declaredCandidateType = runSpec.candidateType ?? input.candidate.kind;
   if (
     runSpec.trackId === "ifeval" &&
@@ -593,7 +696,23 @@ async function executeImmutableRunWithExecutor(
     });
     return finalize(execution, source);
   }
-  const runtimeFailure = validateRuntimeForRun({ plan, runtime: input.runtime });
+  if (
+    runSpec.candidateType !== "coffee_chat_product" &&
+    runSpec.candidateType !== "fixture" &&
+    runtime !== undefined
+  ) {
+    try {
+      runtime = parseRuntimeBundleConfig(runtime);
+    } catch (error) {
+      execution = failureExecution({
+        owner: "host",
+        reason: error instanceof Error ? error.message : "runtime bundle is invalid",
+        evidence,
+      });
+      return finalize(execution, source);
+    }
+  }
+  const runtimeFailure = validateRuntimeForRun({ plan, runtime });
   if (runtimeFailure !== undefined) {
     execution = failureExecution({
       owner: runtimeFailure.failureOwner,
@@ -602,8 +721,29 @@ async function executeImmutableRunWithExecutor(
     });
     return finalize(execution, source);
   }
+  const liveNativeJudgeRequired =
+    declaredCandidateType !== "fixture" &&
+    (runSpec.trackId === "coffee-chat-taste" || runSpec.trackId === "beam-record-core");
+  if (
+    liveNativeJudgeRequired &&
+    (input.judge === undefined ||
+      runtime?.judge === undefined ||
+      !responsesJudgeTransportMatchesRuntime(
+        input.judge,
+        runtime.judge,
+        plan.evidenceRoot,
+      ))
+  ) {
+    execution = failureExecution({
+      owner: "verifier",
+      reason:
+        "live native Judge transport is not bound to the normalized Responses Judge runtime",
+      evidence,
+    });
+    return finalize(execution, source);
+  }
   if (runSpec.candidateType === "coffee_chat_product") {
-    const productHost = input.runtime?.productHost;
+    const productHost = runtime?.productHost;
     if (productHost === undefined) {
       execution = failureExecution({
         owner: "host",
@@ -660,7 +800,7 @@ async function executeImmutableRunWithExecutor(
     return finalize(execution, source);
   }
   try {
-    execution = await materializedSourceResult({ ...input, source });
+    execution = await materializedSourceResult({ ...input, runtime, source });
   } catch (error) {
     const owner = adapterFailureOwner(error);
     execution = failureExecution({

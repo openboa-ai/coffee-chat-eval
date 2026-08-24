@@ -8,6 +8,74 @@ import type {
   PrivateArtifactRef,
 } from "./eval-core.ts";
 
+interface ResponsesCandidateBinding {
+  readonly endpoint: string;
+  readonly capabilityToken: string;
+  readonly model: string;
+  readonly evidenceRoot: string;
+}
+
+const responsesCandidateBindings = new WeakMap<
+  CandidateTransport,
+  ResponsesCandidateBinding
+>();
+
+interface ResponsesJudgeBinding {
+  readonly endpoint: string;
+  readonly capabilityToken: string;
+  readonly model: string;
+  readonly evidenceRoot: string;
+}
+
+const responsesJudgeBindings = new WeakMap<JudgeTransport, ResponsesJudgeBinding>();
+
+/**
+ * Proves object identity plus the exact scoped runtime captured by the
+ * Responses factory. The binding itself stays module-private so structural
+ * CandidateTransport objects and object spreads cannot mint it.
+ */
+export function responsesCandidateTransportMatchesRuntime(
+  candidate: CandidateTransport,
+  runtime: {
+    readonly endpoint: string;
+    readonly capabilityToken: string;
+    readonly model: string;
+  },
+  evidenceRoot: string,
+): boolean {
+  const binding = responsesCandidateBindings.get(candidate);
+  return (
+    binding !== undefined &&
+    binding.endpoint === runtime.endpoint &&
+    binding.capabilityToken === runtime.capabilityToken &&
+    binding.model === runtime.model &&
+    binding.evidenceRoot === evidenceRoot
+  );
+}
+
+/**
+ * Proves that a Judge was minted by the Responses factory for the exact
+ * normalized scoped runtime. Structural copies cannot inherit the binding.
+ */
+export function responsesJudgeTransportMatchesRuntime(
+  judge: JudgeTransport,
+  runtime: {
+    readonly endpoint: string;
+    readonly capabilityToken: string;
+    readonly model: string;
+  },
+  evidenceRoot: string,
+): boolean {
+  const binding = responsesJudgeBindings.get(judge);
+  return (
+    binding !== undefined &&
+    binding.endpoint === runtime.endpoint &&
+    binding.capabilityToken === runtime.capabilityToken &&
+    binding.model === runtime.model &&
+    binding.evidenceRoot === evidenceRoot
+  );
+}
+
 export interface CapabilityDescriptor {
   readonly scope: "candidate" | "judge";
   readonly expiresAt: string;
@@ -442,28 +510,38 @@ export function createResponsesCandidateTransport(input: {
   readonly model: string;
   readonly evidenceRoot: string;
 }): CandidateTransport {
-  if (input.kind !== "reference_model" && input.kind !== "agent_stack") {
+  const kind = input.kind;
+  const endpoint = input.endpoint;
+  const capability = input.capability;
+  const model = input.model;
+  const evidenceRoot = input.evidenceRoot;
+  if (kind !== "reference_model" && kind !== "agent_stack") {
     throw new TypeError(
       "Responses candidate kind must be reference_model or agent_stack",
     );
   }
-  if (input.capability.length === 0)
-    throw new TypeError("scoped capability is required");
-  if (input.model.length === 0) throw new TypeError("candidate model is required");
-  return Object.freeze({
-    kind: input.kind,
+  if (capability.length === 0) throw new TypeError("scoped capability is required");
+  if (model.length === 0) throw new TypeError("candidate model is required");
+  const binding: ResponsesCandidateBinding = Object.freeze({
+    endpoint,
+    capabilityToken: capability,
+    model,
+    evidenceRoot,
+  });
+  const transport: CandidateTransport = Object.freeze({
+    kind,
     run: async (request: unknown) => {
       const started = Date.now();
       try {
         const response = await callResponses({
-          endpoint: input.endpoint,
-          capability: input.capability,
-          model: input.model,
+          endpoint: binding.endpoint,
+          capability: binding.capabilityToken,
+          model: binding.model,
           body: candidateResponsesBody(request),
         });
         const normalized = responseText(response);
         const output = artifactFromValue(
-          input.evidenceRoot,
+          evidenceRoot,
           normalized.value,
           normalized.mediaType,
         );
@@ -499,6 +577,8 @@ export function createResponsesCandidateTransport(input: {
       }
     },
   });
+  responsesCandidateBindings.set(transport, binding);
+  return transport;
 }
 
 export function createResponsesJudgeTransport(input: {
@@ -507,23 +587,32 @@ export function createResponsesJudgeTransport(input: {
   readonly model: string;
   readonly evidenceRoot: string;
 }): JudgeTransport {
-  if (input.capability.length === 0)
-    throw new TypeError("scoped capability is required");
-  if (input.model.length === 0) throw new TypeError("judge model is required");
-  return Object.freeze({
+  const endpoint = input.endpoint;
+  const capability = input.capability;
+  const model = input.model;
+  const evidenceRoot = input.evidenceRoot;
+  if (capability.length === 0) throw new TypeError("scoped capability is required");
+  if (model.length === 0) throw new TypeError("judge model is required");
+  const binding: ResponsesJudgeBinding = Object.freeze({
+    endpoint,
+    capabilityToken: capability,
+    model,
+    evidenceRoot,
+  });
+  const transport: JudgeTransport = Object.freeze({
     kind: "sealed-judge" as const,
     evaluate: async (request: unknown) => {
       const started = Date.now();
       try {
         const response = await callResponses({
-          endpoint: input.endpoint,
-          capability: input.capability,
-          model: input.model,
+          endpoint: binding.endpoint,
+          capability: binding.capabilityToken,
+          model: binding.model,
           body: judgeResponsesBody(request),
         });
         const normalized = responseText(response);
         const verdict = artifactFromValue(
-          input.evidenceRoot,
+          evidenceRoot,
           normalized.value,
           normalized.mediaType,
         );
@@ -559,6 +648,8 @@ export function createResponsesJudgeTransport(input: {
       }
     },
   });
+  responsesJudgeBindings.set(transport, binding);
+  return transport;
 }
 
 export function createInteractiveBrokerTransport(input: {

@@ -16,6 +16,7 @@ import {
   COFFEE_CHAT_PRODUCT_REPOSITORY,
   type CoffeeChatProductIdentity,
 } from "./runtime-config.ts";
+import { responsesCandidateTransportMatchesRuntime } from "./transports.ts";
 import type { Sha256Digest } from "./types.ts";
 
 const execute = promisify(execFile);
@@ -183,6 +184,39 @@ export type PreparedCoffeeChatProductInteractiveTransport =
       readonly metadata: CoffeeChatProductCandidateMetadata;
       readonly transport: UnavailableCoffeeChatProductInteractiveTransport;
     };
+
+const verifiedProductCandidateDelegates = new WeakMap<
+  CandidateTransport,
+  CandidateTransport
+>();
+const unavailableProductCandidateTransports = new WeakSet<CandidateTransport>();
+
+/**
+ * Confirms that a Product wrapper was created by the verified package
+ * preparation path and still targets the exact factory-bound broker runtime.
+ */
+export function coffeeChatProductCandidateTransportMatchesRuntime(
+  candidate: CandidateTransport,
+  runtime: {
+    readonly endpoint: string;
+    readonly capabilityToken: string;
+    readonly model: string;
+  },
+  evidenceRoot: string,
+): boolean {
+  const delegate = verifiedProductCandidateDelegates.get(candidate);
+  return (
+    delegate !== undefined &&
+    responsesCandidateTransportMatchesRuntime(delegate, runtime, evidenceRoot)
+  );
+}
+
+/** Genuine preparation failures may report host unavailability but cannot run. */
+export function isUnavailableCoffeeChatProductCandidateTransport(
+  candidate: CandidateTransport,
+): boolean {
+  return unavailableProductCandidateTransports.has(candidate);
+}
 
 class SafeVerificationError extends Error {}
 
@@ -532,6 +566,18 @@ function validateIdentity(identity: CoffeeChatProductIdentity): void {
   }
 }
 
+function snapshotIdentity(
+  identity: CoffeeChatProductIdentity,
+): CoffeeChatProductIdentity {
+  return Object.freeze({
+    repository: identity.repository,
+    commit: identity.commit,
+    calver: identity.calver,
+    packageDigest: identity.packageDigest,
+    mode: identity.mode,
+  });
+}
+
 function validateAdmittedIdentity(identity: CoffeeChatProductIdentity): void {
   validateIdentity(identity);
   if (
@@ -549,11 +595,13 @@ async function verifyPackageAgainstSuppliedIdentity(input: {
   readonly packageRoot: string;
   readonly identity: CoffeeChatProductIdentity;
 }): Promise<ProductPackageVerification> {
+  const packageRoot = input.packageRoot;
+  const identity = snapshotIdentity(input.identity);
   try {
-    validateIdentity(input.identity);
-    const root = resolve(input.packageRoot);
+    validateIdentity(identity);
+    const root = resolve(packageRoot);
     const canonicalRoot = await realpath(root);
-    const files = await collectPackageFiles(input.packageRoot);
+    const files = await collectPackageFiles(packageRoot);
     const topLevel = resolve(await gitOutput(root, ["rev-parse", "--show-toplevel"]));
     if ((await realpath(topLevel)) !== canonicalRoot) {
       throw new SafeVerificationError(
@@ -564,26 +612,26 @@ async function verifyPackageAgainstSuppliedIdentity(input: {
       /\.git$/u,
       "",
     );
-    if (remote !== input.identity.repository) {
+    if (remote !== identity.repository) {
       throw new SafeVerificationError(
         "Product Git remote does not match candidate identity",
       );
     }
-    if ((await gitOutput(root, ["rev-parse", "HEAD"])) !== input.identity.commit) {
+    if ((await gitOutput(root, ["rev-parse", "HEAD"])) !== identity.commit) {
       throw new SafeVerificationError(
         "Product Git HEAD does not match candidate identity",
       );
     }
     await verifyGitPackageSurface(root, files);
     const packageDigest = sha256(packageZip(files));
-    if (packageDigest !== input.identity.packageDigest) {
+    if (packageDigest !== identity.packageDigest) {
       throw new SafeVerificationError(
         "Product package digest does not match candidate identity",
       );
     }
-    verifyPluginIdentity(files, input.identity);
-    const capabilityContractDigest = verifyCapabilityContract(files, input.identity);
-    const metadata = boundaryFromIdentity(input.identity);
+    verifyPluginIdentity(files, identity);
+    const capabilityContractDigest = verifyCapabilityContract(files, identity);
+    const metadata = boundaryFromIdentity(identity);
     return Object.freeze({
       state: "verified" as const,
       metadata,
@@ -605,8 +653,12 @@ export async function verifyCoffeeChatProductPackage(input: {
   readonly packageRoot: string;
   readonly identity: CoffeeChatProductIdentity;
 }): Promise<ProductPackageVerification> {
+  const verificationInput = Object.freeze({
+    packageRoot: input.packageRoot,
+    identity: snapshotIdentity(input.identity),
+  });
   try {
-    validateAdmittedIdentity(input.identity);
+    validateAdmittedIdentity(verificationInput.identity);
   } catch (error) {
     return Object.freeze({
       state: "unavailable" as const,
@@ -617,7 +669,7 @@ export async function verifyCoffeeChatProductPackage(input: {
           : "Product package verification failed",
     });
   }
-  return verifyPackageAgainstSuppliedIdentity(input);
+  return verifyPackageAgainstSuppliedIdentity(verificationInput);
 }
 
 function verifiedPreflight(): Readonly<{ state: "verified" }> {
@@ -653,7 +705,7 @@ function unavailableCandidateTransport(
   reason: string,
 ): UnavailableCoffeeChatProductCandidateTransport {
   const productBoundary = boundaryFromIdentity(identity);
-  return Object.freeze({
+  const transport: UnavailableCoffeeChatProductCandidateTransport = Object.freeze({
     kind: "coffee_chat_product" as const,
     productBoundary,
     productHostPreflight: unavailablePreflight(reason),
@@ -663,6 +715,8 @@ function unavailableCandidateTransport(
       failureOwner: "host" as const,
     }),
   });
+  unavailableProductCandidateTransports.add(transport);
+  return transport;
 }
 
 export class ProductHostUnavailableError extends Error {
@@ -675,12 +729,14 @@ function unavailableInteractiveTransport(
   reason: string,
 ): UnavailableCoffeeChatProductInteractiveTransport {
   const batch = unavailableCandidateTransport(identity, reason);
-  return Object.freeze({
+  const transport: UnavailableCoffeeChatProductInteractiveTransport = Object.freeze({
     ...batch,
     openSession: async () => {
       throw new ProductHostUnavailableError(reason);
     },
   });
+  unavailableProductCandidateTransports.add(transport);
+  return transport;
 }
 
 function unavailableCandidatePreparation(
@@ -717,13 +773,16 @@ async function prepareCandidateTransportWithVerifier(
   },
   verifier: typeof verifyCoffeeChatProductPackage,
 ): Promise<PreparedCoffeeChatProductCandidateTransport> {
-  const verification = await verifier(input);
+  const packageRoot = input.packageRoot;
+  const identity = snapshotIdentity(input.identity);
+  const delegate = input.delegate;
+  const verification = await verifier({ packageRoot, identity });
   if (verification.state !== "verified") {
-    return unavailableCandidatePreparation(input.identity, verification.reason);
+    return unavailableCandidatePreparation(identity, verification.reason);
   }
-  if (input.delegate.kind !== "agent_stack") {
+  if (delegate.kind !== "agent_stack") {
     return unavailableCandidatePreparation(
-      input.identity,
+      identity,
       "Product reference host delegate must be agent_stack",
     );
   }
@@ -731,8 +790,9 @@ async function prepareCandidateTransportWithVerifier(
     kind: "coffee_chat_product" as const,
     productBoundary: verification.metadata,
     productHostPreflight: verifiedPreflight(),
-    run: (request: unknown) => input.delegate.run(request),
+    run: (request: unknown) => delegate.run(request),
   });
+  verifiedProductCandidateDelegates.set(transport, delegate);
   return Object.freeze({
     state: "verified" as const,
     metadata: verification.metadata,
@@ -780,13 +840,16 @@ async function prepareInteractiveTransportWithVerifier(
   },
   verifier: typeof verifyCoffeeChatProductPackage,
 ): Promise<PreparedCoffeeChatProductInteractiveTransport> {
-  const verification = await verifier(input);
+  const packageRoot = input.packageRoot;
+  const identity = snapshotIdentity(input.identity);
+  const delegate = input.delegate;
+  const verification = await verifier({ packageRoot, identity });
   if (verification.state !== "verified") {
-    return unavailableInteractivePreparation(input.identity, verification.reason);
+    return unavailableInteractivePreparation(identity, verification.reason);
   }
-  if (input.delegate.kind !== "agent_stack") {
+  if (delegate.kind !== "agent_stack") {
     return unavailableInteractivePreparation(
-      input.identity,
+      identity,
       "Product reference host delegate must be agent_stack",
     );
   }
@@ -794,8 +857,8 @@ async function prepareInteractiveTransportWithVerifier(
     kind: "coffee_chat_product" as const,
     productBoundary: verification.metadata,
     productHostPreflight: verifiedPreflight(),
-    run: (request: unknown) => input.delegate.run(request),
-    openSession: (request: unknown) => input.delegate.openSession(request),
+    run: (request: unknown) => delegate.run(request),
+    openSession: (request: unknown) => delegate.openSession(request),
   });
   return Object.freeze({
     state: "verified" as const,

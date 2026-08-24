@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
+import { createServer } from "node:http";
 import {
   chmod,
   mkdir,
@@ -24,12 +25,14 @@ import type {
 } from "../src/eval-core.ts";
 import {
   calculateProductPackageDigest,
+  coffeeChatProductCandidateTransportMatchesRuntime,
   prepareCoffeeChatProductCandidateTransport,
   ProductHostUnavailableError,
   productHostTestOnly,
   verifyCoffeeChatProductPackage,
   type CoffeeChatProductCandidateMetadata,
 } from "../src/product-host.ts";
+import { createResponsesCandidateTransport } from "../src/transports.ts";
 import type { CoffeeChatProductIdentity } from "../src/runtime-config.ts";
 
 const execute = promisify(execFile);
@@ -406,6 +409,150 @@ test("wraps batch transport without changing calls or executing a Product Skill"
       state: "verified",
     });
   } finally {
+    await rm(fixture.root, { recursive: true, force: true });
+  }
+});
+
+test("preserves the factory-bound Responses runtime only through verified Product preparation", async () => {
+  const fixture = await createProductFixture();
+  const runtime = Object.freeze({
+    endpoint: "http://127.0.0.1:4311/",
+    capabilityToken: "candidate-capability",
+    model: "gpt-5.6-luna",
+  });
+  const delegate = createResponsesCandidateTransport({
+    kind: "agent_stack",
+    endpoint: runtime.endpoint,
+    capability: runtime.capabilityToken,
+    model: runtime.model,
+    evidenceRoot: fixture.root,
+  });
+  try {
+    const prepared = await productHostTestOnly.prepareCandidateTransport({
+      packageRoot: fixture.root,
+      identity: fixture.identity,
+      delegate,
+    });
+    assert.equal(prepared.state, "verified");
+    if (prepared.state !== "verified") return;
+
+    assert.equal(
+      coffeeChatProductCandidateTransportMatchesRuntime(
+        prepared.transport,
+        runtime,
+        fixture.root,
+      ),
+      true,
+    );
+    assert.equal(
+      coffeeChatProductCandidateTransportMatchesRuntime(
+        { ...prepared.transport },
+        runtime,
+        fixture.root,
+      ),
+      false,
+    );
+    for (const drifted of [
+      { ...runtime, endpoint: "http://127.0.0.1:4312/" },
+      { ...runtime, capabilityToken: "different-capability" },
+      { ...runtime, model: "gpt-5.6-terra" },
+    ]) {
+      assert.equal(
+        coffeeChatProductCandidateTransportMatchesRuntime(
+          prepared.transport,
+          drifted,
+          fixture.root,
+        ),
+        false,
+      );
+    }
+    assert.equal(
+      coffeeChatProductCandidateTransportMatchesRuntime(
+        prepared.transport,
+        runtime,
+        `${fixture.root}-drifted`,
+      ),
+      false,
+    );
+  } finally {
+    await rm(fixture.root, { recursive: true, force: true });
+  }
+});
+
+test("verified Product preparation snapshots a mutable caller delegate before awaiting verification", async () => {
+  const fixture = await createProductFixture();
+  const evidenceRoot = await mkdtemp(join(tmpdir(), "coffee-chat-product-evidence-"));
+  let originalCalls = 0;
+  let maliciousCalls = 0;
+  const server = createServer((request, response) => {
+    originalCalls += 1;
+    request.resume();
+    response.writeHead(200, { "content-type": "application/json" });
+    response.end(
+      JSON.stringify({ status: "completed", output_text: "original delegate" }),
+    );
+  });
+  let listening = false;
+  try {
+    await new Promise<void>((resolve, reject) => {
+      server.once("error", reject);
+      server.listen(0, "127.0.0.1", resolve);
+    });
+    listening = true;
+    const address = server.address();
+    assert.ok(address !== null && typeof address !== "string");
+    const runtime = Object.freeze({
+      endpoint: `http://127.0.0.1:${address.port}/`,
+      capabilityToken: "candidate-capability",
+      model: "gpt-5.6-luna",
+    });
+    const originalDelegate = createResponsesCandidateTransport({
+      kind: "agent_stack",
+      endpoint: runtime.endpoint,
+      capability: runtime.capabilityToken,
+      model: runtime.model,
+      evidenceRoot,
+    });
+    const preparation: {
+      packageRoot: string;
+      identity: CoffeeChatProductIdentity;
+      delegate: CandidateTransport;
+    } = {
+      packageRoot: fixture.root,
+      identity: fixture.identity,
+      delegate: originalDelegate,
+    };
+    const prepared = await productHostTestOnly.prepareCandidateTransport(preparation);
+    assert.equal(prepared.state, "verified");
+    if (prepared.state !== "verified") return;
+
+    preparation.delegate = Object.freeze({
+      kind: "agent_stack" as const,
+      run: async () => {
+        maliciousCalls += 1;
+        return measuredResult();
+      },
+    });
+
+    assert.equal(
+      coffeeChatProductCandidateTransportMatchesRuntime(
+        prepared.transport,
+        runtime,
+        evidenceRoot,
+      ),
+      true,
+    );
+    const result = await prepared.transport.run({ input: "binding regression" });
+    assert.equal(result.state, "measured");
+    assert.equal(originalCalls, 1);
+    assert.equal(maliciousCalls, 0);
+  } finally {
+    if (listening) {
+      await new Promise<void>((resolve, reject) =>
+        server.close((error) => (error === undefined ? resolve() : reject(error))),
+      );
+    }
+    await rm(evidenceRoot, { recursive: true, force: true });
     await rm(fixture.root, { recursive: true, force: true });
   }
 });

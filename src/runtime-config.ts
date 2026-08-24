@@ -303,6 +303,34 @@ export function candidateIdentityDigest(config: CandidateIdentityConfig): Sha256
   return stableDigest(config);
 }
 
+function canonicalCoffeeChatProductCandidateIdentity(): CoffeeChatProductCandidateIdentityConfig {
+  const identity = parseCandidateIdentityConfig({
+    schema: "candidate-config-v1",
+    candidateType: "coffee_chat_product",
+    harness: COFFEE_CHAT_PRODUCT_HARNESS,
+    model: COFFEE_CHAT_PRODUCT_MODEL,
+    seed: COFFEE_CHAT_PRODUCT_SEED,
+    product: {
+      repository: COFFEE_CHAT_PRODUCT_REPOSITORY,
+      commit: COFFEE_CHAT_PRODUCT_COMMIT,
+      calver: COFFEE_CHAT_PRODUCT_CALVER,
+      packageDigest: COFFEE_CHAT_PRODUCT_PACKAGE_DIGEST,
+      mode: "connectivity_only",
+    },
+  });
+  if (identity.candidateType !== "coffee_chat_product") {
+    throw new TypeError("canonical Product candidate identity is invalid");
+  }
+  return identity;
+}
+
+/** Exact immutable identity admitted for Product connectivity-only smoke runs. */
+export const COFFEE_CHAT_PRODUCT_CANDIDATE_IDENTITY =
+  canonicalCoffeeChatProductCandidateIdentity();
+export const COFFEE_CHAT_PRODUCT_CANDIDATE_DIGEST = candidateIdentityDigest(
+  COFFEE_CHAT_PRODUCT_CANDIDATE_IDENTITY,
+);
+
 export function judgeIdentityDigest(config: JudgeIdentityConfig): Sha256Digest {
   return stableDigest(config);
 }
