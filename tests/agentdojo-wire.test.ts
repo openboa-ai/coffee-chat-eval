@@ -457,6 +457,242 @@ print(json.dumps(outcomes, sort_keys=True))
   });
 });
 
+test("AgentDojo broker records provider-context failure without tainting candidate failures", () => {
+  const observed = runPython(String.raw`
+import importlib.util
+import json
+import sys
+import types
+import urllib.error
+from types import SimpleNamespace
+
+agentdojo = types.ModuleType("agentdojo")
+functions_runtime = types.ModuleType("agentdojo.functions_runtime")
+agentdojo_types = types.ModuleType("agentdojo.types")
+
+class FunctionCall:
+    def __init__(self, function, args, id=None):
+        self.function = function
+        self.args = args
+        self.id = id
+
+functions_runtime.FunctionCall = FunctionCall
+agentdojo_types.text_content_block_from_string = lambda content: {"type": "text", "content": content}
+sys.modules["agentdojo"] = agentdojo
+sys.modules["agentdojo.functions_runtime"] = functions_runtime
+sys.modules["agentdojo.types"] = agentdojo_types
+
+spec = importlib.util.spec_from_file_location("coffee_chat_agentdojo_bridge", sys.argv[1])
+bridge = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(bridge)
+
+runtime = SimpleNamespace(functions={})
+messages = [{"role": "user", "content": [{"type": "text", "content": "safe task"}]}]
+
+def unavailable(_request, timeout):
+    raise urllib.error.URLError("provider down")
+
+bridge.urllib.request.urlopen = unavailable
+provider_broker = bridge.BrokerLLMElement(
+    "http://127.0.0.1:4311/responses", "scoped-capability", "gpt-5.6-luna", 45
+)
+try:
+    provider_broker.query("", runtime, messages=messages)
+except bridge.BrokerUnavailable:
+    pass
+
+class Response:
+    def __enter__(self):
+        return self
+    def __exit__(self, *_args):
+        return False
+    def read(self):
+        return json.dumps({
+            "status": "completed",
+            "output": [{
+                "type": "function_call",
+                "call_id": "call_1",
+                "name": "lookup",
+                "arguments": "not-json",
+            }],
+        }).encode("utf-8")
+
+bridge.urllib.request.urlopen = lambda _request, timeout: Response()
+candidate_broker = bridge.BrokerLLMElement(
+    "http://127.0.0.1:4311/responses", "scoped-capability", "gpt-5.6-luna", 45
+)
+try:
+    candidate_broker.query("", runtime, messages=messages)
+except bridge.CandidateOutputInvalid:
+    pass
+
+print(json.dumps({
+    "provider": getattr(provider_broker, "provider_context_failure", None),
+    "candidate": getattr(candidate_broker, "provider_context_failure", None),
+}, sort_keys=True))
+`);
+
+  assert.deepEqual(observed, {
+    candidate: false,
+    provider: true,
+  });
+});
+
+test("AgentDojo native run separates a direct outage from contaminated completion", () => {
+  const observed = runPython(String.raw`
+import importlib.util
+import json
+import sys
+import tempfile
+import types
+import urllib.error
+from pathlib import Path
+from types import SimpleNamespace
+
+spec = importlib.util.spec_from_file_location("coffee_chat_agentdojo_bridge", sys.argv[1])
+bridge = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(bridge)
+
+base_pipeline = types.ModuleType("agentdojo.agent_pipeline.base_pipeline_element")
+agent_pipeline = types.ModuleType("agentdojo.agent_pipeline.agent_pipeline")
+attacks = types.ModuleType("agentdojo.attacks")
+benchmark = types.ModuleType("agentdojo.benchmark")
+logging_module = types.ModuleType("agentdojo.logging")
+load_suites = types.ModuleType("agentdojo.task_suite.load_suites")
+
+class BasePipelineElement:
+    pass
+
+class PipelineConfig:
+    def __init__(self, **values):
+        self.__dict__.update(values)
+
+class AgentPipeline:
+    @classmethod
+    def from_config(cls, config):
+        return SimpleNamespace(llm=config.llm, name=config.llm.name)
+
+class OutputLogger:
+    def __init__(self, _path):
+        pass
+    def __enter__(self):
+        return self
+    def __exit__(self, *_args):
+        return False
+
+mode = ""
+
+def benchmark_without(pipeline, _suite, **_kwargs):
+    try:
+        pipeline.llm.query(
+            "",
+            SimpleNamespace(functions={}),
+            messages=[{
+                "role": "user",
+                "content": [{"type": "text", "content": "safe task"}],
+            }],
+        )
+    except bridge.BrokerUnavailable:
+        if mode == "direct":
+            raise
+    return {
+        "utility_results": {("user_task_0", ""): False},
+        "security_results": {("user_task_0", ""): True},
+        "injection_tasks_utility_results": {},
+    }
+
+def benchmark_with(_pipeline, _suite, _attack, **_kwargs):
+    return {
+        "utility_results": {("user_task_0", "injection_task_0"): False},
+        "security_results": {("user_task_0", "injection_task_0"): True},
+        "injection_tasks_utility_results": {"injection_task_0": False},
+    }
+
+base_pipeline.BasePipelineElement = BasePipelineElement
+agent_pipeline.AgentPipeline = AgentPipeline
+agent_pipeline.PipelineConfig = PipelineConfig
+attacks.load_attack = lambda *_args: SimpleNamespace()
+benchmark.benchmark_suite_without_injections = benchmark_without
+benchmark.benchmark_suite_with_injections = benchmark_with
+logging_module.OutputLogger = OutputLogger
+load_suites.get_suite = lambda *_args: SimpleNamespace(user_tasks={}, injection_tasks={})
+bridge.urllib.request.urlopen = lambda *_args, **_kwargs: (_ for _ in ()).throw(
+    urllib.error.URLError("provider down")
+)
+
+modules = {
+    "agentdojo": types.ModuleType("agentdojo"),
+    "agentdojo.agent_pipeline": types.ModuleType("agentdojo.agent_pipeline"),
+    "agentdojo.agent_pipeline.base_pipeline_element": base_pipeline,
+    "agentdojo.agent_pipeline.agent_pipeline": agent_pipeline,
+    "agentdojo.attacks": attacks,
+    "agentdojo.benchmark": benchmark,
+    "agentdojo.logging": logging_module,
+    "agentdojo.task_suite": types.ModuleType("agentdojo.task_suite"),
+    "agentdojo.task_suite.load_suites": load_suites,
+}
+sys.modules.update(modules)
+
+outcomes = {}
+for current_mode in ("direct", "contaminated"):
+    mode = current_mode
+    with tempfile.TemporaryDirectory() as directory:
+        root = Path(directory)
+        source_root = root / "source"
+        evidence_root = root / "evidence"
+        source_root.mkdir()
+        evidence_root.mkdir()
+        runtime_path = root / "runtime.json"
+        runtime_path.write_text(json.dumps({
+            "scope": "candidate",
+            "endpoint": "http://127.0.0.1:4311/responses",
+            "capabilityToken": "scoped-capability",
+            "model": "gpt-5.6-luna",
+            "maxRequests": 45,
+        }), encoding="utf-8")
+        output_path = root / "native.json"
+        bridge.run(
+            source_root,
+            evidence_root,
+            output_path,
+            runtime_path,
+            profile="smoke",
+        )
+        payload = json.loads(output_path.read_text(encoding="utf-8"))
+        outcomes[current_mode] = {
+            "status": payload["status"],
+            "failureOwner": payload.get("failureOwner"),
+            "providerContextFailure": payload.get("providerContextFailure"),
+            "episodeCount": len(payload["episodes"]),
+            "hasMetrics": any(key in payload for key in (
+                "benignUtility",
+                "utilityUnderAttack",
+                "targetedASR",
+                "injectionTaskSolvability",
+            )),
+        }
+
+print(json.dumps(outcomes, sort_keys=True))
+`);
+
+  assert.deepEqual(observed, {
+    contaminated: {
+      episodeCount: 3,
+      failureOwner: "host",
+      hasMetrics: false,
+      providerContextFailure: true,
+      status: "invalid",
+    },
+    direct: {
+      episodeCount: 0,
+      failureOwner: "host",
+      hasMetrics: false,
+      providerContextFailure: true,
+      status: "unavailable",
+    },
+  });
+});
+
 test("AgentDojo bridge derives the turn ceiling from each admitted profile", () => {
   const observed = runPython(String.raw`
 import importlib.util

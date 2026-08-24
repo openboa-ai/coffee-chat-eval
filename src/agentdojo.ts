@@ -521,6 +521,10 @@ export function createAgentDojoTrackExecutor(
       native.status === "unavailable" &&
       native.failureOwner === "host" &&
       native.providerContextFailure === true;
+    const providerContaminated =
+      native.status === "invalid" &&
+      native.failureOwner === "host" &&
+      native.providerContextFailure === true;
     const failedOwner =
       native.failureOwner === "candidate" ||
       native.failureOwner === "adapter" ||
@@ -531,7 +535,7 @@ export function createAgentDojoTrackExecutor(
       native.status === "failed" &&
       failedOwner !== undefined &&
       native.providerContextFailure === false;
-    if (!measured && !providerUnavailable && !failed) {
+    if (!measured && !providerUnavailable && !providerContaminated && !failed) {
       throw new TypeError("AgentDojo native failure taxonomy is invalid");
     }
     const episodes = native.episodes;
@@ -568,6 +572,18 @@ export function createAgentDojoTrackExecutor(
       throw new TypeError("AgentDojo candidate turn cap is invalid");
     }
     if (providerUnavailable) {
+      return Object.freeze({
+        executionStatus: "unavailable" as const,
+        failureOwner: "host" as const,
+        trialReceipts: Object.freeze([]),
+        metrics: Object.freeze({
+          execution: Object.freeze({ numerator: null, denominator: null, value: null }),
+        }),
+        nativeEvidence,
+        cleanupStatus: "complete" as const,
+      });
+    }
+    if (providerContaminated) {
       return Object.freeze({
         executionStatus: "invalid" as const,
         failureOwner: "host" as const,

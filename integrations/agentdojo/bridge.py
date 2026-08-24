@@ -450,6 +450,7 @@ class BrokerLLMElement:
         self.model = model
         self.max_requests = max_requests
         self.calls = 0
+        self.provider_context_failure = False
 
     def query(
         self,
@@ -460,34 +461,38 @@ class BrokerLLMElement:
         extra_args: dict[str, Any] | None = None,
     ) -> tuple[str, Any, Any, Sequence[dict[str, Any]], dict[str, Any]]:
         del query
-        if self.calls >= self.max_requests:
-            raise BrokerUnavailable("candidate capability request cap exceeded")
-        next_extra_args = dict(extra_args or {})
-        replay_groups = next_extra_args.get(RESPONSES_REPLAY_STATE, [])
-        if not isinstance(replay_groups, list):
-            raise BrokerUnavailable("Responses replay context is invalid")
-        payload = {
-            "model": self.model,
-            "input": _messages_to_responses_input(messages, replay_groups),
-            "include": ["reasoning.encrypted_content"],
-            "store": False,
-            "tools": _tool_schema(runtime),
-        }
-        request = urllib.request.Request(
-            self.endpoint,
-            data=json.dumps(payload, sort_keys=True).encode("utf-8"),
-            headers={"authorization": f"Bearer {self.capability}", "content-type": "application/json"},
-            method="POST",
-        )
         try:
-            with urllib.request.urlopen(request, timeout=60) as response:
-                result = json.loads(response.read().decode("utf-8"))
-        except (OSError, UnicodeDecodeError, urllib.error.URLError, json.JSONDecodeError) as exc:
-            raise BrokerUnavailable("broker/context unavailable") from exc
-        assistant = _response_assistant(result)
-        replay_group = _response_replay_group(result)
-        if replay_group is not None:
-            next_extra_args[RESPONSES_REPLAY_STATE] = [*replay_groups, replay_group]
+            if self.calls >= self.max_requests:
+                raise BrokerUnavailable("candidate capability request cap exceeded")
+            next_extra_args = dict(extra_args or {})
+            replay_groups = next_extra_args.get(RESPONSES_REPLAY_STATE, [])
+            if not isinstance(replay_groups, list):
+                raise BrokerUnavailable("Responses replay context is invalid")
+            payload = {
+                "model": self.model,
+                "input": _messages_to_responses_input(messages, replay_groups),
+                "include": ["reasoning.encrypted_content"],
+                "store": False,
+                "tools": _tool_schema(runtime),
+            }
+            request = urllib.request.Request(
+                self.endpoint,
+                data=json.dumps(payload, sort_keys=True).encode("utf-8"),
+                headers={"authorization": f"Bearer {self.capability}", "content-type": "application/json"},
+                method="POST",
+            )
+            try:
+                with urllib.request.urlopen(request, timeout=60) as response:
+                    result = json.loads(response.read().decode("utf-8"))
+            except (OSError, UnicodeDecodeError, urllib.error.URLError, json.JSONDecodeError) as exc:
+                raise BrokerUnavailable("broker/context unavailable") from exc
+            assistant = _response_assistant(result)
+            replay_group = _response_replay_group(result)
+            if replay_group is not None:
+                next_extra_args[RESPONSES_REPLAY_STATE] = [*replay_groups, replay_group]
+        except BrokerUnavailable:
+            self.provider_context_failure = True
+            raise
         self.calls += 1
         return "", runtime, env, [*messages, assistant], next_extra_args
 
@@ -649,7 +654,7 @@ def run(
     max_candidate_turns = _candidate_turn_ceiling(profile, len(selected_episodes))
     results: list[dict[str, Any]] = []
     trace_attempt = uuid4().hex
-    provider_context_failure = False
+    direct_provider_context_failure = False
     failure_owner: str | None = None
     for suite_name in (("workspace",) if profile in {"smoke", "pilot"} else SUITES):
         suite = get_suite(benchmark_version, suite_name)
@@ -697,7 +702,7 @@ def run(
         except CandidateOutputInvalid:
             failure_owner = "candidate"
         except BrokerUnavailable:
-            provider_context_failure = True
+            direct_provider_context_failure = True
             failure_owner = "host"
         except Exception as exc:
             print(
@@ -707,7 +712,20 @@ def run(
             failure_owner = failure_owner or "adapter"
         if failure_owner is not None:
             break
-    if provider_context_failure or failure_owner is not None or len(results) != len(selected_episodes):
+    contaminated_provider_context = broker.provider_context_failure and not direct_provider_context_failure
+    if (
+        contaminated_provider_context
+        or direct_provider_context_failure
+        or failure_owner is not None
+        or len(results) != len(selected_episodes)
+    ):
+        if contaminated_provider_context:
+            status = "invalid"
+            failure_owner = "host"
+        elif direct_provider_context_failure:
+            status = "unavailable"
+        else:
+            status = "failed"
         _write_once(
             output,
             {
@@ -719,9 +737,9 @@ def run(
                 "profile": profile,
                 "candidateCalls": broker.calls,
                 "maxCandidateTurns": max_candidate_turns,
-                "status": "unavailable" if provider_context_failure else "failed",
+                "status": status,
                 "failureOwner": failure_owner or "artifact",
-                "providerContextFailure": provider_context_failure,
+                "providerContextFailure": contaminated_provider_context or direct_provider_context_failure,
                 "publishedTableComparable": False,
                 "episodes": results,
                 "traceAttempt": trace_attempt,
