@@ -32,6 +32,7 @@ import { materializeSource } from "../src/source-cache.ts";
 import { getSourceManifest } from "../src/source-manifests.ts";
 import {
   createFixtureCandidateTransport,
+  createResponsesCandidateTransport,
   createResponsesJudgeTransport,
 } from "../src/transports.ts";
 import { executeImmutableRun, validateRuntimeForRun } from "../src/run-engine.ts";
@@ -261,31 +262,28 @@ async function executeUntrustedJudge(input: {
   readonly fixture?: ReturnType<typeof liveJudgeBindingFixture>;
 }) {
   const fixture = input.fixture ?? liveJudgeBindingFixture(input.trackId);
-  let candidateCalls = 0;
+  const runtime = input.runtime ?? fixture.runtime;
+  const candidate = createResponsesCandidateTransport({
+    kind: "agent_stack",
+    endpoint: runtime.candidate.endpoint,
+    capability: runtime.candidate.capabilityToken,
+    model: runtime.candidate.model,
+    evidenceRoot: fixture.plan.evidenceRoot,
+  });
   const result = await executeImmutableRun({
     plan: fixture.plan,
     manifest: fixture.manifest,
-    candidate: {
-      kind: "agent_stack",
-      run: async () => {
-        candidateCalls += 1;
-        return {
-          state: "failed" as const,
-          reason: "untrusted Judge reached native evaluation",
-          failureOwner: "candidate" as const,
-        };
-      },
-    },
+    candidate,
     judge: input.judge,
-    runtime: input.runtime ?? fixture.runtime,
+    runtime,
   });
-  return { candidateCalls, fixture, result };
+  return { fixture, result };
 }
 
 test("live native-Judge tracks reject arbitrary Judge transports before evaluation", async () => {
   for (const trackId of ["coffee-chat-taste", "beam-record-core"] as const) {
     let judgeCalls = 0;
-    const { candidateCalls, fixture, result } = await executeUntrustedJudge({
+    const { fixture, result } = await executeUntrustedJudge({
       trackId,
       judge: {
         kind: "sealed-judge",
@@ -302,9 +300,152 @@ test("live native-Judge tracks reject arbitrary Judge transports before evaluati
     try {
       assert.equal(result.trackReport.executionStatus, "invalid");
       assert.equal(result.publicReceipt.failureOwner, "verifier");
-      assert.equal(candidateCalls, 0);
       assert.equal(judgeCalls, 0);
       assert.match(privateFailureReason(result), /Judge transport is not bound/u);
+    } finally {
+      rmSync(fixture.root, { recursive: true, force: true });
+    }
+  }
+});
+
+test("live standard candidates require a factory-bound Responses transport before native dispatch", async () => {
+  for (const candidateType of ["reference_model", "agent_stack"] as const) {
+    const fixture = liveJudgeBindingFixture("coffee-chat-taste");
+    let candidateCalls = 0;
+    try {
+      const plan = Object.freeze({
+        ...fixture.plan,
+        runSpec: Object.freeze({
+          ...fixture.plan.runSpec!,
+          candidateType,
+        }),
+      });
+      const judgeRuntime = fixture.runtime.judge!;
+      const judge = createResponsesJudgeTransport({
+        endpoint: judgeRuntime.endpoint,
+        capability: judgeRuntime.capabilityToken,
+        model: judgeRuntime.model,
+        evidenceRoot: plan.evidenceRoot,
+      });
+      const result = await executeImmutableRun({
+        plan,
+        manifest: fixture.manifest,
+        candidate: {
+          kind: candidateType,
+          run: async () => {
+            candidateCalls += 1;
+            return {
+              state: "failed" as const,
+              reason: "arbitrary candidate reached native execution",
+              failureOwner: "candidate" as const,
+            };
+          },
+        },
+        judge,
+        runtime: fixture.runtime,
+      });
+
+      assert.equal(result.trackReport.executionStatus, "invalid");
+      assert.equal(result.publicReceipt.failureOwner, "verifier");
+      assert.equal(candidateCalls, 0);
+      assert.match(
+        privateFailureReason(result),
+        /candidate transport is not bound to the normalized Responses candidate runtime/u,
+      );
+    } finally {
+      rmSync(fixture.root, { recursive: true, force: true });
+    }
+  }
+});
+
+test("live standard candidates preserve the factory binding through run validation", async () => {
+  const fixture = liveJudgeBindingFixture("coffee-chat-taste");
+  try {
+    const candidateRuntime = fixture.runtime.candidate;
+    const candidate = createResponsesCandidateTransport({
+      kind: "agent_stack",
+      endpoint: candidateRuntime.endpoint,
+      capability: candidateRuntime.capabilityToken,
+      model: candidateRuntime.model,
+      evidenceRoot: fixture.plan.evidenceRoot,
+    });
+    const judgeRuntime = fixture.runtime.judge!;
+    const judge = createResponsesJudgeTransport({
+      endpoint: judgeRuntime.endpoint,
+      capability: judgeRuntime.capabilityToken,
+      model: judgeRuntime.model,
+      evidenceRoot: fixture.plan.evidenceRoot,
+    });
+    const result = await executeImmutableRun({
+      plan: fixture.plan,
+      manifest: fixture.manifest,
+      candidate,
+      judge,
+      runtime: fixture.runtime,
+    });
+
+    assert.equal(result.trackReport.executionStatus, "unavailable");
+    assert.equal(result.publicReceipt.failureOwner, "source");
+    assert.doesNotMatch(privateFailureReason(result), /transport is not bound/u);
+  } finally {
+    rmSync(fixture.root, { recursive: true, force: true });
+  }
+});
+
+test("live standard candidates reject copied bindings and runtime or evidence drift", async () => {
+  const driftCases = [
+    { kind: "copy" as const },
+    { kind: "evidence" as const },
+    { kind: "runtime" as const, candidate: { endpoint: "http://127.0.0.1:4313" } },
+    {
+      kind: "runtime" as const,
+      candidate: { capabilityToken: "different-candidate-capability" },
+    },
+    { kind: "runtime" as const, candidate: { model: "gpt-5.6-terra" } },
+  ];
+  for (const drift of driftCases) {
+    const fixture = liveJudgeBindingFixture("coffee-chat-taste");
+    try {
+      const candidateRuntime = fixture.runtime.candidate;
+      const minted = createResponsesCandidateTransport({
+        kind: "agent_stack",
+        endpoint: candidateRuntime.endpoint,
+        capability: candidateRuntime.capabilityToken,
+        model: candidateRuntime.model,
+        evidenceRoot:
+          drift.kind === "evidence"
+            ? `${fixture.plan.evidenceRoot}-drifted`
+            : fixture.plan.evidenceRoot,
+      });
+      const candidate = drift.kind === "copy" ? { ...minted } : minted;
+      const runtime =
+        drift.kind === "runtime"
+          ? parseRuntimeBundleConfig({
+              ...fixture.runtime,
+              candidate: { ...fixture.runtime.candidate, ...drift.candidate },
+            })
+          : fixture.runtime;
+      const judgeRuntime = runtime.judge!;
+      const judge = createResponsesJudgeTransport({
+        endpoint: judgeRuntime.endpoint,
+        capability: judgeRuntime.capabilityToken,
+        model: judgeRuntime.model,
+        evidenceRoot: fixture.plan.evidenceRoot,
+      });
+      const result = await executeImmutableRun({
+        plan: fixture.plan,
+        manifest: fixture.manifest,
+        candidate,
+        judge,
+        runtime,
+      });
+
+      assert.equal(result.trackReport.executionStatus, "invalid");
+      assert.equal(result.publicReceipt.failureOwner, "verifier");
+      assert.match(
+        privateFailureReason(result),
+        /candidate transport is not bound to the normalized Responses candidate runtime/u,
+      );
     } finally {
       rmSync(fixture.root, { recursive: true, force: true });
     }
@@ -329,14 +470,13 @@ test("live native-Judge tracks reject a structural copy of a factory transport",
       },
     };
     try {
-      const { candidateCalls, result } = await executeUntrustedJudge({
+      const { result } = await executeUntrustedJudge({
         trackId,
         fixture,
         judge: copied,
       });
       assert.equal(result.trackReport.executionStatus, "invalid");
       assert.equal(result.publicReceipt.failureOwner, "verifier");
-      assert.equal(candidateCalls, 0);
       assert.equal(judgeCalls, 0);
       assert.match(privateFailureReason(result), /Judge transport is not bound/u);
     } finally {
@@ -365,7 +505,7 @@ test("live native-Judge tracks reject endpoint, capability, or model runtime dri
       judge: { ...fixture.runtime.judge!, ...drift },
     });
     try {
-      const { candidateCalls, result } = await executeUntrustedJudge({
+      const { result } = await executeUntrustedJudge({
         trackId,
         fixture,
         judge,
@@ -373,7 +513,6 @@ test("live native-Judge tracks reject endpoint, capability, or model runtime dri
       });
       assert.equal(result.trackReport.executionStatus, "invalid");
       assert.equal(result.publicReceipt.failureOwner, "verifier");
-      assert.equal(candidateCalls, 0);
       assert.match(privateFailureReason(result), /Judge transport is not bound/u);
     } finally {
       rmSync(fixture.root, { recursive: true, force: true });

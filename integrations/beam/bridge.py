@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import http.client
 import json
 import math
 import os
@@ -221,7 +222,12 @@ class BrokerJudge:
         try:
             with urllib.request.urlopen(request, timeout=30) as response:
                 response_bytes = response.read()
-        except (urllib.error.HTTPError, urllib.error.URLError, OSError) as exc:
+        except (
+            http.client.HTTPException,
+            urllib.error.HTTPError,
+            urllib.error.URLError,
+            OSError,
+        ) as exc:
             raise JudgeUnavailableError(JUDGE_UNAVAILABLE_REASON) from exc
         try:
             payload = json.loads(response_bytes.decode("utf-8"))

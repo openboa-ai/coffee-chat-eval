@@ -9,6 +9,7 @@ evidence; prompts, tool results and traces stay below EVIDENCE_ROOT.
 from __future__ import annotations
 
 import argparse
+import http.client
 import json
 import sys
 import urllib.error
@@ -506,7 +507,7 @@ class BrokerLLMElement:
             try:
                 with urllib.request.urlopen(request, timeout=60) as response:
                     response_bytes = response.read()
-            except (OSError, urllib.error.URLError) as exc:
+            except (OSError, http.client.HTTPException, urllib.error.URLError) as exc:
                 raise BrokerUnavailable("broker/context unavailable") from exc
             try:
                 result = json.loads(response_bytes.decode("utf-8"))

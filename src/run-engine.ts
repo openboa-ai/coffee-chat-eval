@@ -46,7 +46,10 @@ import {
 import { evalOwnedRuntimeLockForTrack } from "./python-runtime.ts";
 import type { TrackExecutor } from "./track-executor.ts";
 import { getNativeTrackExecutor } from "./native-executors.ts";
-import { responsesJudgeTransportMatchesRuntime } from "./transports.ts";
+import {
+  responsesCandidateTransportMatchesRuntime,
+  responsesJudgeTransportMatchesRuntime,
+} from "./transports.ts";
 import {
   coffeeChatProductCandidateTransportMatchesRuntime,
   isUnavailableCoffeeChatProductCandidateTransport,
@@ -717,6 +720,24 @@ async function executeImmutableRunWithExecutor(
     execution = failureExecution({
       owner: runtimeFailure.failureOwner,
       reason: runtimeFailure.reason,
+      evidence,
+    });
+    return finalize(execution, source);
+  }
+  if (
+    (runSpec.candidateType === "reference_model" ||
+      runSpec.candidateType === "agent_stack") &&
+    (runtime === undefined ||
+      !responsesCandidateTransportMatchesRuntime(
+        input.candidate,
+        runtime.candidate,
+        plan.evidenceRoot,
+      ))
+  ) {
+    execution = failureExecution({
+      owner: "verifier",
+      reason:
+        "live candidate transport is not bound to the normalized Responses candidate runtime",
       evidence,
     });
     return finalize(execution, source);

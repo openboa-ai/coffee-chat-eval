@@ -515,6 +515,7 @@ print(json.dumps(outcomes, sort_keys=True))
 test("AgentDojo broker records provider and adapter failures in separate domains", () => {
   const observed = runPython(String.raw`
 import importlib.util
+import http.client
 import json
 import sys
 import types
@@ -630,6 +631,36 @@ for label, body in {
         "candidate": malformed_broker.candidate_output_failure,
     }
 
+interruptions = {}
+for label, failure in {
+    "incomplete_read": http.client.IncompleteRead(b'{"status":'),
+    "http_exception": http.client.HTTPException("response stream aborted"),
+}.items():
+    class InterruptedResponse:
+        def __enter__(self):
+            return self
+        def __exit__(self, *_args):
+            return False
+        def read(self):
+            raise failure
+
+    bridge.urllib.request.urlopen = lambda _request, timeout: InterruptedResponse()
+    interrupted_broker = bridge.BrokerLLMElement(
+        "http://127.0.0.1:4311/responses", "scoped-capability", "gpt-5.6-luna", 45
+    )
+    try:
+        interrupted_broker.query("", runtime, messages=messages)
+    except Exception as error:
+        exception = type(error).__name__
+    else:
+        exception = "accepted"
+    interruptions[label] = {
+        "exception": exception,
+        "provider": interrupted_broker.provider_context_failure,
+        "adapter": interrupted_broker.adapter_input_failure,
+        "candidate": interrupted_broker.candidate_output_failure,
+    }
+
 print(json.dumps({
     "provider": {
         "provider": getattr(provider_broker, "provider_context_failure", None),
@@ -650,6 +681,7 @@ print(json.dumps({
         "candidate": getattr(candidate_broker, "candidate_output_failure", None),
     },
     "malformed": malformed,
+    "interruptions": interruptions,
 }, sort_keys=True))
 `);
 
@@ -657,6 +689,20 @@ print(json.dumps({
     adapter: { adapter: true, provider: false },
     cap: { adapter: false, exception: "BrokerUnavailable", provider: true },
     candidate: { adapter: false, candidate: true, provider: false },
+    interruptions: {
+      http_exception: {
+        adapter: false,
+        candidate: false,
+        exception: "BrokerUnavailable",
+        provider: true,
+      },
+      incomplete_read: {
+        adapter: false,
+        candidate: false,
+        exception: "BrokerUnavailable",
+        provider: true,
+      },
+    },
     malformed: {
       invalid_json: {
         candidate: true,
@@ -676,6 +722,7 @@ print(json.dumps({
 test("AgentDojo native run separates direct and swallowed provider and adapter failures", () => {
   const observed = runPython(String.raw`
 import importlib.util
+import http.client
 import json
 import sys
 import tempfile
@@ -728,9 +775,10 @@ mode = ""
 def benchmark_without(pipeline, _suite, **_kwargs):
     provider_failure = mode.startswith("provider-")
     candidate_failure = mode.startswith("candidate-")
+    read_failure = mode.startswith("read-")
     messages = (
         [{"role": "user", "content": [{"type": "text", "content": "safe task"}]}]
-        if provider_failure or candidate_failure
+        if provider_failure or candidate_failure or read_failure
         else [{
             "role": "tool",
             "content": [{"type": "text", "content": "orphan result"}],
@@ -802,9 +850,19 @@ class CandidateResponse:
             ],
         }).encode("utf-8")
 
+class InterruptedResponse:
+    def __enter__(self):
+        return self
+    def __exit__(self, *_args):
+        return False
+    def read(self):
+        raise http.client.IncompleteRead(b'{"status":')
+
 def urlopen(*_args, **_kwargs):
     if mode.startswith("candidate-"):
         return CandidateResponse()
+    if mode.startswith("read-"):
+        return InterruptedResponse()
     raise urllib.error.URLError("provider down")
 
 bridge.urllib.request.urlopen = urlopen
@@ -829,6 +887,9 @@ for current_mode in (
     "provider-direct",
     "provider-contaminated",
     "provider-contaminated-then-direct",
+    "read-direct",
+    "read-contaminated",
+    "read-contaminated-then-direct",
     "adapter-direct",
     "adapter-contaminated",
     "adapter-contaminated-then-direct",
@@ -934,6 +995,27 @@ print(json.dumps(outcomes, sort_keys=True))
       status: "invalid",
     },
     "provider-direct": {
+      episodeCount: 0,
+      failureOwner: "host",
+      hasMetrics: false,
+      providerContextFailure: true,
+      status: "unavailable",
+    },
+    "read-contaminated": {
+      episodeCount: 3,
+      failureOwner: "host",
+      hasMetrics: false,
+      providerContextFailure: true,
+      status: "invalid",
+    },
+    "read-contaminated-then-direct": {
+      episodeCount: 0,
+      failureOwner: "host",
+      hasMetrics: false,
+      providerContextFailure: true,
+      status: "invalid",
+    },
+    "read-direct": {
       episodeCount: 0,
       failureOwner: "host",
       hasMetrics: false,

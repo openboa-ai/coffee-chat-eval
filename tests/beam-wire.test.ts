@@ -144,6 +144,7 @@ print(json.dumps(outcomes))
 test("BEAM BrokerJudge separates transport outages from malformed Judge JSON", () => {
   const result = runPython(String.raw`
 import importlib.util
+import http.client
 import io
 import json
 import sys
@@ -174,6 +175,27 @@ for failure in failures:
         judge.invoke("rubric prompt")
     except Exception as error:
         outcomes.append({"type": type(error).__name__, "message": str(error)})
+
+class IncompleteResponse:
+    def __enter__(self):
+        return self
+    def __exit__(self, *_args):
+        return False
+    def read(self):
+        raise http.client.IncompleteRead(b"partial", 12)
+
+bridge.urllib.request.urlopen = lambda _request, timeout: IncompleteResponse()
+judge = bridge.BrokerJudge({
+    "scope": "judge",
+    "endpoint": "http://127.0.0.1/responses",
+    "capabilityToken": "scoped",
+    "model": "gpt-5.6-luna",
+    "maxRequests": 1,
+})
+try:
+    judge.invoke("rubric prompt")
+except Exception as error:
+    outcomes.append({"type": type(error).__name__, "message": str(error)})
 
 class Response:
     def __init__(self, body):
@@ -213,6 +235,10 @@ print(json.dumps(outcomes))
 `);
 
   assert.deepEqual(result, [
+    {
+      type: "JudgeUnavailableError",
+      message: "BEAM Judge broker transport is unavailable",
+    },
     {
       type: "JudgeUnavailableError",
       message: "BEAM Judge broker transport is unavailable",
@@ -303,6 +329,67 @@ with tempfile.TemporaryDirectory() as directory:
     incomplete: unavailable,
     in_progress: unavailable,
     queued: unavailable,
+  });
+});
+
+test("BEAM bridge main maps an incomplete HTTP 200 body to the exact unavailable outcome", () => {
+  const result = runPython(String.raw`
+import http.client
+import importlib.util
+import json
+import sys
+import tempfile
+from pathlib import Path
+
+spec = importlib.util.spec_from_file_location("beam_bridge", sys.argv[1])
+bridge = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(bridge)
+
+with tempfile.TemporaryDirectory() as directory:
+    root = Path(directory)
+    output = root / "beam-native-incomplete-read.json"
+
+    class Response:
+        def __enter__(self):
+            return self
+        def __exit__(self, *_args):
+            return False
+        def read(self):
+            raise http.client.IncompleteRead(b"partial", 12)
+
+    bridge.urllib.request.urlopen = lambda _request, timeout: Response()
+
+    def invoke_incomplete_read(*_args, **_kwargs):
+        judge = bridge.BrokerJudge({
+            "scope": "judge",
+            "endpoint": "http://127.0.0.1/responses",
+            "capabilityToken": "scoped",
+            "model": "gpt-5.6-luna",
+            "maxRequests": 1,
+        })
+        judge.invoke("rubric prompt")
+
+    bridge.run = invoke_incomplete_read
+    sys.argv = [
+        "bridge.py",
+        "--source-root", str(root),
+        "--data-root", str(root),
+        "--query-path", str(root / "queries.json"),
+        "--response-path", str(root / "responses.json"),
+        "--output", str(output),
+        "--tier", "100K",
+        "--profile", "smoke",
+        "--judge-runtime", str(root / "judge.json"),
+    ]
+    bridge.main()
+    print(output.read_text(encoding="utf-8"))
+`);
+
+  assert.deepEqual(result, {
+    schema: "coffee-chat-eval/beam-bridge-outcome-v1",
+    executionStatus: "unavailable",
+    failureOwner: "judge",
+    reason: "BEAM Judge broker transport is unavailable",
   });
 });
 
