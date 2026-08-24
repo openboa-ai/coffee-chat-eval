@@ -56,6 +56,10 @@ class BrokerUnavailable(RuntimeError):
     pass
 
 
+class AdapterInputInvalid(RuntimeError):
+    pass
+
+
 class CandidateOutputInvalid(RuntimeError):
     pass
 
@@ -75,7 +79,7 @@ def _message_text(message: dict[str, Any]) -> str:
     if content is None:
         return ""
     if not isinstance(content, list | tuple):
-        raise BrokerUnavailable("AgentDojo message content is not a native content-block list")
+        raise AdapterInputInvalid("AgentDojo message content is not a native content-block list")
     text: list[str] = []
     for block in content:
         normalized = _json_safe(block)
@@ -84,7 +88,7 @@ def _message_text(message: dict[str, Any]) -> str:
             or normalized.get("type") != "text"
             or not isinstance(normalized.get("content"), str)
         ):
-            raise BrokerUnavailable("AgentDojo message contains a non-text content block")
+            raise AdapterInputInvalid("AgentDojo message contains a non-text content block")
         text.append(normalized["content"])
     return "\n".join(text)
 
@@ -100,9 +104,9 @@ def _responses_function_call(call: Any) -> tuple[str, dict[str, Any]]:
     name = _function_call_value(call, "function")
     arguments = _json_safe(_function_call_value(call, "args"))
     if not isinstance(call_id, str) or not call_id:
-        raise BrokerUnavailable("AgentDojo function call ID is required for Responses")
+        raise AdapterInputInvalid("AgentDojo function call ID is required for Responses")
     if not isinstance(name, str) or not name or not isinstance(arguments, dict):
-        raise BrokerUnavailable("AgentDojo function call is invalid")
+        raise AdapterInputInvalid("AgentDojo function call is invalid")
     try:
         arguments_json = json.dumps(
             arguments,
@@ -111,7 +115,7 @@ def _responses_function_call(call: Any) -> tuple[str, dict[str, Any]]:
             sort_keys=True,
         )
     except (TypeError, ValueError) as exc:
-        raise BrokerUnavailable("AgentDojo function arguments are not JSON-compatible") from exc
+        raise AdapterInputInvalid("AgentDojo function arguments are not JSON-compatible") from exc
     return call_id, {
         "type": "function_call",
         "call_id": call_id,
@@ -126,7 +130,7 @@ def _replay_groups_by_calls(
     indexed: dict[tuple[str, ...], list[dict[str, Any]]] = {}
     for group in replay_groups or ():
         if not isinstance(group, dict):
-            raise BrokerUnavailable("Responses replay context is invalid")
+            raise AdapterInputInvalid("Responses replay context is invalid")
         raw_call_ids = group.get("callIds")
         raw_items = group.get("items")
         if (
@@ -136,15 +140,15 @@ def _replay_groups_by_calls(
             or not isinstance(raw_items, list)
             or any(not isinstance(item, dict) for item in raw_items)
         ):
-            raise BrokerUnavailable("Responses replay context is invalid")
+            raise AdapterInputInvalid("Responses replay context is invalid")
         call_ids = tuple(raw_call_ids)
         if call_ids in indexed:
-            raise BrokerUnavailable("Responses replay function calls are duplicated")
+            raise AdapterInputInvalid("Responses replay function calls are duplicated")
         replay_call_ids = tuple(
             item.get("call_id") for item in raw_items if item.get("type") == "function_call"
         )
         if replay_call_ids != call_ids:
-            raise BrokerUnavailable("Responses replay function calls are invalid")
+            raise AdapterInputInvalid("Responses replay function calls are invalid")
         indexed[call_ids] = raw_items
     return indexed
 
@@ -158,18 +162,18 @@ def _replay_text(items: Sequence[dict[str, Any]]) -> str | None:
         saw_message = True
         content = item.get("content")
         if not isinstance(content, list):
-            raise BrokerUnavailable("Responses replay assistant content is invalid")
+            raise AdapterInputInvalid("Responses replay assistant content is invalid")
         for part in content:
             if not isinstance(part, dict):
-                raise BrokerUnavailable("Responses replay assistant content is invalid")
+                raise AdapterInputInvalid("Responses replay assistant content is invalid")
             if part.get("type") == "output_text":
                 value = part.get("text")
             elif part.get("type") == "refusal":
                 value = part.get("refusal")
             else:
-                raise BrokerUnavailable("Responses replay assistant content is invalid")
+                raise AdapterInputInvalid("Responses replay assistant content is invalid")
             if not isinstance(value, str):
-                raise BrokerUnavailable("Responses replay assistant content is invalid")
+                raise AdapterInputInvalid("Responses replay assistant content is invalid")
             text.append(value)
     return "\n".join(text) if saw_message else None
 
@@ -195,7 +199,7 @@ def _messages_to_responses_input(
     used_replay_groups: set[tuple[str, ...]] = set()
     for message in messages:
         if not isinstance(message, dict):
-            raise BrokerUnavailable("AgentDojo message is not an object")
+            raise AdapterInputInvalid("AgentDojo message is not an object")
         role = message.get("role")
         if role in {"system", "user"}:
             items.append({"role": role, "content": _message_text(message)})
@@ -209,7 +213,7 @@ def _messages_to_responses_input(
                     items.append({"role": "assistant", "content": text})
                 continue
             if not isinstance(raw_calls, list | tuple):
-                raise BrokerUnavailable("AgentDojo assistant tool calls are invalid")
+                raise AdapterInputInvalid("AgentDojo assistant tool calls are invalid")
             translated_calls = [_responses_function_call(raw_call) for raw_call in raw_calls]
             replay_key = tuple(call_id for call_id, _item in translated_calls)
             replay_items = replay_by_calls.get(replay_key)
@@ -219,10 +223,10 @@ def _messages_to_responses_input(
                     replay_call.get("name") != _function_call_value(raw_call, "function")
                     for replay_call, raw_call in zip(replay_calls, raw_calls, strict=True)
                 ):
-                    raise BrokerUnavailable("Responses replay function call drifted")
+                    raise AdapterInputInvalid("Responses replay function call drifted")
                 replay_text = _replay_text(replay_items)
                 if replay_text is not None and replay_text != text:
-                    raise BrokerUnavailable("Responses replay assistant content drifted")
+                    raise AdapterInputInvalid("Responses replay assistant content drifted")
                 if replay_text is None and content is not None:
                     items.append({"role": "assistant", "content": text})
                 items.extend(replay_items)
@@ -231,7 +235,7 @@ def _messages_to_responses_input(
                 items.append({"role": "assistant", "content": text})
             for call_id, item in translated_calls:
                 if call_id in seen_call_ids:
-                    raise BrokerUnavailable("AgentDojo function call ID is duplicated")
+                    raise AdapterInputInvalid("AgentDojo function call ID is duplicated")
                 seen_call_ids.add(call_id)
                 pending_call_ids.add(call_id)
                 if replay_items is None:
@@ -240,14 +244,14 @@ def _messages_to_responses_input(
         if role == "tool":
             call_id = message.get("tool_call_id")
             if not isinstance(call_id, str) or not call_id or call_id not in pending_call_ids:
-                raise BrokerUnavailable("AgentDojo tool result does not match a prior function call")
+                raise AdapterInputInvalid("AgentDojo tool result does not match a prior function call")
             raw_call = message.get("tool_call")
             raw_call_id = _function_call_value(raw_call, "id")
             if raw_call_id != call_id:
-                raise BrokerUnavailable("AgentDojo tool result function call ID drifted")
+                raise AdapterInputInvalid("AgentDojo tool result function call ID drifted")
             error = message.get("error")
             if error is not None and not isinstance(error, str):
-                raise BrokerUnavailable("AgentDojo tool error is invalid")
+                raise AdapterInputInvalid("AgentDojo tool error is invalid")
             output = error or _message_text(message)
             items.append(
                 {
@@ -258,18 +262,18 @@ def _messages_to_responses_input(
             )
             pending_call_ids.remove(call_id)
             continue
-        raise BrokerUnavailable("AgentDojo message role is unsupported by Responses")
+        raise AdapterInputInvalid("AgentDojo message role is unsupported by Responses")
     if pending_call_ids:
-        raise BrokerUnavailable("AgentDojo function call is missing its tool result")
+        raise AdapterInputInvalid("AgentDojo function call is missing its tool result")
     if used_replay_groups != set(replay_by_calls):
-        raise BrokerUnavailable("Responses replay context does not match AgentDojo messages")
+        raise AdapterInputInvalid("Responses replay context does not match AgentDojo messages")
     return items
 
 
 def _tool_schema(runtime: Any) -> list[dict[str, Any]]:
     functions = getattr(runtime, "functions", None)
     if not isinstance(functions, dict):
-        raise BrokerUnavailable("AgentDojo runtime functions are invalid")
+        raise AdapterInputInvalid("AgentDojo runtime functions are invalid")
     tools: list[dict[str, Any]] = []
     for function in functions.values():
         name = getattr(function, "name", None)
@@ -277,10 +281,10 @@ def _tool_schema(runtime: Any) -> list[dict[str, Any]]:
         parameters = getattr(function, "parameters", None)
         schema_factory = getattr(parameters, "model_json_schema", None)
         if not isinstance(name, str) or not name or not isinstance(description, str) or not callable(schema_factory):
-            raise BrokerUnavailable("AgentDojo function schema is invalid")
+            raise AdapterInputInvalid("AgentDojo function schema is invalid")
         schema = _json_safe(schema_factory())
         if not isinstance(schema, dict):
-            raise BrokerUnavailable("AgentDojo function parameters are invalid")
+            raise AdapterInputInvalid("AgentDojo function parameters are invalid")
         tools.append(
             {
                 "type": "function",
@@ -451,6 +455,7 @@ class BrokerLLMElement:
         self.max_requests = max_requests
         self.calls = 0
         self.provider_context_failure = False
+        self.adapter_input_failure = False
 
     def query(
         self,
@@ -463,11 +468,11 @@ class BrokerLLMElement:
         del query
         try:
             if self.calls >= self.max_requests:
-                raise BrokerUnavailable("candidate capability request cap exceeded")
+                raise AdapterInputInvalid("candidate capability request cap exceeded")
             next_extra_args = dict(extra_args or {})
             replay_groups = next_extra_args.get(RESPONSES_REPLAY_STATE, [])
             if not isinstance(replay_groups, list):
-                raise BrokerUnavailable("Responses replay context is invalid")
+                raise AdapterInputInvalid("Responses replay context is invalid")
             payload = {
                 "model": self.model,
                 "input": _messages_to_responses_input(messages, replay_groups),
@@ -481,6 +486,13 @@ class BrokerLLMElement:
                 headers={"authorization": f"Bearer {self.capability}", "content-type": "application/json"},
                 method="POST",
             )
+        except AdapterInputInvalid:
+            self.adapter_input_failure = True
+            raise
+        except Exception as exc:
+            self.adapter_input_failure = True
+            raise AdapterInputInvalid("broker request assembly is invalid") from exc
+        try:
             try:
                 with urllib.request.urlopen(request, timeout=60) as response:
                     result = json.loads(response.read().decode("utf-8"))
@@ -655,6 +667,7 @@ def run(
     results: list[dict[str, Any]] = []
     trace_attempt = uuid4().hex
     direct_provider_context_failure = False
+    direct_adapter_input_failure = False
     failure_owner: str | None = None
     for suite_name in (("workspace",) if profile in {"smoke", "pilot"} else SUITES):
         suite = get_suite(benchmark_version, suite_name)
@@ -701,6 +714,9 @@ def run(
                 results.append({**episode, "utility": utility, "attackSuccess": attack_success, "state": "measured"})
         except CandidateOutputInvalid:
             failure_owner = "candidate"
+        except AdapterInputInvalid:
+            direct_adapter_input_failure = True
+            failure_owner = "adapter"
         except BrokerUnavailable:
             direct_provider_context_failure = True
             failure_owner = "host"
@@ -713,15 +729,21 @@ def run(
         if failure_owner is not None:
             break
     contaminated_provider_context = broker.provider_context_failure and not direct_provider_context_failure
+    contaminated_adapter_input = broker.adapter_input_failure and not direct_adapter_input_failure
     if (
         contaminated_provider_context
+        or contaminated_adapter_input
         or direct_provider_context_failure
+        or direct_adapter_input_failure
         or failure_owner is not None
         or len(results) != len(selected_episodes)
     ):
         if contaminated_provider_context:
             status = "invalid"
             failure_owner = "host"
+        elif contaminated_adapter_input:
+            status = "invalid"
+            failure_owner = "adapter"
         elif direct_provider_context_failure:
             status = "unavailable"
         else:

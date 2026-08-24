@@ -138,7 +138,7 @@ for label, messages in {
 }.items():
     try:
         bridge._messages_to_responses_input(messages)
-    except bridge.BrokerUnavailable as error:
+    except bridge.AdapterInputInvalid as error:
         cases[label] = str(error)
     else:
         cases[label] = "accepted"
@@ -457,7 +457,7 @@ print(json.dumps(outcomes, sort_keys=True))
   });
 });
 
-test("AgentDojo broker records provider-context failure without tainting candidate failures", () => {
+test("AgentDojo broker records provider and adapter failures in separate domains", () => {
   const observed = runPython(String.raw`
 import importlib.util
 import json
@@ -501,6 +501,20 @@ try:
 except bridge.BrokerUnavailable:
     pass
 
+adapter_broker = bridge.BrokerLLMElement(
+    "http://127.0.0.1:4311/responses", "scoped-capability", "gpt-5.6-luna", 45
+)
+try:
+    adapter_broker.query("", runtime, messages=[{
+        "role": "tool",
+        "content": [{"type": "text", "content": "orphan result"}],
+        "tool_call_id": "call_missing",
+        "tool_call": None,
+        "error": None,
+    }])
+except bridge.AdapterInputInvalid:
+    pass
+
 class Response:
     def __enter__(self):
         return self
@@ -527,18 +541,29 @@ except bridge.CandidateOutputInvalid:
     pass
 
 print(json.dumps({
-    "provider": getattr(provider_broker, "provider_context_failure", None),
-    "candidate": getattr(candidate_broker, "provider_context_failure", None),
+    "provider": {
+        "provider": getattr(provider_broker, "provider_context_failure", None),
+        "adapter": getattr(provider_broker, "adapter_input_failure", None),
+    },
+    "adapter": {
+        "provider": getattr(adapter_broker, "provider_context_failure", None),
+        "adapter": getattr(adapter_broker, "adapter_input_failure", None),
+    },
+    "candidate": {
+        "provider": getattr(candidate_broker, "provider_context_failure", None),
+        "adapter": getattr(candidate_broker, "adapter_input_failure", None),
+    },
 }, sort_keys=True))
 `);
 
   assert.deepEqual(observed, {
-    candidate: false,
-    provider: true,
+    adapter: { adapter: true, provider: false },
+    candidate: { adapter: false, provider: false },
+    provider: { adapter: false, provider: true },
   });
 });
 
-test("AgentDojo native run separates a direct outage from contaminated completion", () => {
+test("AgentDojo native run separates direct and swallowed provider and adapter failures", () => {
   const observed = runPython(String.raw`
 import importlib.util
 import json
@@ -583,17 +608,26 @@ class OutputLogger:
 mode = ""
 
 def benchmark_without(pipeline, _suite, **_kwargs):
+    provider_failure = mode.startswith("provider-")
+    messages = (
+        [{"role": "user", "content": [{"type": "text", "content": "safe task"}]}]
+        if provider_failure
+        else [{
+            "role": "tool",
+            "content": [{"type": "text", "content": "orphan result"}],
+            "tool_call_id": "call_missing",
+            "tool_call": None,
+            "error": None,
+        }]
+    )
     try:
         pipeline.llm.query(
             "",
             SimpleNamespace(functions={}),
-            messages=[{
-                "role": "user",
-                "content": [{"type": "text", "content": "safe task"}],
-            }],
+            messages=messages,
         )
-    except bridge.BrokerUnavailable:
-        if mode == "direct":
+    except (bridge.BrokerUnavailable, bridge.AdapterInputInvalid):
+        if mode.endswith("-direct"):
             raise
     return {
         "utility_results": {("user_task_0", ""): False},
@@ -634,7 +668,12 @@ modules = {
 sys.modules.update(modules)
 
 outcomes = {}
-for current_mode in ("direct", "contaminated"):
+for current_mode in (
+    "provider-direct",
+    "provider-contaminated",
+    "adapter-direct",
+    "adapter-contaminated",
+):
     mode = current_mode
     with tempfile.TemporaryDirectory() as directory:
         root = Path(directory)
@@ -676,14 +715,28 @@ print(json.dumps(outcomes, sort_keys=True))
 `);
 
   assert.deepEqual(observed, {
-    contaminated: {
+    "adapter-contaminated": {
+      episodeCount: 3,
+      failureOwner: "adapter",
+      hasMetrics: false,
+      providerContextFailure: false,
+      status: "invalid",
+    },
+    "adapter-direct": {
+      episodeCount: 0,
+      failureOwner: "adapter",
+      hasMetrics: false,
+      providerContextFailure: false,
+      status: "failed",
+    },
+    "provider-contaminated": {
       episodeCount: 3,
       failureOwner: "host",
       hasMetrics: false,
       providerContextFailure: true,
       status: "invalid",
     },
-    direct: {
+    "provider-direct": {
       episodeCount: 0,
       failureOwner: "host",
       hasMetrics: false,

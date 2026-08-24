@@ -364,6 +364,14 @@ test("AgentDojo executor preserves partial candidate and provider failure attrib
       expectedOwner: "host",
     },
     {
+      id: "contaminated-adapter",
+      status: "invalid",
+      failureOwner: "adapter",
+      providerContextFailure: false,
+      expectedStatus: "invalid",
+      expectedOwner: "adapter",
+    },
+    {
       id: "adapter",
       status: "failed",
       failureOwner: "adapter",
@@ -481,6 +489,12 @@ test("AgentDojo executor rejects incoherent native failure taxonomy", async () =
       status: "invalid",
       failureOwner: "host",
       providerContextFailure: false,
+    },
+    {
+      id: "adapter-invalid-with-provider-context",
+      status: "invalid",
+      failureOwner: "adapter",
+      providerContextFailure: true,
     },
   ] as const;
 
