@@ -62,7 +62,7 @@ print(json.dumps({"request": requests[0], "content": verdict.content}))
   });
 });
 
-test("BEAM BrokerJudge rejects incomplete, error, and outputless HTTP 200 envelopes", () => {
+test("BEAM BrokerJudge separates nonterminal HTTP 200 envelopes from invalid terminal output", () => {
   const result = runPython(String.raw`
 import importlib.util
 import json
@@ -73,9 +73,14 @@ bridge = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(bridge)
 
 payloads = [
+    {"status": "queued", "error": None, "output": []},
+    {"status": "in_progress", "error": None, "output": []},
     {"status": "incomplete", "error": None, "output": []},
     {"status": "failed", "error": {"message": "provider failed"}, "output": []},
+    {"status": "completed", "error": {"message": "provider failed"}, "output": []},
     {"status": "completed", "error": None, "output": []},
+    {"status": "completed", "error": None, "output_text": "not-json"},
+    {"status": "completed", "error": None, "output_text": json.dumps({"score": 0.25})},
 ]
 
 class Response:
@@ -93,7 +98,7 @@ def urlopen(_request, timeout):
 
 bridge.urllib.request.urlopen = urlopen
 outcomes = []
-for _index in range(3):
+for _index in range(len(payloads)):
     judge = bridge.BrokerJudge({
         "scope": "judge",
         "endpoint": "http://127.0.0.1/responses",
@@ -104,16 +109,33 @@ for _index in range(3):
     try:
         judge.invoke("rubric prompt")
     except Exception as error:
-        outcomes.append(str(error))
+        outcomes.append({"type": type(error).__name__, "message": str(error)})
     else:
         outcomes.append("MEASURED")
 print(json.dumps(outcomes))
 `);
 
   assert.deepEqual(result, [
-    "BEAM Judge completion did not finish",
-    "BEAM Judge completion reported an error",
-    "BEAM Judge completion has no usable output",
+    {
+      type: "JudgeUnavailableError",
+      message: "BEAM Judge broker transport is unavailable",
+    },
+    {
+      type: "JudgeUnavailableError",
+      message: "BEAM Judge broker transport is unavailable",
+    },
+    {
+      type: "JudgeUnavailableError",
+      message: "BEAM Judge broker transport is unavailable",
+    },
+    { type: "RuntimeError", message: "BEAM Judge completion reported an error" },
+    { type: "RuntimeError", message: "BEAM Judge completion reported an error" },
+    { type: "ValueError", message: "BEAM Judge completion has no usable output" },
+    { type: "ValueError", message: "BEAM Judge returned malformed JSON" },
+    {
+      type: "ValueError",
+      message: "BEAM Judge score must be exactly 0, 0.5, or 1",
+    },
   ]);
 });
 
@@ -196,7 +218,7 @@ print(json.dumps(outcomes))
   ]);
 });
 
-test("BEAM bridge main writes the exact unavailable Judge outcome", () => {
+test("BEAM bridge main maps each nonterminal Judge status to the exact unavailable outcome", () => {
   const result = runPython(String.raw`
 import importlib.util
 import json
@@ -210,29 +232,62 @@ spec.loader.exec_module(bridge)
 
 with tempfile.TemporaryDirectory() as directory:
     root = Path(directory)
-    output = root / "beam-native.json"
-    def unavailable(*_args, **_kwargs):
-        raise bridge.JudgeUnavailableError("BEAM Judge broker transport is unavailable")
-    bridge.run = unavailable
-    sys.argv = [
-        "bridge.py",
-        "--source-root", str(root),
-        "--data-root", str(root),
-        "--query-path", str(root / "queries.json"),
-        "--response-path", str(root / "responses.json"),
-        "--output", str(output),
-        "--tier", "100K",
-        "--profile", "smoke",
-        "--judge-runtime", str(root / "judge.json"),
-    ]
-    bridge.main()
-    print(json.dumps(json.loads(output.read_text(encoding="utf-8")), sort_keys=True))
+    current = {"status": None}
+
+    class Response:
+        def __enter__(self):
+            return self
+        def __exit__(self, *_args):
+            return False
+        def read(self):
+            return json.dumps({
+                "status": current["status"],
+                "error": None,
+                "output": [],
+            }).encode("utf-8")
+
+    bridge.urllib.request.urlopen = lambda _request, timeout: Response()
+
+    def invoke_nonterminal(*_args, **_kwargs):
+        judge = bridge.BrokerJudge({
+            "scope": "judge",
+            "endpoint": "http://127.0.0.1/responses",
+            "capabilityToken": "scoped",
+            "model": "gpt-5.6-luna",
+            "maxRequests": 1,
+        })
+        judge.invoke("rubric prompt")
+
+    bridge.run = invoke_nonterminal
+    outcomes = {}
+    for status in ("queued", "in_progress", "incomplete"):
+        current["status"] = status
+        output = root / f"beam-native-{status}.json"
+        sys.argv = [
+            "bridge.py",
+            "--source-root", str(root),
+            "--data-root", str(root),
+            "--query-path", str(root / "queries.json"),
+            "--response-path", str(root / "responses.json"),
+            "--output", str(output),
+            "--tier", "100K",
+            "--profile", "smoke",
+            "--judge-runtime", str(root / "judge.json"),
+        ]
+        bridge.main()
+        outcomes[status] = json.loads(output.read_text(encoding="utf-8"))
+    print(json.dumps(outcomes, sort_keys=True))
 `);
 
-  assert.deepEqual(result, {
+  const unavailable = {
     schema: "coffee-chat-eval/beam-bridge-outcome-v1",
     executionStatus: "unavailable",
     failureOwner: "judge",
     reason: "BEAM Judge broker transport is unavailable",
+  };
+  assert.deepEqual(result, {
+    incomplete: unavailable,
+    in_progress: unavailable,
+    queued: unavailable,
   });
 });

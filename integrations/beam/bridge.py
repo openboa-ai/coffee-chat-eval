@@ -39,6 +39,8 @@ NLTK_DATA_FORBIDDEN = (
     "tokenizers/punkt_tab",
     "tokenizers/punkt_tab.zip",
 )
+JUDGE_UNAVAILABLE_REASON = "BEAM Judge broker transport is unavailable"
+NONTERMINAL_RESPONSE_STATUSES = frozenset(("queued", "in_progress", "incomplete"))
 
 
 class JudgeUnavailableError(RuntimeError):
@@ -215,16 +217,17 @@ class BrokerJudge:
             with urllib.request.urlopen(request, timeout=30) as response:
                 response_bytes = response.read()
         except (urllib.error.HTTPError, urllib.error.URLError, OSError) as exc:
-            raise JudgeUnavailableError(
-                "BEAM Judge broker transport is unavailable"
-            ) from exc
+            raise JudgeUnavailableError(JUDGE_UNAVAILABLE_REASON) from exc
         payload = json.loads(response_bytes.decode("utf-8"))
         self.calls += 1
         if not isinstance(payload, dict):
             raise ValueError("BEAM Judge completion envelope is invalid")
+        status = payload.get("status")
+        if status in NONTERMINAL_RESPONSE_STATUSES:
+            raise JudgeUnavailableError(JUDGE_UNAVAILABLE_REASON)
         if payload.get("error") is not None:
             raise RuntimeError("BEAM Judge completion reported an error")
-        if payload.get("status") != "completed":
+        if status != "completed":
             raise RuntimeError("BEAM Judge completion did not finish")
         content = _response_text(payload)
         try:
@@ -476,7 +479,7 @@ def main() -> None:
                 "schema": "coffee-chat-eval/beam-bridge-outcome-v1",
                 "executionStatus": "unavailable",
                 "failureOwner": "judge",
-                "reason": "BEAM Judge broker transport is unavailable",
+                "reason": JUDGE_UNAVAILABLE_REASON,
             },
         )
 
