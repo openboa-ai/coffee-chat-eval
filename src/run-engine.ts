@@ -1,10 +1,13 @@
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { join, relative, resolve } from "node:path";
+import { isAbsolute, join, relative, resolve } from "node:path";
 
 import {
+  createRunPlan,
   createTrialReceipt,
   createTrackReport,
+  parseRunSpec,
+  parseSourceManifest,
   parseProductCandidateBoundary,
   runProfileCandidateCompatibilityError,
   type CandidateTransport,
@@ -84,6 +87,55 @@ const SMOKE_JUDGE_CAPS: Readonly<Record<string, number>> = Object.freeze({
   "coffee-chat-taste": 21,
   "beam-record-core": 11,
 });
+
+const REJECTED_PLAN_EXECUTOR: TrackExecutor = async () => {
+  throw new TypeError("rejected run plan must not reach a native executor");
+};
+
+function runPlanClaimStatus(profile: RunPlan["profile"]): RunPlan["claimStatus"] {
+  switch (profile) {
+    case "fixture":
+    case "smoke":
+      return "calibration";
+    case "pilot":
+      return "pilot";
+    case "score":
+      return "provisional_internal";
+  }
+}
+
+/**
+ * Rebuild every RunPlan field that is derived from its immutable RunSpec.
+ * This deliberately does not trust the supplied manifest yet, so a manifest
+ * mismatch can still produce the established unavailable/source receipt from
+ * a path-safe plan identity.
+ */
+function rebuildRunPlanEnvelope(plan: RunPlan): RunPlan {
+  if (plan.runSpec === undefined) {
+    throw new TypeError("run plan is missing immutable runSpec");
+  }
+  const runSpec = parseRunSpec(plan.runSpec);
+  if (!isAbsolute(plan.evidenceRoot)) {
+    throw new TypeError("run plan evidenceRoot must be an absolute path");
+  }
+  if (!isAbsolute(plan.cacheRoot)) {
+    throw new TypeError("run plan cacheRoot must be an absolute path");
+  }
+  const sourceManifestDigest = runSpec.sourceManifestDigest;
+  const runSpecDigest = stableDigest(runSpec);
+  return Object.freeze({
+    id: `run-${stableDigest({ sourceManifestDigest, runSpecDigest }).slice("sha256:".length)}`,
+    trackId: runSpec.trackId,
+    profile: runSpec.profile,
+    sourceManifestDigest,
+    runSpecDigest,
+    claimStatus: runPlanClaimStatus(runSpec.profile),
+    executionStatus: "unmeasured" as const,
+    evidenceRoot: resolve(plan.evidenceRoot),
+    cacheRoot: resolve(plan.cacheRoot),
+    runSpec,
+  });
+}
 
 /**
  * Validate ephemeral broker capabilities against the immutable run identity.
@@ -443,15 +495,79 @@ export async function executeImmutableRun(
   if ("executor" in input) {
     throw new TypeError("run executor override is not supported");
   }
+  // Snapshot and rebuild the public plan contract before selecting a native
+  // executor or creating any path derived from a caller-supplied plan ID.
+  // Malformed inputs are rejected without filesystem effects because no safe
+  // canonical receipt identity exists for them.
+  const envelopePlan = rebuildRunPlanEnvelope(input.plan);
+  const manifest = parseSourceManifest(input.manifest);
+  if (stableDigest(manifest) !== envelopePlan.sourceManifestDigest) {
+    return executeImmutableRunWithExecutor({
+      ...input,
+      plan: envelopePlan,
+      manifest,
+      executor: REJECTED_PLAN_EXECUTOR,
+      planPreflightFailure: Object.freeze({
+        owner: "source" as const,
+        reason: "source manifest digest does not match run plan",
+      }),
+    });
+  }
+  let canonicalPlan: RunPlan;
+  try {
+    canonicalPlan = createRunPlan({
+      manifest,
+      spec: envelopePlan.runSpec!,
+      evidenceRoot: envelopePlan.evidenceRoot,
+      cacheRoot: envelopePlan.cacheRoot,
+    });
+  } catch (error) {
+    return executeImmutableRunWithExecutor({
+      ...input,
+      plan: envelopePlan,
+      manifest,
+      executor: REJECTED_PLAN_EXECUTOR,
+      planPreflightFailure: Object.freeze({
+        owner: "source" as const,
+        reason: error instanceof Error ? error.message : "source manifest is invalid",
+      }),
+    });
+  }
+  let planMatches = false;
+  try {
+    planMatches = stableDigest(input.plan) === stableDigest(canonicalPlan);
+  } catch {
+    planMatches = false;
+  }
+  if (!planMatches) {
+    return executeImmutableRunWithExecutor({
+      ...input,
+      plan: canonicalPlan,
+      manifest,
+      executor: REJECTED_PLAN_EXECUTOR,
+      planPreflightFailure: Object.freeze({
+        owner: "verifier" as const,
+        reason: "run plan does not match its canonical manifest and runSpec",
+      }),
+    });
+  }
   return executeImmutableRunWithExecutor({
     ...input,
-    executor: getNativeTrackExecutor(input.plan.trackId),
+    plan: canonicalPlan,
+    manifest,
+    executor: getNativeTrackExecutor(canonicalPlan.trackId),
   });
 }
 
 async function executeImmutableRunWithExecutor(
   input: ImmutableRunInput & {
     readonly executor: TrackExecutor;
+    readonly planPreflightFailure?:
+      | {
+          readonly owner: "source" | "verifier";
+          readonly reason: string;
+        }
+      | undefined;
   },
 ): Promise<ImmutableRunResult> {
   const plan = input.plan;
@@ -486,6 +602,14 @@ async function executeImmutableRunWithExecutor(
       verifiedProductBoundary,
     });
   };
+  if (input.planPreflightFailure !== undefined) {
+    const execution = failureExecution({
+      owner: input.planPreflightFailure.owner,
+      reason: input.planPreflightFailure.reason,
+      evidence,
+    });
+    return finalize(execution, undefined);
+  }
   if (plan.runSpec === undefined) {
     const execution = failureExecution({
       owner: "verifier",

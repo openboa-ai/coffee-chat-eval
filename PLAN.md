@@ -50,6 +50,11 @@ metrics, census, and provider-terms recheck policy. Raw upstream bytes stay in
 the operator-controlled `EVAL_CACHE_ROOT`; traces and judge responses stay in
 the append-only `EVIDENCE_ROOT` vault and never enter public reports.
 
+The public Runner reparses the supplied manifest and embedded `RunSpec`,
+rebuilds the complete canonical `RunPlan`, and requires an exact match before
+it derives a filesystem path or selects a native executor. Execution and
+reporting retain only those rebuilt frozen snapshots.
+
 An admitted materialization is laid out as
 `EVAL_CACHE_ROOT/<track-id>/{source,data}/` plus a
 `source-receipt.json`. `src/source-cache.ts` checks that receipt against the

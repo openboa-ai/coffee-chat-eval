@@ -344,13 +344,16 @@ test("live standard candidates require a factory-bound Responses transport befor
     const candidateIdentity = standardCandidateIdentity(candidateType);
     let candidateCalls = 0;
     try {
-      const plan = Object.freeze({
-        ...fixture.plan,
-        runSpec: Object.freeze({
-          ...fixture.plan.runSpec!,
-          candidateType,
-          candidateDigest: candidateIdentityDigest(candidateIdentity),
-        }),
+      const runSpec = parseRunSpec({
+        ...fixture.plan.runSpec!,
+        candidateType,
+        candidateDigest: candidateIdentityDigest(candidateIdentity),
+      });
+      const plan = createRunPlan({
+        manifest: fixture.manifest,
+        spec: runSpec,
+        evidenceRoot: fixture.plan.evidenceRoot,
+        cacheRoot: fixture.plan.cacheRoot,
       });
       const judgeRuntime = fixture.runtime.judge!;
       const judge = createResponsesJudgeTransport({
@@ -1484,6 +1487,7 @@ test("a forged Product preflight marker cannot mint connectivity provenance", as
 test("run engine rejects product candidate profiles outside smoke without connectivity claims", async () => {
   for (const profile of ["fixture", "pilot", "score"] as const) {
     const fixture = productRunFixture("smoke");
+    let candidateCalls = 0;
     try {
       const plan = {
         ...fixture.plan,
@@ -1496,21 +1500,27 @@ test("run engine rejects product candidate profiles outside smoke without connec
               : ("calibration" as const),
         runSpec: { ...fixture.plan.runSpec!, profile },
       };
-      const result = await executeImmutableRun({
-        plan,
-        manifest: fixture.manifest,
-        candidate: {
-          kind: "coffee_chat_product",
-          productBoundary: PRODUCT_BOUNDARY,
-          productHostPreflight: { state: "verified" },
-          run: async () => ({ state: "unmeasured", reason: "unused" }),
-        },
-        judge: undefined,
-        runtime: fixture.runtime,
-      });
-      assert.equal(result.trackReport.executionStatus, "invalid");
-      assert.equal(result.publicReceipt.failureOwner, "verifier");
-      assert.equal(result.publicReceipt.candidateMode, undefined);
+      await assert.rejects(
+        () =>
+          executeImmutableRun({
+            plan,
+            manifest: fixture.manifest,
+            candidate: {
+              kind: "coffee_chat_product",
+              productBoundary: PRODUCT_BOUNDARY,
+              productHostPreflight: { state: "verified" },
+              run: async () => {
+                candidateCalls += 1;
+                return { state: "unmeasured", reason: "unused" };
+              },
+            },
+            judge: undefined,
+            runtime: fixture.runtime,
+          }),
+        /requires/u,
+      );
+      assert.equal(candidateCalls, 0);
+      assert.equal(existsSync(join(plan.evidenceRoot, plan.id)), false);
     } finally {
       rmSync(fixture.root, { recursive: true, force: true });
     }
