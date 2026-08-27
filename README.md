@@ -62,6 +62,10 @@ Roast and Brew are evaluated separately. Triggering is a separate trace-based
 measurement. Candidate, host, model, and execution budget are selected by the
 runner at runtime; they are not Product or Bench contracts.
 
+For Brew output-quality pairs, both arms receive the same byte-identical,
+explicitly confirmed Bean and its context. A Roast candidate, unconfirmed Bean,
+or drifted Bean invalidates the Brew comparison rather than contaminating it.
+
 The runner stores evidence without converting unavailable, failed, abstained,
 or Judge-disagreeing runs into scores. It never changes Bench cases or Ground
 Truth and never imports Coffee Chat internals.
@@ -98,7 +102,10 @@ iterations/<iteration-id>/
 │   │   ├── comparison.json
 │   │   └── feedback.md
 │   └── brew/<case-id>/
-│       └── <same paired structure>
+│       ├── human-understanding/
+│       │   └── <same paired structure>
+│       └── agent-judgment-action/
+│           └── <same paired structure>
 ├── triggering/
 │   ├── roast/
 │   └── brew/
@@ -118,6 +125,12 @@ committed to this repository.
 
 Eval does not own a benchmark score, Product threshold, Bean schema, or public
 leaderboard; Bench defines the criteria and calibration a Judge must satisfy.
+
+## Local security hook
+
+After cloning, run `npm run hooks:install` to configure Git to use the committed
+`.githooks/pre-commit` guard. This local hook supplements, but does not
+replace, the trusted central checks.
 
 ## Status
 

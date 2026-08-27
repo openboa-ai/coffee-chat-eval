@@ -86,7 +86,10 @@ if (
   packageJson?.version !== "0.1.0" ||
   packageJson?.license !== "MIT" ||
   JSON.stringify(packageJson?.scripts) !==
-    JSON.stringify({ verify: "node .github/ci-policy.mjs" }) ||
+    JSON.stringify({
+      "hooks:install": "git config core.hooksPath .githooks",
+      verify: "node .github/ci-policy.mjs",
+    }) ||
   Object.keys(packageJson ?? {}).some(
     (key) =>
       !["name", "version", "private", "license", "description", "scripts"].includes(key),
