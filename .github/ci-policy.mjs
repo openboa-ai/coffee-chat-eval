@@ -116,6 +116,21 @@ if (JSON.stringify(workflowEntries) !== JSON.stringify(["trusted.yml"])) {
   fail("only the trusted workflow may be present");
 }
 
+const githubEntries = readdirSync(resolve(root, ".github")).sort();
+if (
+  JSON.stringify(githubEntries) !==
+  JSON.stringify([
+    "CODEOWNERS",
+    "PULL_REQUEST_TEMPLATE.md",
+    "ci-policy.mjs",
+    "dependabot.yml",
+    "merge-policy.json",
+    "workflows",
+  ])
+) {
+  fail(".github must contain only the declared policy and workflow files");
+}
+
 const trustedWorkflowPath = resolve(root, ".github/workflows/trusted.yml");
 if (existsSync(trustedWorkflowPath)) {
   const expectedTrustedWorkflow = `name: OpenBoa Coffee trusted gate
