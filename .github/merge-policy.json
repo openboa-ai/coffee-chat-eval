@@ -22,17 +22,13 @@
     ".gitleaks.toml",
     "AGENTS.md",
     "CODEOWNERS",
+    "README.md",
     "SECURITY.md",
+    "iterations/**",
     ".npmrc",
     "npm-shrinkwrap.json",
     "package-lock.json",
-    "package.json",
-    "src/bench.ts",
-    "src/cli.ts",
-    "src/harbor.ts",
-    "src/resources.ts",
-    "src/registry.ts",
-    "src/runner.ts"
+    "package.json"
   ],
   "required_checks": [
     {
