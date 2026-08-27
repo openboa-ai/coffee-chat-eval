@@ -1,4 +1,5 @@
-import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import { resolve } from "node:path";
 import { isDeepStrictEqual } from "node:util";
 const root = resolve(process.env.CI_POLICY_ROOT ?? ".");
@@ -22,11 +23,35 @@ function equal(actual, expected) {
   return isDeepStrictEqual(actual, expected);
 }
 
+const trackedFiles = execFileSync("git", ["-C", root, "ls-files", "-z"], {
+  encoding: "utf8",
+})
+  .split("\0")
+  .filter(Boolean);
+function trackedEntries(directory = ".") {
+  const prefix = directory === "." ? "" : `${directory.replace(/\/$/u, "")}/`;
+  const entries = new Set();
+  for (const file of trackedFiles) {
+    if (!file.startsWith(prefix)) continue;
+    const remainder = file.slice(prefix.length);
+    if (!remainder) continue;
+    entries.add(remainder.split("/")[0]);
+  }
+  return [...entries].sort();
+}
+function checkoutEntries(directory = ".") {
+  const entries = trackedEntries(directory);
+  if (directory === ".") entries.push(".git");
+  return entries.sort();
+}
+
 const requiredFiles = [
   "README.md",
   "AGENTS.md",
   "SECURITY.md",
   "LICENSE",
+  ".gitignore",
+  ".githooks/pre-commit",
   "iterations/README.md",
   "package.json",
   "package-lock.json",
@@ -89,7 +114,12 @@ if (
   fail("package-lock.json must remain dependency-free and match package.json");
 }
 
-const topLevel = readdirSync(root).sort();
+const workflowEntries = trackedEntries(".github/workflows");
+if (JSON.stringify(workflowEntries) !== JSON.stringify(["trusted.yml"])) {
+  fail("only the trusted workflow may be present");
+}
+
+const topLevel = checkoutEntries();
 const allowedTopLevel = new Set([
   ".editorconfig",
   ".gitattributes",
@@ -109,16 +139,11 @@ for (const entry of topLevel) {
   if (!allowedTopLevel.has(entry)) fail(`unexpected top-level entry: ${entry}`);
 }
 
-if (!equal(readdirSync(resolve(root, "iterations")).sort(), ["README.md"])) {
+if (!equal(trackedEntries("iterations"), ["README.md"])) {
   fail("iterations must contain only README.md until execution evidence exists");
 }
 
-const workflowEntries = readdirSync(resolve(root, ".github/workflows")).sort();
-if (JSON.stringify(workflowEntries) !== JSON.stringify(["trusted.yml"])) {
-  fail("only the trusted workflow may be present");
-}
-
-const githubEntries = readdirSync(resolve(root, ".github")).sort();
+const githubEntries = trackedEntries(".github");
 if (
   JSON.stringify(githubEntries) !==
   JSON.stringify([
@@ -131,6 +156,78 @@ if (
   ])
 ) {
   fail(".github must contain only the declared policy and workflow files");
+}
+
+if (JSON.stringify(trackedEntries(".githooks")) !== JSON.stringify(["pre-commit"])) {
+  fail(".githooks must contain only the declared executable hook");
+}
+const expectedHook = [
+  "#!/bin/sh",
+  "set -eu",
+  "",
+  "scanner=${GITLEAKS_BIN:-gitleaks}",
+  'if ! command -v "$scanner" >/dev/null 2>&1; then',
+  "  printf '%s\\n' 'Gitleaks is required; install Gitleaks before committing.' >&2",
+  "  exit 1",
+  "fi",
+  "",
+  "if [ -e .gitleaks.toml ] || [ -e .gitleaksignore ]; then",
+  "  printf '%s\\n' 'Repository-local Gitleaks controls are not permitted.' >&2",
+  "  exit 1",
+  "fi",
+  "unset GITLEAKS_CONFIG GITLEAKS_CONFIG_TOML",
+  '"$scanner" git --pre-commit --staged --gitleaks-ignore-path /dev/null \\',
+  "  --ignore-gitleaks-allow --redact --no-banner .",
+  'staged_dir="$(mktemp -d)"',
+  `trap 'rm -rf "$staged_dir"' EXIT HUP INT TERM`,
+  'git checkout-index --all --prefix="$staged_dir/"',
+  '"$scanner" dir --gitleaks-ignore-path /dev/null --ignore-gitleaks-allow \\',
+  '  --redact --no-banner "$staged_dir"',
+  "",
+].join("\n");
+const hookPath = resolve(root, ".githooks/pre-commit");
+if (readFileSync(hookPath, "utf8") !== expectedHook) {
+  fail(".githooks/pre-commit must remain the exact Gitleaks hook");
+}
+if ((statSync(hookPath).mode & 0o111) === 0) {
+  fail(".githooks/pre-commit must remain executable");
+}
+
+if (
+  readFileSync(resolve(root, ".gitignore"), "utf8") !==
+  `artifacts/
+node_modules/
+__pycache__/
+coverage/
+dist/
+
+# Local credentials
+.env
+.env.*
+!.env.example
+credentials.json
+secrets.json
+*.private.pem
+private-key.pem
+*.private.key
+private.key
+private-key.key
+id_rsa
+id_dsa
+id_ecdsa
+id_ed25519
+tls.key
+server.key
+server-key.pem
+*-private-key.pem
+*-private-key.key
+privkey*.pem
+*.p12
+*.pfx
+*.jks
+`
+) {
+  fail(".gitignore must preserve the credential and local-artifact ignore contract");
 }
 
 if (
@@ -193,6 +290,7 @@ if (
   readFileSync(resolve(root, ".github/CODEOWNERS"), "utf8") !==
   `/AGENTS.md @openboa
 /LICENSE @openboa
+/README.md @openboa
 /SECURITY.md @openboa-ai/security-maintainers
 /.github/ @openboa
 /.githooks/ @openboa-ai/security-maintainers
@@ -255,6 +353,7 @@ if (
       ".gitleaks.toml",
       "AGENTS.md",
       "CODEOWNERS",
+      "README.md",
       "SECURITY.md",
       "iterations/**",
       ".npmrc",
