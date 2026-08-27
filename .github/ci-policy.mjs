@@ -131,6 +131,63 @@ if (
   fail(".github must contain only the declared policy and workflow files");
 }
 
+if (
+  readFileSync(resolve(root, ".github/dependabot.yml"), "utf8") !==
+  `version: 2
+
+updates:
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: deps
+    allow:
+      - dependency-name: "*"
+        update-types:
+          - version-update:semver-minor
+          - version-update:semver-patch
+    groups:
+      security:
+        applies-to: security-updates
+        patterns:
+          - "*"
+      production:
+        applies-to: version-updates
+        dependency-type: production
+        update-types: [minor, patch]
+      development:
+        applies-to: version-updates
+        dependency-type: development
+        update-types: [minor, patch]
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: deps
+    allow:
+      - dependency-name: "*"
+        update-types:
+          - version-update:semver-minor
+          - version-update:semver-patch
+    groups:
+      security:
+        applies-to: security-updates
+        patterns:
+          - "*"
+      versions:
+        applies-to: version-updates
+        update-types: [minor, patch]
+        patterns:
+          - "*"
+`
+) {
+  fail("Dependabot policy must remain bounded to approved update lanes");
+}
+
 const trustedWorkflowPath = resolve(root, ".github/workflows/trusted.yml");
 if (existsSync(trustedWorkflowPath)) {
   const expectedTrustedWorkflow = `name: OpenBoa Coffee trusted gate
