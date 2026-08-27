@@ -2,6 +2,7 @@
   "name": "coffee-chat-eval",
   "version": "0.1.0",
   "private": true,
+  "license": "MIT",
   "description": "Clean-context evaluation runner and evidence store for Coffee Chat Product and Judge iterations.",
   "scripts": {
     "verify": "node .github/ci-policy.mjs"

@@ -59,10 +59,12 @@ const packageJson = readJson("package.json");
 if (
   packageJson?.name !== "coffee-chat-eval" ||
   packageJson?.version !== "0.1.0" ||
+  packageJson?.license !== "MIT" ||
   JSON.stringify(packageJson?.scripts) !==
     JSON.stringify({ verify: "node .github/ci-policy.mjs" }) ||
   Object.keys(packageJson ?? {}).some(
-    (key) => !["name", "version", "private", "description", "scripts"].includes(key),
+    (key) =>
+      !["name", "version", "private", "license", "description", "scripts"].includes(key),
   ) ||
   packageJson?.private !== true
 ) {
