@@ -13,6 +13,6 @@ jobs:
       actions: read
       contents: read
       security-events: write
-    uses: openboa-ai/.github/.github/workflows/coffee-trusted-gate.yml@f556732d4fdc447f94b5e7adca33ad84c4accb95
+    uses: openboa-ai/.github/.github/workflows/coffee-trusted-gate.yml@f33da6bbcdfebd0693ff7673d750f369629e000e
     with:
-      control_sha: f556732d4fdc447f94b5e7adca33ad84c4accb95
+      control_sha: f33da6bbcdfebd0693ff7673d750f369629e000e
