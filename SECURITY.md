@@ -1,17 +1,16 @@
 # Security policy
 
-Report vulnerabilities privately to `security@openboa.ai`. Do not place
-credentials, private candidate artifacts, or sealed benchmark material in a
-public issue.
+Report vulnerabilities privately to `security@openboa.ai`. Do not put
+credentials, private run artifacts, sealed benchmark material, or personal
+data in a public issue.
 
-This repository's security boundary covers evaluator-controlled execution,
-host isolation evidence, artifact retention, receipt redaction, and report
-integrity. It stores no personal Roastery content.
+Coffee Chat Eval is an execution and evidence boundary. Candidate-readable
+state must not contain provider credentials, host secrets, unrelated files, or
+unredacted environment dumps. Receipts and traces must be reviewed for secret
+and personal-data leakage before they leave the private execution area.
 
-The current installed-Harbor path runs credential-free Oracle controls and a
-manual Codex adapter. Harbor 0.21 native Codex is rejected because it exposes
-provider authentication to candidate-readable state. The manual adapter keeps
-the provider key in a host-held Responses proxy and passes only a per-trial
-capability token to the candidate. Candidate execution is valid only when the
-receipt proves that the provider key did not enter candidate-owned artifacts,
-the proxy was closed, and the Docker environment was deleted after the trial.
+Run inputs and outputs can contain private Origin/Bean material even when the
+benchmark definition is public. Keep generated iteration evidence private and
+append-only unless its owner has explicitly approved publication. Do not treat
+an evaluator, Judge, connectivity check, or successful process exit as
+permission to disclose data or as proof of Product performance.

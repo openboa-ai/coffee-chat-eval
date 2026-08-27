@@ -1,27 +1,9 @@
 {
-  "name": "@openboa-ai/coffee-chat-eval",
+  "name": "coffee-chat-eval",
+  "version": "0.1.0",
   "private": true,
-  "version": "2026.8.12",
-  "type": "module",
-  "engines": {
-    "node": ">=24"
-  },
+  "description": "Clean-context evaluation runner and evidence store for Coffee Chat Product and Judge iterations.",
   "scripts": {
-    "test": "node --experimental-strip-types --test tests/*.test.*",
-    "typecheck": "node node_modules/typescript/bin/tsc --noEmit",
-    "format": "node node_modules/prettier/bin/prettier.cjs --write .",
-    "format:check": "node node_modules/prettier/bin/prettier.cjs --check .",
-    "hooks:install": "git config core.hooksPath .githooks",
-    "build": "tsc --noEmit",
-    "security:scan": "gitleaks git --redact --no-banner .",
-    "dry-run": "node --experimental-strip-types src/cli.ts dry-run",
-    "bench:oracle": "node --experimental-strip-types src/cli.ts oracle-control",
-    "smoke": "node --experimental-strip-types --test tests/smoke.test.ts",
-    "ci:policy": "node --test tests/workflow-policy.test.mjs && node .github/ci-policy.mjs"
-  },
-  "devDependencies": {
-    "@types/node": "24.13.3",
-    "prettier": "3.9.6",
-    "typescript": "5.9.3"
+    "verify": "node .github/ci-policy.mjs"
   }
 }

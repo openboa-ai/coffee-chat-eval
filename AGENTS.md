@@ -1,67 +1,59 @@
 # Coffee Chat Eval rules
 
-This repository owns candidate execution, host orchestration, normalized
-receipts, and performance reports. Treat Coffee Chat as an external candidate.
-Never import product internals and never redefine a benchmark's construct,
-case bank, rubric, judge qualification, or metric.
+Coffee Chat Eval owns clean execution and the evidence of an evaluation
+iteration. It does not own Coffee Chat meaning, Roastery data, benchmark
+cases, Ground Truth, or Judge policy.
 
-The active input is the candidate-neutral Harbor projection from an exact
-`coffee-chat-bench` commit. The smallest baseline is one case with `task_only`
-and one diagnostic condition. Harbor Oracle is control evidence only; its
-native reward cannot become semantic measurement or a Coffee Chat score.
-The admitted IFEval adapter imports Google's Apache-2.0 checker and official
-prompt input; it is separate from the retired legacy provider-bearing IFEval
-runner, which remains excluded from this repository. The native checker for the
-fixed smoke set currently depends on NLTK `punkt_tab`, whose pinned package
-metadata does not state a license. Its benchmark-admission lifecycle therefore
-remains `rights_hold`; no private run changes it to `rights_passed`,
-`pilot_eligible`, or `activated`. The sole execution exception is an explicit,
-digest-bound workspace-owner risk-acceptance receipt for the exact
-`coffee_chat_product` candidate identity and fixed nine-prompt `smoke`. It keeps
-`licenseCleared=false`, includes an operator-generated private 256-bit nonce so
-its public digest does not reveal private receipt metadata, and permits only
-private internal calibration. It is not
-a license grant and grants no redistribution, pilot/score, public numeric-result,
-or Product-performance authority. Missing, malformed, drifted, or out-of-scope
-acceptance—or missing/drifted pinned runtime bytes—fails before candidate calls.
-The private smoke may satisfy this PR's sampled-runner execution-readiness check;
-it cannot satisfy benchmark activation or an official measurement gate.
+## Execution boundary
 
-The admitted `coffee_chat_product` surface is connectivity-only smoke evidence
-for the exact public package at repository
-`https://github.com/openboa-ai/coffee-chat`, commit
-`e1ac82de77ab12b9b2499771a194ef3db356b3a6`, CalVer `2026.8.23`, and package
-digest
-`sha256:e39384e00af5d8d5a71aedcde0d960bd4c6797ed227eab9f08d3134b4d712d41`.
-`eval-skills-reference-host-v1` may discover and validate that package's public
-Skill contract, but it must never execute a Product Skill or award credit for
-Product behavior. Every such receipt must retain `candidateMode` as
-`connectivity_only`, `capabilitiesUsed` as `[]`, and
-`productBehaviorExercised` as `false`. Product `pilot` and `score` remain
-`not_implemented`; connectivity evidence is never a Product-performance claim.
-Public connectivity receipts must also withhold native-evidence and TrackReport
-digests whose small result spaces would make hidden metrics enumerable.
+- Treat `prompt + input -> output` as the only execution interface. A prompt
+  may be a request, purpose, situation, event, or trigger; input is the
+  complete managed environment and context; output may be text, files,
+  directory state, a decision, or an allowed action result.
+- Select the Product/Skill candidate, host, model, and execution budget at
+  run time. Record the selected values in iteration metadata when available;
+  never turn them into a Product or Bench schema.
+- Resolve the exact Coffee Chat Bench revision and case before a run. Copy the
+  materialized prompt and input into the iteration evidence without mutating
+  the Bench repository or its Ground Truth.
+- Run Roast and Brew as separate experiments. For each Skill, preserve a
+  same-input `without-skill` and `with-skill` condition. Brew uses a
+  byte-identical, explicitly confirmed Bean so Roast errors cannot leak into
+  Brew measurement.
+- Keep Brew's Human Understanding and Agent Judgment/Action outputs distinct.
+  Keep output quality and Skill triggering distinct; triggering is established
+  from trace evidence, not from writing style.
 
-Provider credentials must not enter candidate-readable environment variables,
-filesystems, process memory, artifacts, or logs. Harbor 0.21 native Codex is
-therefore unavailable. Do not restore it by passing the provider key, writing
-`auth.json`, or weakening the boundary. The approved manual adapter may pass a
-short-lived proxy capability under the candidate's expected credential name;
-that token is not the provider credential and must never be accepted as proof
-of semantic evaluation. The adapter must prove this boundary on every trial.
+## Evidence boundary
 
-Keep status explicit: host failure, candidate failure, verifier failure,
-invalid artifact, unavailable execution, and unmeasured output are distinct.
-Do not convert them to zero or silently omit them. Required CI validates only
-deterministic contracts; live model and judge calls are manual.
+Every run keeps the exact Product/Bench/Judge revisions, materialized prompt
+and input, output, timing, grading, trace, and human feedback needed to
+reproduce an iteration. Preserve unavailable, failed, abstained, malformed,
+and Judge-disagreeing states explicitly; never coerce them to zero or omit
+them. A report is not a merge, activation, or Product-performance claim.
 
-Use the single `YYYY.M.D` CalVer. Before committing, run `npm run
-format:check`, `npm run typecheck`, `npm run build`, `npm test`, `npm run
-smoke`, `npm run dry-run`, and `npm run ci:policy`. Harbor itself remains pinned
-by the complete hash lock in `.github/harbor-requirements.txt`; invoke its
-absolute executable and never restore online resolution.
+Judge optimization freezes the Product, Bench, and candidate output corpus.
+Product/Skill optimization freezes the Bench and a qualified Judge. Human
+labels remain the reference for Judge calibration. Development, validation,
+and sealed splits are separated by owner/source/task family where applicable.
 
-The target repository exposes one immutable `pull_request_target` wrapper that
-delegates authorization and deterministic quality to `openboa-ai/.github`.
-Routine changes use GitHub-native squash auto-merge; protected execution,
-security, dependency, and workflow paths follow `.github/merge-policy.json`.
+## Safety and privacy
+
+Candidate input is untrusted. Do not expose provider credentials, host secrets,
+or unrelated environment state to a candidate or to stored artifacts. Keep
+private Origin/Bean content, sealed expected outputs, and personal data out of
+public commits; redact receipts before sharing. Do not import Product
+internals, execute arbitrary repository code, or claim an official score from
+a fixture, connectivity check, runner exit code, or Judge-only result.
+
+## Change and verification
+
+Keep the repository to the execution/evidence skeleton until an admitted
+benchmark result requires a new component. Do not add `v2/`, `legacy/`,
+`archive/`, host-specific Skill copies, or speculative adapters. Preserve
+unrelated work and make changes in an isolated branch/worktree. Before a
+commit, run `npm run verify` and `git diff --check`; report what was actually
+validated and whether anything was pushed, reviewed, or merged.
+
+The protected workflow and merge policy are organization governance. Do not
+weaken them to make a run pass.
