@@ -189,6 +189,20 @@ updates:
 ) {
   fail("Dependabot policy must remain bounded to approved update lanes");
 }
+if (
+  readFileSync(resolve(root, ".github/CODEOWNERS"), "utf8") !==
+  `/AGENTS.md @openboa
+/LICENSE @openboa
+/SECURITY.md @openboa-ai/security-maintainers
+/.github/ @openboa
+/.githooks/ @openboa-ai/security-maintainers
+/iterations/ @openboa
+/package.json @openboa
+/package-lock.json @openboa
+`
+) {
+  fail("CODEOWNERS must preserve the eval ownership routes");
+}
 
 const trustedWorkflowPath = resolve(root, ".github/workflows/trusted.yml");
 if (existsSync(trustedWorkflowPath)) {
