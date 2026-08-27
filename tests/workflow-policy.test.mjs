@@ -10,7 +10,7 @@ import { promisify } from "node:util";
 const execFileAsync = promisify(execFile);
 const repositoryRoot = fileURLToPath(new URL("../", import.meta.url));
 const checker = join(repositoryRoot, ".github/ci-policy.mjs");
-const CENTRAL_CONTROL_SHA = "4c1d9742f8083a825b94e7d2cfa389eb5930a70e";
+const CENTRAL_CONTROL_SHA = "d6d8b73b4c1da5f57daa46d32a9f253cd0ef6a4a";
 
 async function withFixture(mutate, check) {
   const fixture = await mkdtemp(join(tmpdir(), "eval-policy-"));
