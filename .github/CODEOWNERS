@@ -1,9 +1,9 @@
-/AGENTS.md @openboa
-/LICENSE @openboa
-/README.md @openboa
-/SECURITY.md @openboa-ai/security-maintainers
-/.github/ @openboa
-/.githooks/ @openboa-ai/security-maintainers
-/iterations/ @openboa
-/package.json @openboa
-/package-lock.json @openboa
+/AGENTS.md @openboa @SonSangjoon
+/LICENSE @openboa @SonSangjoon
+/README.md @openboa @SonSangjoon
+/SECURITY.md @openboa-ai/security-maintainers @SonSangjoon
+/.github/ @openboa @SonSangjoon
+/.githooks/ @openboa-ai/security-maintainers @SonSangjoon
+/iterations/ @openboa @SonSangjoon
+/package.json @openboa @SonSangjoon
+/package-lock.json @openboa @SonSangjoon
