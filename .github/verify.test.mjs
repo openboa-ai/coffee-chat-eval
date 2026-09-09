@@ -30,6 +30,17 @@ for (const path of [".github/product-behavior.js", ".githooks/eval-results.json"
   });
 }
 
+for (const path of ["LICENSE", "AGENTS.md", "SECURITY.md"]) {
+  test(`rejects a directory replacing the file: ${path}`, () => {
+    const result = fixture((root) => {
+      rmSync(join(root, path));
+      mkdirSync(join(root, path));
+      writeFileSync(join(root, path, "eval-results.json"), "{}");
+    });
+    assert.notEqual(result.status, 0, result.stdout);
+  });
+}
+
 test("accepts the current repository contract", () => {
   const result = fixture();
   assert.equal(result.status, 0, result.stderr);
