@@ -23,6 +23,13 @@ function fixture(mutate = () => {}) {
   } finally { rmSync(root, { recursive: true, force: true }); }
 }
 
+for (const path of [".github/product-behavior.js", ".githooks/eval-results.json"]) {
+  test(`rejects unexpected infrastructure artifact: ${path}`, () => {
+    const result = fixture((root) => writeFileSync(join(root, path), "{}"));
+    assert.notEqual(result.status, 0, result.stdout);
+  });
+}
+
 test("accepts the current repository contract", () => {
   const result = fixture();
   assert.equal(result.status, 0, result.stderr);
