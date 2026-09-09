@@ -143,3 +143,15 @@ preserved evidence.
 Evaluation definitions and documentation are MIT licensed, Copyright © 2026
 Openboa AI. Private run evidence and any input content retain their applicable
 rights and must not be committed here.
+
+## Repository verification
+
+Run `npm ci --ignore-scripts --no-bin-links`, then `npm run verify`.
+The checks and regressions in `.github/verify.mjs` and `.github/verify.test.mjs`
+are owned here. The pinned central workflow owns security policy, execution
+isolation and approval; it does not define this repository's product or data
+layout. Existing CODEOWNERS routes and protected paths remain in force.
+
+The same verify command runs locally and in the isolated CI lane. A changed
+central pin needs control review; never remove a required check to upgrade it.
+Structural CI success does not establish benchmark validity or Product lift.

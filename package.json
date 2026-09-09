@@ -6,6 +6,6 @@
   "description": "Clean-context evaluation runner and evidence store for Coffee Chat Product and Judge iterations.",
   "scripts": {
     "hooks:install": "git config core.hooksPath .githooks",
-    "verify": "node .github/ci-policy.mjs"
+    "verify": "node --test .github/verify.test.mjs && node .github/verify.mjs"
   }
 }

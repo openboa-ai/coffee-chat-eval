@@ -7,14 +7,21 @@
   },
   "merge_method": "squash",
   "merge_queue": false,
-  "required_events": ["pull_request"],
+  "required_events": [
+    "pull_request"
+  ],
   "required_approvals": 0,
   "review_policy": {
     "default_required_approvals": 0,
     "sensitive_paths_use_protected_environment": true
   },
-  "eligible_author_associations": ["OWNER", "MEMBER"],
-  "eligible_bot_logins": ["dependabot[bot]"],
+  "eligible_author_associations": [
+    "OWNER",
+    "MEMBER"
+  ],
+  "eligible_bot_logins": [
+    "dependabot[bot]"
+  ],
   "protected_paths": [
     ".github/**",
     ".githooks/**",
@@ -28,7 +35,9 @@
     ".npmrc",
     "npm-shrinkwrap.json",
     "package-lock.json",
-    "package.json"
+    "package.json",
+    "/.gitignore",
+    "/.gitattributes"
   ],
   "required_checks": [
     {
@@ -41,5 +50,6 @@
     "environment": "coffee-security",
     "required_approvals": 1,
     "prevent_self_review": false
-  }
+  },
+  "required_code_owner_reviews": 1
 }
