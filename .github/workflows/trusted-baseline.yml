@@ -1,0 +1,20 @@
+name: Trusted repository CI
+
+on:
+  pull_request_target:
+    branches: [main]
+    types: [opened, synchronize, reopened, edited]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: trusted-baseline-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  trusted-baseline:
+    name: trusted-baseline
+    uses: openboa-ai/.github/.github/workflows/repository-baseline.yml@83967987ca23cc8b8eda60975eda320e434fb7bd
