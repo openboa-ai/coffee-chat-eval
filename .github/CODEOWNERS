@@ -1,0 +1,8 @@
+# Review ownership is limited to infrastructure and policy.
+/.github/ @SonSangjoon
+/AGENTS.md @SonSangjoon
+/SECURITY.md @SonSangjoon
+/CODEOWNERS @SonSangjoon
+/docs/CODEOWNERS @SonSangjoon
+/.gitleaks* @SonSangjoon
+/.githooks/ @SonSangjoon

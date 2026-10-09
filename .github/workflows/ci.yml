@@ -1,0 +1,62 @@
+name: Repository CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: repository-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  baseline:
+    name: Repository baseline
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out pinned shared tooling
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: openboa-ai/.github
+          ref: 700dacb7d811a080cb49bb4a81a9d5f437d697fd
+          persist-credentials: false
+          path: controls
+      - name: Check out candidate source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+          path: candidate
+      - name: Install checksum-verified workflow linter
+        run: bash controls/.github/scripts/install-actionlint.sh
+      - name: Validate workflow syntax
+        shell: bash
+        run: |
+          shopt -s nullglob
+          workflows=(candidate/.github/workflows/*.yml candidate/.github/workflows/*.yaml)
+          test "${#workflows[@]}" -gt 0
+          actionlint -shellcheck= -pyflakes= "${workflows[@]}"
+      - name: Check whitespace
+        working-directory: candidate
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          if test -n "$BASE_SHA"; then
+            git diff --check "$BASE_SHA...$HEAD_SHA"
+          else
+            git show --check --format= "$HEAD_SHA"
+          fi
+      - name: Install checksum-verified secret scanner
+        run: bash controls/.github/scripts/install-gitleaks.sh
+      - name: Check source for secrets using trusted rules
+        run: >-
+          gitleaks dir --config "$GITLEAKS_TRUSTED_CONFIG"
+          --gitleaks-ignore-path /dev/null --ignore-gitleaks-allow
+          --redact --no-banner candidate
